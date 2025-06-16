@@ -3,7 +3,7 @@ name: Deploy
 on:
   push:
     branches:
-      - main  # Or master, depending on your repository's default branch
+      - main
 
 jobs:
   build:
@@ -12,7 +12,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Not needed if last_modified_at is not used
+          fetch-depth: 0
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
@@ -23,7 +23,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '18' # Or a later version if needed
+          node-version: '18'
           cache: 'npm'
 
       - name: Install Node.js dependencies
@@ -52,5 +52,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
-    # A new comment to trigger the action
