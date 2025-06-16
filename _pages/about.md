@@ -27,9 +27,7 @@ latest_posts:
   limit: 3 # leave blank to include all the blog posts
 ---
 
-I am an Assistant Professor in UIUC School of Information Science. I am working on causal data science and its application to trustworthy AI and healthcare science. 
-
-
+I am an Assistant Professor in UIUC School of Information Science. I am working on causal data science and its application to trustworthy AI and healthcare science.
 
 Write your biography here. Tell the world about yourself. Link to your favorite [subreddit](http://reddit.com). You can put a picture in, too. The code is already in, just name your picture `prof_pic.jpg` and put it in the `img/` folder.
 
