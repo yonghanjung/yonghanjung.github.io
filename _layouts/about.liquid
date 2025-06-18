@@ -35,29 +35,38 @@ layout: default
         {% endif %}
 
         <div class="social-icons">
-  {%- if site.email -%}
-  <a href="mailto:{{ site.email | escape_url }}" title="email"><i class="fas fa-envelope"></i></a>
-  {%- endif -%}
+          {%- if site.email -%}
+            <a href="mailto:{{ site.email | escape_url }}" title="email"><i class="fas fa-envelope"></i></a>
+          {%- endif -%}
 
-  {%- if site.social -%}
-    {%- for social in site.social -%}
-      {%- if social[1] -%}
-        {%- if social[0] == 'scholar' -%}
-          <a href="https://scholar.google.com/citations?user={{ social[1] }}" title="Google Scholar" target="_blank" rel="noopener noreferrer"><i class="ai ai-google-scholar"></i></a>
-        {%- elsif social[0] == 'github' -%}
-          <a href="https://github.com/{{ social[1] }}" title="GitHub" target="_blank" rel="noopener noreferrer"><i class="fab fa-github"></i></a>
-        {%- elsif social[0] == 'twitter' -%}
-          <a href="https://twitter.com/{{ social[1] }}" title="Twitter" target="_blank" rel="noopener noreferrer"><i class="fab fa-twitter"></i></a>
-        {%- elsif social[0] == 'bluesky' -%}
-          <a href="https://bsky.app/profile/{{ social[1] }}" title="Bluesky" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-bluesky"></i></a>
-        {%- elsif social[0] == 'linkedin' -%}
-          <a href="https://www.linkedin.com/in/{{ social[1] }}" title="LinkedIn" target="_blank" rel="noopener noreferrer"><i class="fab fa-linkedin"></i></a>
-        {%- endif -%}
-      {%- endif -%}
-    {%- endfor -%}
-  {%- endif -%}
-</div>
-
+          {%- if site.social -%}
+            {%- for social in site.social -%}
+              {%- if social[1] -%}
+                {%- if social[0] == 'scholar' -%}
+                  <a href="https://scholar.google.com/citations?user={{ social[1] }}" title="Google Scholar" target="_blank" rel="noopener noreferrer"
+                    ><i class="ai ai-google-scholar"></i
+                  ></a>
+                {%- elsif social[0] == 'github' -%}
+                  <a href="https://github.com/{{ social[1] }}" title="GitHub" target="_blank" rel="noopener noreferrer"
+                    ><i class="fab fa-github"></i
+                  ></a>
+                {%- elsif social[0] == 'twitter' -%}
+                  <a href="https://twitter.com/{{ social[1] }}" title="Twitter" target="_blank" rel="noopener noreferrer"
+                    ><i class="fab fa-twitter"></i
+                  ></a>
+                {%- elsif social[0] == 'bluesky' -%}
+                  <a href="https://bsky.app/profile/{{ social[1] }}" title="Bluesky" target="_blank" rel="noopener noreferrer"
+                    ><i class="fa-brands fa-bluesky"></i
+                  ></a>
+                {%- elsif social[0] == 'linkedin' -%}
+                  <a href="https://www.linkedin.com/in/{{ social[1] }}" title="LinkedIn" target="_blank" rel="noopener noreferrer"
+                    ><i class="fab fa-linkedin"></i
+                  ></a>
+                {%- endif -%}
+              {%- endif -%}
+            {%- endfor -%}
+          {%- endif -%}
+        </div>
       </div>
     {% endif %}
 
