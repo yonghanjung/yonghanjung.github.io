@@ -23,3 +23,9 @@ $max-content-width: {{ site.max_width }};
   "tabler-icons/tabler-icons-filled.scss",
   "tabler-icons/tabler-icons-outline.scss"
 ;
+
+// Custom styles for the profile info box
+.profile .more-info p {
+  font-size: 0.9rem !important;  // 원하는 크기로 숫자를 조절하세요.
+  margin-bottom: 0rem;       // 문단 간격입니다.
+}
