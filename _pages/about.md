@@ -30,8 +30,9 @@ latest_posts:
 I am Yonghan Jung, an assistant professor in the School of Information Science and a leader of the **Causal Data Science Lab** at UIUC. I received my Ph.D. in computer science from Purdue University and was a member of the <a href='https://causalai.net/'>Causal Artificial Intelligence Lab</a> (director: Elias Bareinboim) at Columbia University. I am working on causal data science and its application to trustworthy AI and healthcare science.
 
 The **Causal Data Science Lab** addresses the full spectrum of causal inference, from foundational theory to real-world applications. Our primary research interests include:
-1. Developing causal effect estimation frameworks in diverse and practical scenarios. 
-2. Adapting causal inference methods to handle complex data modalities. 
+
+1. Developing causal effect estimation frameworks in diverse and practical scenarios.
+2. Adapting causal inference methods to handle complex data modalities.
 3. Advancing trustworthy AI through causal reasoning.
 4. Designing causal agents for end-to-end inference and decision-making.
 
