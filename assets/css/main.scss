@@ -29,3 +29,17 @@ $max-content-width: {{ site.max_width }};
   font-size: 0.9rem !important;  // 원하는 크기로 숫자를 조절하세요.
   margin-bottom: 0rem;       // 문단 간격입니다.
 }
+
+// Custom styles for social icons under the profile picture
+.profile .social-icons {
+  text-align: center;
+  margin-top: 1rem;
+}
+.profile .social-icons a {
+  margin: 0 0.6rem;
+  font-size: 1.5rem;
+  color: var(--global-text-color);
+}
+.profile .social-icons a:hover {
+  color: var(--global-theme-color);
+}

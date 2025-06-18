@@ -641,3 +641,19 @@ jsonresume:
   - languages
   - interests
   - references
+
+# --------------------------------------------------------------------
+# 여기부터 맨 아래에 추가하세요 (Add this section at the bottom)
+# --------------------------------------------------------------------
+
+# 연락받을 이메일 주소
+email: yhansjung@gmail.com
+
+# 소셜 미디어 링크
+social:
+  scholar: D9ATOa4AAAAJ # 구글 스칼라 ID (앞의 #을 지우고 사용하세요)
+  github: yonghanjung # 깃허브 아이디
+  twitter: YonghanJung # X(트위터) 아이디 (앞의 #을 지우고 사용하세요)
+  bluesky: yonghanjung.bsky.social # 블루스카이 핸들
+  linkedin: yhansjung # 링크드인 ID
+  
