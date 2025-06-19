@@ -67,13 +67,13 @@ $max-content-width: {{ site.max_width }};
   margin-top: 0.25rem;
   color: var(--global-text-color) !important;
   text-decoration: none !important;
-  cursor: pointer;
+  // cursor: pointer;
 }
 
-.keyword-badge:hover {
-  background-color: var(--global-theme-color);
-  color: var(--global-btn-text-color) !important;
-}
+// .keyword-badge:hover {
+//   background-color: var(--global-theme-color);
+//   color: var(--global-btn-text-color) !important;
+// }
 
 // publications 페이지에서 'author' 클래스 안의 내 이름만 정확히 타겟하여 강조
 .publications .bibliography li .author em {
