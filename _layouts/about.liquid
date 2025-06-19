@@ -43,9 +43,7 @@ layout: default
             {%- for social in site.social -%}
               {%- if social[1] -%}
                 {%- if social[0] == 'scholar' -%}
-                  <a href="https://scholar.google.com/citations?user={{ social[1] }}" title="Google Scholar" target="_blank" rel="noopener noreferrer"
-                    ><i class="ai ai-google-scholar"></i
-                  ></a>
+                  <a href="https://scholar.google.com/citations?hl=en&user={{ social[1] }}&view_op=list_works&sortby=pubdate" title="Google Scholar" target="_blank" rel="noopener noreferrer"><i class="ai ai-google-scholar"></i></a>
                 {%- elsif social[0] == 'github' -%}
                   <a href="https://github.com/{{ social[1] }}" title="GitHub" target="_blank" rel="noopener noreferrer"
                     ><i class="fab fa-github"></i
