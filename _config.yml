@@ -151,6 +151,8 @@ collections:
     output: true
   projects:
     output: true
+  talks: # <--- 이 부분을 추가하세요
+    output: true
 
 # -----------------------------------------------------------------------------
 # Jekyll settings

@@ -77,3 +77,98 @@
   pdf={R_14.pdf}
 }
 
+
+@inproceedings{jung2024unified,
+  title={Unified covariate adjustment for causal inference},
+  author={Jung, Yonghan and Tian, Jin and Bareinboim, Elias},
+  booktitle={Advances in Neural Information Processing Systems (NeurIPS)},
+  volume={37},
+  pages={6448--6499},
+  year={2024},
+  bibtex_show={true},
+  abbr={NeurIPS},
+  keyword1={estimation},
+  keyword2={ID},
+  rid={R-13},
+  html={https://neurips.cc/virtual/2024/poster/94547},
+  preview={R_13.jpg},
+  poster={R_13_poster.pdf},
+  pdf={R_13.pdf},
+  abstract={Causal effect identification and estimation are two crucial tasks in causal inference. Although causal effect identification has been theoretically resolved, many existing estimators only address a subset of scenarios, known as the sequential back-door adjustment (SBD) (Pearl and Robins, 1995) or g-formula (Robins, 1986). Recent efforts for developing general-purpose estimators with broader coverage, incorporating the front-door adjustment (FD) (Pearl, 2000) and more, lack scalability due to the high computational cost of summing over high-dimensional variables. In this paper, we introduce a novel approach that achieves broad coverage of causal estimands beyond the SBD, incorporating various sum-product functionals like the FD, while maintaining scalability -- estimated in polynomial time relative to the number of variables and samples. Specifically, we present the class of UCA for which a scalable and doubly robust estimator is developed. In particular, we illustrate the expressiveness of UCA for a wide spectrum of causal estimands (e.g., SBD, FD, and more) in causal inference. We then develop an estimator that exhibits computational efficiency and doubly robustness. The scalability and robustness of the proposed framework are verified through simulations.}
+}
+
+@misc{jung2023short,
+  title={A Short Note on Finite Sample Analysis on Double/Debiased Machine Learning},
+  author={Jung, Yonghan},
+  year={2023},
+  keyword1={estimation},
+  html={https://openreview.net/forum?id=QMGWz-B5E6J},
+  rid={R-12},
+  bibtex_show={true},
+  abstract={This note provides learning guarantees for sample-splitting-based estimators, which include double/debiased machine learning (DML) (Chernozhukov et al., 2018) estimators. We prove consistency and Gaussian approximation of estimators using finite-sample arguments, extending the general asymptotic theory. Our work extends previous research (Chernozhukov et al., 2023; Quintas-Martinez, 2022) that studied learning guarantees for the expected linear functional in general sample-splitting-based estimators.},
+  pdf={R_12.pdf},
+  preview={R_12.jpg},
+  abbr={tech-report}
+}
+
+@inproceedings{jung2023estimating,
+  title={Estimating causal effects identifiable from a combination of observations and experiments},
+  author={Jung, Yonghan and D{\'\i}az, Iv{\'a}n and Tian, Jin and Bareinboim, Elias},
+  booktitle={Advances in Neural Information Processing Systems (NeurIPS)},
+  volume={36},
+  pages={46446--46490},
+  year={2023},
+  abbr={NeurIPS},
+  bibtex_show={true},
+  rid={R-11},
+  html={https://proceedings.neurips.cc/paper_files/paper/2023/hash/917d55788726131e3bb21bf39d477f58-Abstract-Conference.html},
+  abstract={Learning cause and effect relations is arguably one of the central challenges found throughout the data sciences.Formally, determining whether a collection of observational and interventional distributions can be combined to learn a target causal relation is known as the problem of generalized identification (or g-identification) [Lee et al., 2019]. Although g-identification has been well understood and solved in theory, it turns out to be challenging to apply these results in practice, in particular when considering the estimation of the target distribution from finite samples. In this paper, we develop a new, general estimator that exhibits multiply robustness properties for g-identifiable causal functionals. Specifically, we show that any g-identifiable causal effect can be expressed as a function of generalized multi-outcome sequential back-door adjustments that are amenable to estimation. We then construct a corresponding estimator for the g-identification expression that exhibits robustness properties to bias. We analyze the asymptotic convergence properties of the estimator. Finally, we illustrate the use of the proposed estimator in experimental studies. Simulation results corroborate the theory.},
+  keyword1={fusion},
+  keyword2={estimation},
+  keyword3={ID},
+  pdf={R_11.pdf},
+  poster={R_11_poster.pdf},
+  preview={R_11.jpg},
+  slides={2023F-QM-ICML23MTE-Yonghan.pdf}
+}
+
+@inproceedings{jung2023estimating,
+  title={Estimating joint treatment effects by combining multiple experiments},
+  author={Jung, Yonghan and Tian, Jin and Bareinboim, Elias},
+  booktitle={International Conference on Machine Learning (ICML)},
+  pages={15451--15527},
+  year={2023},
+  abbr={ICML},
+  bibtex_show={true},
+  rid={R-10},
+  html={https://proceedings.mlr.press/v202/jung23c.html},
+  pdf={},
+  keyword1={fusion},
+  keyword2={estimation},
+  keyword3={ID},
+  pdf={R_10.pdf},
+  poster={R_10_poster.pdf},
+  preview={R_10.jpg},
+  abstract={Estimating the effects of multi-dimensional treatments (i.e., joint treatment effects) is critical in many data-intensive domains, including genetics and drug evaluation. The main challenges for studying the joint treatment effects include the need for large sample sizes to explore different treatment combinations as well as potentially unsafe treatment interactions. In this paper, we develop machinery for estimating joint treatment effects by combining data from multiple experimental datasets. In particular, first, we develop new identification conditions for determining whether a joint treatment effect can be computed in terms of multiple interventional distributions under various scenarios. Further, we develop estimators with statistically appealing properties, including consistency and robustness to model misspecification and slow convergence. Finally, we perform simulation studies, which corroborate the effectiveness of the proposed methods.}
+}
+
+@inproceedings{jung2022measuring,
+  title={On measuring causal contributions via do-interventions},
+  author={Jung, Yonghan and Kasiviswanathan, Shiva and Tian, Jin and Janzing, Dominik and Bl{\"o}baum, Patrick and Bareinboim, Elias},
+  booktitle={International Conference on Machine Learning (ICML)},
+  pages={10476--10501},
+  year={2022},
+  abbr={ICML},
+  bibtex_show={true},
+  rid={R-9},
+  html={https://proceedings.mlr.press/v162/jung22a.html},
+  pdf={},
+  keyword1={trustworthy},
+  keyword2={estimation},
+  keyword3={ID},
+  pdf={R_9.pdf},
+  poster={R_9_poster.pdf},
+  preview={R_9.jpg},
+  abstract={Estimating the effects of multi-dimensional treatments (i.e., joint treatment effects) is critical in many data-intensive domains, including genetics and drug evaluation. The main challenges for studying the joint treatment effects include the need for large sample sizes to explore different treatment combinations as well as potentially unsafe treatment interactions. In this paper, we develop machinery for estimating joint treatment effects by combining data from multiple experimental datasets. In particular, first, we develop new identification conditions for determining whether a joint treatment effect can be computed in terms of multiple interventional distributions under various scenarios. Further, we develop estimators with statistically appealing properties, including consistency and robustness to model misspecification and slow convergence. Finally, we perform simulation studies, which corroborate the effectiveness of the proposed methods.},
+  slides={2024-Samsung-shared.pdf}
+}
