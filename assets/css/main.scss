@@ -43,3 +43,33 @@ $max-content-width: {{ site.max_width }};
 .profile .social-icons a:hover {
   color: var(--global-theme-color);
 }
+
+// Custom styles for publication reference IDs
+.publication-id {
+  font-weight: bold;
+  font-size: 1rem;
+  color: var(--global-theme-color);
+  margin-bottom: 0.25rem;
+}
+
+// Custom styles for publication keywords
+.keywords {
+  margin-top: 0.5rem;
+}
+
+.keyword-badge {
+  display: inline-block;
+  background-color: var(--global-divider-color);
+  padding: 0.1rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  margin-right: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+// publications 페이지에서 내 이름을 강조하는 스타일
+.publications .bibliography li strong {
+  color: var(--global-theme-color); // 테마의 대표 색상으로 변경합니다.
+  text-decoration: none;          // 밑줄을 원하지 않으면 이 줄을 유지
+  /* text-decoration: underline; */   // 밑줄을 원하면 위 줄을 지우고 이 줄의 주석을 해제하세요.
+}

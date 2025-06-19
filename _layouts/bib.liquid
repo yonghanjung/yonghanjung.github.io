@@ -48,6 +48,9 @@
   <!-- Entry bib key -->
   <div id="{{ entry.key }}" class="{% if site.enable_publication_thumbnails %}col-sm-8{% else %}col-sm-10{% endif %}">
     <!-- Title -->
+    {%- if entry.rid -%}
+      <div class="publication-id">{{- entry.rid -}}</div>
+    {%- endif -%}
     <div class="title">{{ entry.title }}</div>
     <!-- Author -->
     <div class="author">
@@ -181,6 +184,13 @@
     <div class="periodical">
       {{ periodical | strip }}
     </div>
+    {%- if entry.keywords -%}
+      <div class="keywords">
+        {% for keyword in entry.keywords %}
+          <span class="keyword-badge">{{ keyword | lstrip | rstrip }}</span>
+        {% endfor %}
+      </div>
+    {%- endif -%}
     <div class="periodical">
       {{ entry.note | strip }}
     </div>

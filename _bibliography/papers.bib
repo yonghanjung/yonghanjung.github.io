@@ -3,6 +3,23 @@
 
 @string{aps = {American Physical Society,}}
 
+@inproceedings{kim2025sufficient,
+  title={Sufficient invariant learning for distribution shift},
+  author={Kim, Taero and Park, Subeen and Lim, Sungjun and Jung, Yonghan and Muandet, Krikamol and Song, Kyungwoo},
+  booktitle={Proceedings of the Computer Vision and Pattern Recognition Conference (CVPR)},
+  pages={4958--4967},
+  year={2025},
+  pdf={R_16.pdf},
+  html = {https://openaccess.thecvf.com/content/CVPR2025/html/Kim_Sufficient_Invariant_Learning_for_Distribution_Shift_CVPR_2025_paper.html},
+  preview={R_16.jpg},
+  keywords={CRL, OOD},  
+  abbr={CVPR},
+  code={https://github.com/MLAI-Yonsei/SIL-ASGDRO},
+  rid={R-16},
+  bibtex_show={true},
+  abstract={Learning robust models under distribution shifts between training and test datasets is a fundamental challenge in machine learning. While learning invariant features across environments is a popular approach, it often assumes that these features are fully observed in both training and test sets-a condition frequently violated in practice. When models rely on invariant features absent in the test set, their robustness in new environments can deteriorate. To tackle this problem, we introduce a novel learning principle called the Sufficient Invariant Learning (SIL) framework, which focuses on learning a sufficient subset of invariant features rather than relying on a single feature. After demonstrating the limitation of existing invariant learning methods, we propose a new algorithm, Adaptive Sharpness-aware Group Distributionally Robust Optimization (ASGDRO), to learn diverse invariant features by seeking common flat minima across the environments. We theoretically demonstrate that finding a common flat minima enables robust predictions based on diverse invariant features. Empirical evaluations on multiple datasets, including our new benchmark, confirm ASGDRO's robustness against distribution shifts, highlighting the limitations of existing methods.}
+}
+
 @book{einstein1920relativity,
   title={Relativity: the Special and General Theory},
   author={Einstein, Albert},
