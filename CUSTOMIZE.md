@@ -32,7 +32,7 @@ The project is structured as follows, focusing on the main components that you w
 ├── 📂 _projects/: contains the projects
 └── 📂 _sass/: contains the SASS files that define the style of the website
     ├── 📄 _base.scss: base style of the website
-    ├── 📄 _cv.scss: style of the CV page
+    ├── 📄 _.scss: style of the CV page
     ├── 📄 _distill.scss: style of the Distill articles
     ├── 📄 _layout.scss: style of the overall layout
     ├── 📄 _themes.scss: themes colors and a few icons
