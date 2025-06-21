@@ -11,7 +11,7 @@ assets/libs/
 node_modules/
 vendor
 .idea
-.pdf
 .jpg
 .png
 .json
+_data/*.yml
