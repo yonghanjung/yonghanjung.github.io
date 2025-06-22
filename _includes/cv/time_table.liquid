@@ -1,54 +1,31 @@
-<ul class="time-table">
-  {% for content in entry.contents %}
-    <li>
-      <div class="row">
-        <div class="col-md-3">
-          {% if content.year %}
-            <h4 class="text-right">{{ content.year }}</h4>
-          {% endif %}
-        </div>
-        <div class="col-md-9">
-          <p>
-            {% if content.title %}
-              <span class="font-weight-bold">{{ content.title }}</span>
-            {% endif %}
-            {% if content.institution %}
-              <span class="font-italic">, {{ content.institution }}</span>
-            {% endif %}
-          </p>
-          {% if content.description %}
-            <ul class="items">
-              {% for item in content.description %}
-                <li>
-                  {% if item.title %}
-                    <span class="font-weight-bold">{{ item.title }}</span>
-                  {% endif %}
-                  {% if item.contents %}
-                    <ul class="subitems">
-                      {% for subitem in item.contents %}
-                        <li>
-                          <span class="subitem">{{ subitem }}</span>
-                        </li>
-                      {% endfor %}
-                    </ul>
-                  {% else %}
-                    <span class="item">{{ item }}</span>
-                  {% endif %}
-                </li>
-              {% endfor %}
-            </ul>
-          {% endif %}
-          {% if content.items %}
-            <ul class="items">
-              {% for item in content.items %}
-                <li>
-                  <span class="item">{{ item }}</span>
-                </li>
-              {% endfor %}
-            </ul>
-          {% endif %}
-        </div>
-      </div>
-    </li>
-  {% endfor %}
-</ul>
+{%- for content in entry.contents -%}
+  <div class="row cv-item">
+    <div class="col-md-2 text-md-right">
+      {%- if content.year -%}
+        <span class="cv-year">{{ content.year }}</span>
+      {%- endif -%}
+    </div>
+    <div class="col-md-10">
+      {%- if content.title -%}
+        <p class="cv-title font-weight-bold">{{ content.title }}</p>
+      {%- endif -%}
+      {%- if content.institution -%}
+        <p class="cv-institution font-italic">{{ content.institution }}</p>
+      {%- endif -%}
+      {%- if content.description -%}
+        <ul class="cv-description">
+          {%- for item in content.description -%}
+            <li>{{ item | markdownify | remove: '<p>' | remove: '</p>' }}</li>
+          {%- endfor -%}
+        </ul>
+      {%- endif -%}
+      {%- if content.items -%}
+        <ul class="cv-items">
+          {%- for item in content.items -%}
+            <li>{{ item | markdownify | remove: '<p>' | remove: '</p>' }}</li>
+          {%- endfor -%}
+        </ul>
+      {%- endif -%}
+    </div>
+  </div>
+{%- endfor -%}

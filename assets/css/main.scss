@@ -94,3 +94,28 @@ $max-content-width: {{ site.max_width }};
 #filter-status {
   font-size: 0.9rem;
 }
+
+// Custom styles for CV layout
+.cv-item {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--global-divider-color);
+}
+
+.cv-item:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.cv-year {
+  color: var(--global-text-color-light);
+  font-size: 1rem;
+}
+
+.cv-title, .cv-institution, .cv-description, .cv-items {
+  margin-bottom: 0.25rem;
+}
+
+.cv-description, .cv-items {
+  padding-left: 1.5rem; // 상세 설명 목록의 들여쓰기
+}
