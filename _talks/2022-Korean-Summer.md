@@ -4,4 +4,5 @@ venue: '<a href="https://sites.google.com/view/causal-inference2022/home?authuse
 date: 2022-07-14
 location: "online"
 slides: /assets/pdf/2022-KSWCI-pdf.pdf
+video: "https://www.youtube.com/watch?v=Pz3WEub_kAc"
 ---
