@@ -12,6 +12,7 @@ profile:
     <p> Yonghan Jung </p>
     <p> (Incoming) Assistant Professor</p>
     <p> iSchool, UIUC </p>
+    <p> Office: RM 4125, 614 E. Daniel st. </p>
 
 selected_papers: false # includes a list of papers marked as "selected={true}"
 social: false # includes social icons at the bottom of the page
