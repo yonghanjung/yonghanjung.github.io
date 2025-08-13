@@ -10,9 +10,9 @@ profile:
   image_circular: true # crops the image to make it circular
   more_info: >
     <p> Yonghan Jung </p>
-    <p> (Incoming) Assistant Professor</p>
+    <p> Assistant Professor</p>
     <p> iSchool, UIUC </p>
-    <p> Office: RM 4125, 614 E. Daniel st. </p>
+    <p> RM 4125, 614 E. Daniel st. </p>
 
 selected_papers: false # includes a list of papers marked as "selected={true}"
 social: false # includes social icons at the bottom of the page
