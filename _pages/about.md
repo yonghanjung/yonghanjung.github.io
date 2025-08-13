@@ -28,13 +28,11 @@ latest_posts:
   limit: 3 # leave blank to include all the blog posts
 ---
 
-I am Yonghan Jung, an assistant professor in the School of Information Science and a leader of the **Causal Data Science Lab** at UIUC. I received my Ph.D. in computer science from Purdue University and was a member of the <a href='https://causalai.net/'>Causal Artificial Intelligence Lab</a> (director: Elias Bareinboim) at Columbia University. I am working on causal data science and its application to trustworthy AI and healthcare science.
+I am Yonghan Jung, an assistant professor in the School of Information Science at the UIUC and the leader of the **Causal Data Science Lab**. My research focuses on developing causal data science methods to understand causal effects in complex, imperfect data, with broad applications in trustworthy AI and healthcare science. Our primary research areas include:
 
-The **Causal Data Science Lab** addresses the full spectrum of causal inference, from foundational theory to real-world applications. Our primary research interests include:
-
-1. Developing causal effect estimation frameworks in diverse and practical scenarios.
-2. Adapting causal inference methods to handle complex data modalities.
-3. Advancing trustworthy AI through causal reasoning.
-4. Designing causal agents for end-to-end inference and decision-making.
+1. **Identification and estimation under real-world imperfections** - advancing frameworks that reliably infer causal effects despite unmeasured confounding, limited overlap, or complex data-generating processes.
+2. **Robust and scalable estimation** — designing variance-stable, computationally efficient methods for large-scale and high-dimensional datasets.
+3. **Causal decision making** — developing high-stakes, trustworthy decision-making algorithms by leveraging the causal mechanisms underlying complex systems.
+4. **Causal AI for diverse modalities** — integrating causal reasoning with deep learning to enhance trustworthy causal inference methods, enabling better analysis of images, text, temporal data, and other rich data types.
 
 <!-- Link to your social media connections, too. This theme is set up to use [Font Awesome icons](https://fontawesome.com/) and [Academicons](https://jpswalsh.github.io/academicons/), like the ones below. Add your Facebook, Twitter, LinkedIn, Google Scholar, or just disable all of them. -->

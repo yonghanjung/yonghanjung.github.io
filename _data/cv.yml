@@ -13,10 +13,10 @@
   contents:
     - title: Causal Data Science
       items:
-        - Developing causal effect estimation frameworks in diverse and practical scenarios.
-        - Adapting causal inference methods to handle complex data modalities.
-        - Advancing trustworthy AI through causal reasoning.
-        - Designing causal agents for end-to-end inference and decision-making.
+        - Identification and estimation under real-world imperfections
+        - Robust and scalable estimation
+        - Causal decision making
+        - Causal AI for diverse modalities
     # - title: Topic 2.
     #   items:
     #     - Description 1.
