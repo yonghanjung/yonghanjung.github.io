@@ -30,7 +30,7 @@ Our current research agenda is organized around five main pillars:
 
 **Our Rhythm: Discipline and Consistency**
 
-Success in research does not come from irregular bursts of effort. It emerges from _steady, sustainable, disciplined, and focused work over time_. I maintain a regular research rhythm—typically Monday through Saturday, 9 AM–6 PM—and I expect students to share that dedication. This is not about watching the clock; it is about sustaining momentum and building habits that support long-term excellence. Synchronizing with daylight hours is not only healthy but also makes collaboration smoother and more effective. Just as private companies expect a standard 9-to-5 commitment, I expect the same baseline professionalism for research.
+Success in research does not come from irregular bursts of effort. It emerges from _steady, sustainable, disciplined, and focused work over time_. This is not about watching the clock; it is about sustaining momentum and building habits that support long-term excellence. Synchronizing with daylight hours is not only healthy but also makes collaboration smoother and more effective. Just as private companies expect a standard 9-to-5 commitment, I expect the same baseline professionalism for research.
 
 **Our Focus: Causal Inference First**
 
