@@ -50,7 +50,7 @@ A PhD is a marathon, not a sprint. Success in this lab requires cultivating a mi
 - _Discipline and Dedication_ — Treat your research as a top priority. Consistency, engagement, and focus are the foundation of success in research.
 - _Mental Resilience_ — Research inevitably brings setbacks, disagreements, rejections, and failed experiments. The key is to maintain steady momentum and sustained motivation, keeping your energy focused on learning from challenges rather than being derailed by them.
 - _Coachability_ — Growth requires not only accepting straightforward and frequent feedback, but also actively seeking it, reflecting on it, and implementing it quickly.
-- _Proactivity and Ownership_ — You are the driver of your research. Take ownership of projects, set agendas, report progress, and explore new directions without waiting for instructions.
+- _Proactivity and Ownership_ — Tackle your research with initiative and drive. Engage actively, explore directions boldly, and move projects forward with momentum.
 - _Growth Beyond Technical Skills_ — A PhD is an apprenticeship in becoming a professional researcher. Technical expertise is only part of success; communication, critical evaluation, and professional conduct are equally important.
 
 ---
