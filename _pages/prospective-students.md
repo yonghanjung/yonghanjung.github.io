@@ -30,7 +30,7 @@ Our current research agenda is organized around five main pillars:
 
 **Our Rhythm: Discipline and Consistency**
 
-Success in research does not come from irregular bursts of effort. It emerges from _steady, sustainable, disciplined, and focused work over time_. This is not about watching the clock; it is about sustaining momentum and building habits that support long-term excellence. Synchronizing with daylight hours is not only healthy but also makes collaboration smoother and more effective. Just as private companies expect a standard 9-to-5 commitment, I expect the same baseline professionalism for research.
+Success in research does not come from irregular bursts of effort. It emerges from steady, sustainable, disciplined, and focused work over time. This is not about watching the clock; it is about sustaining momentum and building habits that support long-term excellence. Just as most industries expect a standard 9-to-5 commitment, I expect a shared baseline of professionalism in research (and synchronizing with daylight hours is not only healthy but also makes collaboration smoother and more effective).
 
 **Our Focus: Causal Inference First**
 
