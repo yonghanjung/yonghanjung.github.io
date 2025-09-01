@@ -6,7 +6,7 @@ nav: true
 nav_order: 4
 ---
 
-(Last update: Aug.29, 2025)
+(Last update: Sep.1, 2025)
 
 ## **Welcome to the Causal Data Science Lab!**
 
@@ -30,9 +30,12 @@ Our current research agenda is organized around five main pillars:
 
 ### How We Work
 
-**Our Rhythm: Discipline and Consistency**
+**Our Attitude: Curiosity-Driven Consistency**
 
-Success in research does not come from irregular bursts of effort. It emerges from steady, sustainable, disciplined, and focused work over time. This is not about watching the clock; it is about sustaining momentum and building habits that support long-term excellence. Just as most industries expect a standard 9-to-5 commitment, I expect a shared baseline of professionalism in research (and synchronizing with daylight hours is not only healthy but also makes collaboration smoother and more effective).
+Research thrives not on raw hours, but on curiosity and passion that fuel sustainable and consistent effort. The most successful researchers are those who deeply believe in the importance of their research and field, who are driven by a curiosity that makes them unable to stop exploring, and who find joy in the process of research, so that steady and consistent progress comes naturally.
+
+**Our Rhythm: Synchronize with the Sun**
+I encourage students to synchronize with the Sun -- beginning with daylight and winding down as the sun sets. This rhythm naturally aligns with the human circadian rhythm, supports physical and mental health, strengthens communication within the lab, and fosters consistent, sustainable progress together.
 
 **Our Focus: Causal Inference First**
 
@@ -40,7 +43,7 @@ Our sole mission is to advance causal inference itself. While we employ tools su
 
 **Our Standards and Commitments**
 
-- _Shared Success —_ A student’s success is my success. I am committed to investing in your growth and helping you become an independent researcher in the causal inference community.
+- _Shared Success_ — A student’s success is my success. I am committed to investing in your growth and helping you become an independent researcher in the causal inference community.
 - _High Standards_ — Success is not only about technical excellence. It largely depends on the rigor of our methods, the depth of our analysis, the professionalism of our communication, and the kindness we show one another. We aim for excellence in all these dimensions.
 - _PhD is Earned_ — A PhD is not awarded for time served, but for demonstrating the ability to conduct independent, impactful research that advances causal data science. It is a high-risk, high-reward endeavor, and I am committed to helping you reach that bar.
 
@@ -48,18 +51,18 @@ Our sole mission is to advance causal inference itself. While we employ tools su
 
 A PhD is a marathon, not a sprint. Success in this lab requires cultivating a mindset that supports long-term growth and strong relationships with your advisor and colleagues:
 
-- _Respectful Professionalism_ — Treating others with professionalism and respectfulness is essential for building lasting relationships and thriving in research. Our lab grows when we support one another, and cultivating these qualities can be one of the most important foundations of long-term success.
-- _Discipline and Dedication_ — Treat your research as a top priority. Consistency, engagement, and focus are the foundation of success in research.
-- _Mental Resilience_ — Research inevitably brings setbacks, disagreements, rejections, and failed experiments. The key is to maintain steady momentum and sustained motivation, keeping your energy focused on learning from challenges rather than being derailed by them.
-- _Coachability_ — Growth requires not only accepting straightforward and frequent feedback, but also actively seeking it, reflecting on it, and implementing it quickly.
+- _Curiosity and Passion_ — The most successful researchers are driven by curiosity, which fuels natural, unstoppable effort and genuine passion for their work.
 - _Proactivity and Ownership_ — Tackle your research with initiative and drive. Engage actively, explore directions boldly, and move projects forward with momentum.
+- _Coachability_ — Growth requires not only accepting direct and frequent feedback, but also actively seeking it, reflecting on it, and implementing it quickly.
+- _Mental Resilience_ — Research inevitably brings setbacks, disagreements, rejections, and failed experiments. The key is to maintain steady momentum and sustained motivation, keeping your energy focused on learning from challenges rather than being derailed by them.
 - _Growth Beyond Technical Skills_ — A PhD is an apprenticeship in becoming a professional researcher. Technical expertise is only part of success; communication, critical evaluation, and professional conduct are equally important.
+- _Respectful Professionalism_ — Treating others with professionalism and respectfulness is essential for building lasting relationships and thriving in research. Our lab grows when we support one another, and cultivating these qualities can be one of the most important foundations of long-term success.
 
 ---
 
 ### Who We Are Looking For
 
-**A Genuine Passion for Causal Inference**
+**A Genuine Passion and Curiosity for Causal Inference**
 
 As emphasized in _Our Focus: Causal Inference First_, we seek colleagues who have a genuine passion and deep curiosity about causal inference itself. The ideal candidate can clearly articulate why causality excites them and why they want to dedicate their PhD journey to advancing this field.
 
@@ -69,8 +72,11 @@ Our work is grounded in mathematical formality and statistical rigor. You should
 
 **A Mindset for Growth**
 
-Pursuing a PhD is fundamentally about growth—becoming a professional and independent researcher. An ideal candidate will already embody the qualities described in _Our Mindset_, and show a strong commitment to cultivating them throughout their training.
+Pursuing a PhD is fundamentally about growth—becoming a professional and independent researcher. An ideal candidate will already embody the qualities described in Our Mindset and show a strong commitment to cultivating them throughout their training, with the mentality to accept feedback openly and reflect on it promptly without feeling burdened.
+
+**Kindness and Respect**
+Joining this lab as a PhD student means not only being part of our group in the short term, but also becoming a colleague in the broader causal inference community for the long term. We therefore seek students who share the principle of kindness and respect—treating others with consideration, fostering a supportive and collaborative environment, and helping to build a lab culture where mutual respect is the foundation of our shared success.
 
 ---
 
-**If you are deeply curious about causality, equipped with strong foundations, and eager to grow as an independent researcher, you will find a home in the Causal Data Science Lab.**
+**If you are deeply curious about causality, grounded in strong foundations, and eager to grow as an independent researcher and colleague, you will find a supportive home in the Causal Data Science Lab.**
