@@ -35,6 +35,7 @@ Our current research agenda is organized around five main pillars:
 Research thrives not on raw hours, but on curiosity and passion that fuel sustainable and consistent effort. The most successful researchers are those who deeply believe in the importance of their research and field, who are driven by a curiosity that makes them unable to stop exploring, and who find joy in the process of research, so that steady and consistent progress comes naturally.
 
 **Our Rhythm: Synchronize with the Sun**
+
 I encourage students to synchronize with the Sun -- beginning with daylight and winding down as the sun sets. This rhythm naturally aligns with the human circadian rhythm, supports physical and mental health, strengthens communication within the lab, and fosters consistent, sustainable progress together.
 
 **Our Focus: Causal Inference First**
