@@ -10,7 +10,7 @@ nav_order: 4
 
 ## **Welcome to the Causal Data Science Lab!**
 
-Our lab is built on one principle: **causal inference is our central mission.** We are curiosity-driven and inspired by problems that emerge from real-world, practical settings. To thrive here, you must bring a deep passion for causality itself, along with the discipline and resilience to pursue it through steady, rigorous work. We hold ourselves to high standards of clarity, rigor, and professionalism, and we believe that growth comes through frequent and direct feedback. We are always looking for students whose excitement about causality matches our own and who are eager to contribute to a collaborative causal inference community that pushes the frontier forward.
+Our lab is built on one principle: **causal inference is our central mission.** We are curiosity-driven and inspired by problems that emerge from real-world, practical settings. We are always looking for students whose excitement about causality matches our own and who are eager to contribute to a collaborative causal inference community that pushes the frontier forward.
 
 ---
 
