@@ -1,8 +1,49 @@
 ---
+layout: page
+permalink: /blog/
+title: blog
+nav: true
+nav_order: 5
+pagination:
+  enabled: true
+  collection: posts
+  permalink: /page/:num/
+  per_page: 5
+  sort_field: date
+  sort_reverse: true
+---
+
+<ul class="post-list">
+  {%- if page.pagination.enabled -%}
+    {%- assign posts = paginator.posts -%}
+  {%- else -%}
+    {%- assign posts = site.posts -%}
+  {%- endif -%}
+
+{%- comment -%}
+외부 피드 글(예: Medium/Google Blog)과 숨긴 글(hidden: true)은 제외
+{%- endcomment -%}
+{%- assign posts = posts | where_exp: "p", "p.external_source == blank" -%}
+{%- assign posts = posts | where_exp: "p", "p.hidden != true" -%}
+
+{%- for post in posts -%}
+<li>
+<a href="{{ post.url | relative_url }}">{{ post.title }}</a>
+<span> — {{ post.date | date: "%Y-%m-%d" }}</span>
+</li>
+{%- endfor -%}
+
+</ul>
+
+{%- if page.pagination.enabled -%}
+{%- include pagination.liquid -%}
+{%- endif -%}
+
+<!-- ---
 layout: default
 permalink: /blog/
 title: blog
-nav: false
+nav: true
 nav_order: 1
 pagination:
   enabled: true
@@ -193,4 +234,4 @@ pagination:
 {% include pagination.liquid %}
 {% endif %}
 
-</div>
+</div> -->
