@@ -27,6 +27,7 @@ pagination:
 {%- assign posts = posts | where_exp: "p", "p.hidden != true" -%}
 
 {%- for post in posts -%}
+
 <li>
 <a href="{{ post.url | relative_url }}">{{ post.title }}</a>
 <span> — {{ post.date | date: "%Y-%m-%d" }}</span>
