@@ -15,6 +15,7 @@
       items:
         - Identification and estimation under real-world imperfections
         - Robust and scalable estimation
+        - Trustworthy inference
         - Causal decision making
         - Causal AI for diverse modalities
     # - title: Topic 2.
@@ -79,12 +80,12 @@
       items:
         - '<a href="https://neurips.cc/Conferences/2024/ProgramCommittee#top-reviewers" target="_blank">Top Reviewer</a>, NeurIPS 2024'
         # - Matteucci Medal
-    - year: 2024
-      items:
-        - '<a href="http://m.raceresults360.com/#/race/A3p2Uw/X/results" target="_blank">Top 3</a> in my age group in 2024 Purdue Boilermaker Half-Marathon & 5k'
-    - year: 2024
-      items:
-        - 'Winner in my age group, <a href="https://runforjustice5k10k.itsyourrace.com/Results.aspx?id=14305&y=2024&eid=123376&g=A&amin=35&amax=44" target="_blank">Run for Justice 2024</a>'
+    # - year: 2024
+    #   items:
+    #     - '<a href="http://m.raceresults360.com/#/race/A3p2Uw/X/results" target="_blank">Top 3</a> in my age group in 2024 Purdue Boilermaker Half-Marathon & 5k'
+    # - year: 2024
+    #   items:
+    #     - 'Winner in my age group, <a href="https://runforjustice5k10k.itsyourrace.com/Results.aspx?id=14305&y=2024&eid=123376&g=A&amin=35&amax=44" target="_blank">Run for Justice 2024</a>'
     - year: 2024
       items:
         - "Graduate Teaching Award, Purdue Computer Science"
