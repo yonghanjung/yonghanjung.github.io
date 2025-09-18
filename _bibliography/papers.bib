@@ -3,19 +3,23 @@
 
 @string{aps = {American Physical Society,}}
 
-@misc{zhang2025pathspecificeffectspulseoximetryguided,
+@inproceedings{zhang2025pathspecificeffectspulseoximetryguided,
       title={Path-specific effects for pulse-oximetry guided decisions in critical care}, 
       author={Kevin Zhang and Yonghan Jung and Divyat Mahajan and Karthikeyan Shanmugam and Shalmali Joshi},
+      booktitle={Advances in Neural Information Processing Systems (NeurIPS)},
+      volume={38},
       year={2025},
       eprint={2506.12371},
       archivePrefix={arXiv},
       primaryClass={cs.LG},
       html={https://arxiv.org/abs/2506.12371}, 
       keyword1={healthcare},
+      keyword2={trustworthy},
+      keyword3={fairness},
       abstract={Identifying and measuring biases associated with sensitive attributes is a crucial consideration in healthcare to prevent treatment disparities. One prominent issue is inaccurate pulse oximeter readings, which tend to overestimate oxygen saturation for dark-skinned patients and misrepresent supplemental oxygen needs. Most existing research has revealed statistical disparities linking device errors to patient outcomes in intensive care units (ICUs) without causal formalization. In contrast, this study causally investigates how racial discrepancies in oximetry measurements affect invasive ventilation in ICU settings. We employ a causal inference-based approach using path-specific effects to isolate the impact of bias by race on clinical decision-making. To estimate these effects, we leverage a doubly robust estimator, propose its self-normalized variant for improved sample efficiency, and provide novel finite-sample guarantees. Our methodology is validated on semi-synthetic data and applied to two large real-world health datasets: MIMIC-IV and eICU. Contrary to prior work, our analysis reveals minimal impact of racial discrepancies on invasive ventilation rates. However, path-specific effects mediated by oxygen saturation disparity are more pronounced on ventilation duration, and the severity differs by dataset. Our work provides a novel and practical pipeline for investigating potential disparities in the ICU and, more crucially, highlights the necessity of causal methods to robustly assess fairness in decision-making.},
       rid={R-17},
       bibtex_show={true},
-      abbr={tech-report},
+      abbr={NeurIPS},
       preview={R_17.jpg},
       code={https://github.com/reAIM-Lab/PSE-Pulse-Oximetry}
 }
@@ -328,3 +332,4 @@
   keyword1={healthcare},
   html={https://www.sciencedirect.com/science/article/abs/pii/S1746809417300733}
 }
+
