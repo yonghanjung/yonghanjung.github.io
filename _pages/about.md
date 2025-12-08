@@ -2,7 +2,7 @@
 layout: about
 title: about
 permalink: /
-subtitle: <a href='https://ischool.illinois.edu/'>UIUC School of Information Science</a>
+subtitle: <a href='https://ischool.illinois.edu/'>UIUC School of Information Sciences</a>
 
 profile:
   align: right
@@ -28,7 +28,7 @@ latest_posts:
   limit: 3 # leave blank to include all the blog posts
 ---
 
-I am Yonghan Jung, an assistant professor in the School of Information Science at the UIUC and the leader of the **Causal Data Science Lab**.
+I am Yonghan Jung, an assistant professor in the School of Information Sciences at the UIUC and the leader of the **Causal Data Science Lab**.
 
 My research advances causal inference methodology through three core areas that address the challenges of real-world data complexity, computational scalability, and actionable decision support:
 
