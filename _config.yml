@@ -648,7 +648,7 @@ jsonresume:
 # 여기부터 맨 아래에 추가하세요 (Add this section at the bottom)
 # --------------------------------------------------------------------
 
-# 연락받을 이메일 주소 
+# 연락받을 이메일 주소
 email: yonghan@illinois.edu
 
 # 소셜 미디어 링크
@@ -659,4 +659,3 @@ social:
   bluesky: yonghanjung.bsky.social # 블루스카이 핸들
   linkedin: yhansjung # 링크드인 ID
   # thread: yonghanjung # Thread ID
-
