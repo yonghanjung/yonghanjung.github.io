@@ -23,10 +23,16 @@ layout: default
           {%- if talk.slides or talk.video -%}
             <p class="talk-links">
               {%- if talk.slides -%}
-                <a href="{{ talk.slides | relative_url }}" class="btn btn-sm z-depth-0" role="button" target="_blank">Slides</a>
+                {%- assign slides_href = talk.slides -%}
+                {%- if slides_href contains '://' -%}
+                  {%- assign slides_href = talk.slides -%}
+                {%- else -%}
+                  {%- assign slides_href = talk.slides | relative_url -%}
+                {%- endif -%}
+                <a href="{{ slides_href }}" class="btn btn-sm z-depth-0" role="button" target="_blank" rel="noopener">Slides</a>
               {%- endif -%}
               {%- if talk.video -%}
-                <a href="{{ talk.video }}" class="btn btn-sm z-depth-0" role="button" target="_blank">Video</a>
+                <a href="{{ talk.video }}" class="btn btn-sm z-depth-0" role="button" target="_blank" rel="noopener">Video</a>
               {%- endif -%}
             </p>
           {%- endif -%}
