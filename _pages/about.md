@@ -28,15 +28,19 @@ latest_posts:
   limit: 3 # leave blank to include all the blog posts
 ---
 
-I am Yonghan Jung, an assistant professor in the School of Information Sciences at the UIUC and the leader of the **Causal Data Science Lab**. I am also a faculty affiliate at the [National Center for Supercomputing Applications (NCSA)](https://www.ncsa.illinois.edu/), and [Illinois Informatics](https://informatics.ischool.illinois.edu/).
+I am Yonghan Jung, an assistant professor in the School of Information Sciences at UIUC and the leader of the **Causal Data Science Lab**. I am also a faculty affiliate at the [National Center for Supercomputing Applications (NCSA)](https://www.ncsa.illinois.edu/) and [Illinois Informatics](https://informatics.ischool.illinois.edu/).
 
-My research advances causal inference methodology through three core areas that address the challenges of real-world data complexity, computational scalability, and actionable decision support:
+Our lab studies **Pragmatic Causal Inference**: methods that make causal questions as usable as prediction workflows while keeping assumptions, uncertainty, and validity explicit. A data scientist often wants to know what would happen if an action changed. Answering that question requires more than prediction; it requires a causal workflow that can reason about assumptions, identify what is learnable, estimate it reliably, and support decisions.
 
-1. **Pragmatic Causal Inference:** Advancing causal inference methods that address real-world challenges such as unmeasured confounding, limited overlap, and complex data-generating processes.
+Our current research is organized around four connected directions:
 
-2. **Scalable Causal Inference:** Designing computationally efficient and statistically robust methods that scale to high-dimensional and large-scale datasets.
+1. **Partial Identification:** valid causal answers under weak assumptions, including bounds and sensitivity analyses when point identification is not justified.
 
-3. **Causal Decision Making:** Creating algorithms that leverage causal reasoning to support robust and safe decision making in complex, high-stakes environments.
+2. **Practical Causal Learning:** estimators and workflows for causal questions under mild, decision-relevant assumptions such as front-door, proxy, mediator, or overlap structure.
+
+3. **Amortized Causal Inference:** simulation, pretraining, and scalable algorithms that reduce repeated graph, identification, and estimation burdens.
+
+4. **Real-World Deployment:** causal systems for biomedical digital twins, health decisions, and other settings where causal answers must support action.
 
 <!-- - **Identification and Estimation under Real-World Imperfections** — advancing frameworks that reliably infer causal effects despite challenges such as unmeasured confounding, limited overlap, or complex data-generating processes.
 - **Robust and Scalable Estimation** — designing variance-stable, computationally efficient methods that scale to high-dimensional and large-scale datasets.

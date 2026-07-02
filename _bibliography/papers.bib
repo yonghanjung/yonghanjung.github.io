@@ -15,12 +15,14 @@
   rid           = {R-20},
   bibtex_show   = {true},
   abstract      = {Identifying the drivers of causal mechanism shifts and distinguishing functional changes from noise alterations is a critical problem in data science. This paper introduces the Function And Noise Separation framework, which detects and dissects shifts in non-additive, non-linear structural causal models. The approach is grounded in an independence criterion where function shifts induce dependence between a node's parents and residual noise, leading to a two-stage algorithm for detecting and dissecting shifts without retraining.},
+  preview       = {R_20.jpg},
   abbr          = {ICML}
 }
 
-@misc{jung2026ITB,
+@inproceedings{jung2026itbound,
   title         = {Information-Theoretic Causal Bounds under Unmeasured Confounding},
-  author        = {Jung, Yonghan and Bogyeong Kang},
+  author        = {Jung, Yonghan and Kang, Bogyeong},
+  booktitle     = {Conference on Causal Learning and Reasoning (CLeaR)},
   year          = {2026},
   eprint        = {2601.17160v2},
   archiveprefix = {arXiv},
@@ -33,7 +35,7 @@
   abstract      = {We develop a data-driven information-theoretic framework for the sharp partial identification of causal effects under unmeasured confounding. Existing approaches often rely on restrictive assumptions, such as bounded or discrete outcomes, require external inputs (e.g., instrumental variables, proxies, or user-specified sensitivity parameters), necessitate full structural causal model specifications, or focus solely on population-level averages while neglecting covariate-conditional treatment effects. We overcome all four limitations simultaneously by establishing novel information-theoretic, data-driven divergence bounds. Our key theoretical contribution establishes that the $f$-divergence between the observational distribution P(Y | A=a,X=x) and the interventional distribution P(Y | do(A=a), X=x) is upper bounded by a function of the propensity score alone. This result enables sharp partial identification of conditional causal effects directly from observational data, without requiring external sensitivity parameters, auxiliary variables, full structural specifications, or outcome boundedness assumptions. For practical implementation, we develop a semiparametric estimator satisfying Neyman-orthogonality, which ensures $\sqrt{n}$-consistent inference even when nuisance functions are estimated via flexible machine learning methods. Simulation studies and real-world data applications demonstrate that our framework provides tight and valid causal bounds across a wide range of data-generating processes.},
   pdf           = {https://arxiv.org/pdf/2601.17160v2},
   preview       = {R_19.jpg},
-  abbr          = {arxiv},
+  abbr          = {CLeaR},
   code          = {https://github.com/yonghanjung/Information-Theretic-Bounds}
 }
 
@@ -50,8 +52,8 @@
   keyword2      = {heterogeneous-treatment-effect},
   rid           = {R-18},
   bibtex_show   = {true},
-  abstract      = {In observational settings where treatment and outcome share unmeasured confounders but an observed mediator remains unconfounded, the front-door (FD) adjustment identifies causal effects through the mediator. We study the heterogeneous treatment effect (HTE) under FD identification and introduce two debiased learners: FD‑DR‑Learner and FD‑R‑Learner. Both attain fast, quasi-oracle rates (i.e., performance comparable to an oracle that knows the nuisances) even when nuisance functions converge as slowly as $n^{-1/4}$. We provide error analyses establishing debiasedness and demonstrate robust empirical performance in synthetic studies and a real-world case study of primary seat-belt laws using Fatality Analysis Reporting System (FARS) dataset. Together, these results indicate that the proposed learners deliver reliable and sample-efficient HTE estimates in FD scenarios. The implementation is available at \url{https://github.com/yonghanjung/FD-CATE}.},
-  pdf           = {https://arxiv.org/pdf/2509.22531},
+  abstract      = {In observational settings where treatment and outcome share unmeasured confounders but an observed mediator remains unconfounded, the front-door (FD) adjustment identifies causal effects through the mediator. We study the heterogeneous treatment effect (HTE) under FD identification and introduce two debiased learners: FD-DR-Learner and FD-R-Learner. Under explicit sample-splitting, bounded-overlap, moment, and stage-learning assumptions, FD-DR satisfies a product-error bound and FD-R satisfies a stage-error decomposition; these results yield conditional quasi-oracle corollaries when the relevant nuisance remainders are no larger than the target or stage oracle terms. We provide error analyses establishing this debiasedness and demonstrate robust empirical performance in synthetic studies and a real-world case study of primary seat-belt laws using Fatality Analysis Reporting System (FARS) dataset. Together, these results indicate that the proposed learners can deliver reliable and sample-efficient HTE estimates in FD scenarios when the stated assumptions are credible. The implementation is available at \url{https://github.com/yonghanjung/FD-CATE}.},
+  pdf           = {R_18.pdf},
   preview       = {R_18.jpg},
   abbr          = {ICLR},
   code          = {https://github.com/yonghanjung/FD-CATE}
@@ -169,7 +171,7 @@
   abbr        = {tech-report}
 }
 
-@inproceedings{jung2023estimating,
+@inproceedings{jung2023jointtreatments,
   title       = {Estimating causal effects identifiable from a combination of observations and experiments},
   author      = {Jung, Yonghan and D{\'\i}az, Iv{\'a}n and Tian, Jin and Bareinboim, Elias},
   booktitle   = {Advances in Neural Information Processing Systems (NeurIPS)},
@@ -271,7 +273,7 @@
   slides      = {R_7_slide.pdf}
 }
 
-@inproceedings{jung2021estimating,
+@inproceedings{jung2021dmlid,
   title       = {Estimating identifiable causal effects on markov equivalence class through double machine learning},
   author      = {Jung, Yonghan and Tian, Jin and Bareinboim, Elias},
   booktitle   = {International Conference on Machine Learning},

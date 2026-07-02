@@ -2,11 +2,17 @@
 layout: page
 permalink: /teaching/
 title: teaching
-description:
-nav: false
-nav_order: 3
+description: Courses and teaching materials.
+nav: true
+nav_order: 4
 ---
 
-<!-- For now, this page is assumed to be a static description of your courses. You can convert it to a collection similar to `_projects/` so that you can have a dedicated page for each course.
+## IS 455: Database Design & Prototyping
 
-Organize your courses by years, topics, or universities, however you like! -->
+**Spring 2026, University of Illinois Urbana-Champaign**
+
+[Course page](/teaching/2026S/IS455/)
+
+## Teaching Interests
+
+My teaching connects data systems, causal inference, and trustworthy AI. Across these topics, I emphasize assumptions, reproducibility, uncertainty, and decision-facing use.
