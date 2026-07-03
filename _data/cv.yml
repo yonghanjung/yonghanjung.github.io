@@ -32,7 +32,7 @@
       year: 2018-2025
       description:
         - '<strong>Advisor</strong>: <a href="https://causalai.net/" target="_blank">Elias Bareinboim</a>'
-        - '<strong>Dissertation</strong>: Causal Data Science: Estimating Identifiable Causal Effects'
+        - "<strong>Dissertation</strong>: Causal Data Science: Estimating Identifiable Causal Effects"
     - title: M.S. in Industrial and Systems Engineering
       institution: KAIST
       year: 2016
@@ -45,7 +45,7 @@
 - title: Teaching
   type: time_table
   contents:
-    - title: 'Instructor, IS 455: Database Design & Prototyping'
+    - title: "Instructor, IS 455: Database Design & Prototyping"
       institution: University of Illinois Urbana-Champaign
       year: Spring 2026
     - title: Graduate Teaching Assistant
@@ -61,7 +61,7 @@
       institution: INFORMS 2026 Annual Meeting, Decision Analysis Society cluster
       year: 2026
       description:
-        - 'Pragmatic Causal Inference for Decision Science: Robust Methods Under Imperfect Assumptions'
+        - "Pragmatic Causal Inference for Decision Science: Robust Methods Under Imperfect Assumptions"
     - title: Reviewer
       institution: Journals and conferences in causal inference, statistics, and machine learning
       year: ongoing
