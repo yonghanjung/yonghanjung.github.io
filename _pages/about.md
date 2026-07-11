@@ -34,9 +34,7 @@ Our lab studies **Pragmatic Causal Inference**: methods that make causal questio
 
 ## Lab GitHub
 
-The lab's public code and reproducibility artifacts are hosted at [CausalDataScience](https://github.com/CausalDataScience). We use this organization to release selected paper PDFs, experiment code, posters, project pages, and documentation once a project is ready to be shared. Active manuscript and code development may happen privately before public release.
-
-Current public release: [`fdcate`](https://github.com/CausalDataScience/fdcate), the reproducibility repository for _Debiased Front-Door Learners for Heterogeneous Effects_.
+The lab's public code and reproducibility artifacts are hosted at [CausalDataScience](https://github.com/CausalDataScience).
 
 Our current research is organized around four connected directions:
 
