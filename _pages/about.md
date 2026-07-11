@@ -32,6 +32,12 @@ I am Yonghan Jung, an assistant professor in the School of Information Sciences 
 
 Our lab studies **Pragmatic Causal Inference**: methods that make causal questions as usable as prediction workflows while keeping assumptions, uncertainty, and validity explicit. A data scientist often wants to know what would happen if an action changed. Answering that question requires more than prediction; it requires a causal workflow that can reason about assumptions, identify what is learnable, estimate it reliably, and support decisions.
 
+## Lab GitHub
+
+The lab's public code and reproducibility artifacts are hosted at [CausalDataScience](https://github.com/CausalDataScience). We use this organization to release selected paper PDFs, experiment code, posters, project pages, and documentation once a project is ready to be shared. Active manuscript and code development may happen privately before public release.
+
+Current public release: [`fdcate`](https://github.com/CausalDataScience/fdcate), the reproducibility repository for _Debiased Front-Door Learners for Heterogeneous Effects_.
+
 Our current research is organized around four connected directions:
 
 1. **Partial Identification:** valid causal answers under weak assumptions, including bounds and sensitivity analyses when point identification is not justified.
