@@ -34,6 +34,12 @@ Our lab studies **Pragmatic Causal Inference**: methods that make causal questio
 
 ## Lab GitHub
 
+<p align="center">
+  <a href="https://github.com/CausalDataScience" aria-label="Visit the Causal Data Science Lab on GitHub">
+    <img src="{{ '/assets/img/cdsl-lab-logo.png' | relative_url }}" alt="Causal Data Science Lab logo" width="360">
+  </a>
+</p>
+
 The lab's public code and reproducibility artifacts are hosted at [CausalDataScience](https://github.com/CausalDataScience).
 
 Our current research is organized around four connected directions:
