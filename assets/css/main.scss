@@ -44,6 +44,85 @@ $max-content-width: {{ site.max_width }};
   color: var(--global-theme-color);
 }
 
+// Causal Data Science Lab GitHub card
+.lab-github-section {
+  clear: both;
+  margin: 2rem 0;
+  padding-top: 0.5rem;
+}
+
+.lab-github-card {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 1.5rem 1.75rem;
+  color: var(--global-text-color);
+  background-color: var(--global-card-bg-color);
+  border: 1px solid var(--global-divider-color);
+  border-radius: 0.75rem;
+}
+
+.lab-github-card__logo {
+  flex: 0 0 150px;
+
+  img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 0.5rem;
+  }
+}
+
+.lab-github-card__content {
+  min-width: 0;
+}
+
+.lab-github-card__title {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+}
+
+.lab-github-card__description {
+  margin: 0 0 0.85rem;
+  color: var(--global-text-color-light);
+}
+
+.lab-github-card__link {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  font-weight: 600;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--global-theme-color);
+    outline-offset: 4px;
+    border-radius: 0.125rem;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .lab-github-section {
+    margin: 1.5rem 0;
+  }
+
+  .lab-github-card {
+    flex-direction: column;
+    gap: 1.25rem;
+    padding: 1.25rem;
+    text-align: center;
+  }
+
+  .lab-github-card__logo {
+    flex-basis: auto;
+    width: 140px;
+  }
+}
+
 // Custom styles for publication reference IDs
 .publication-id {
   font-weight: bold;

@@ -32,15 +32,24 @@ I am Yonghan Jung, an assistant professor in the School of Information Sciences 
 
 Our lab studies **Pragmatic Causal Inference**: methods that make causal questions as usable as prediction workflows while keeping assumptions, uncertainty, and validity explicit. A data scientist often wants to know what would happen if an action changed. Answering that question requires more than prediction; it requires a causal workflow that can reason about assumptions, identify what is learnable, estimate it reliably, and support decisions.
 
-## Lab GitHub
-
-<p align="center">
-  <a href="https://github.com/CausalDataScience" aria-label="Visit the Causal Data Science Lab on GitHub">
-    <img src="{{ '/assets/img/cdsl-lab-logo.png' | relative_url }}" alt="Causal Data Science Lab logo" width="360">
-  </a>
-</p>
-
-The lab's public code and reproducibility artifacts are hosted at [CausalDataScience](https://github.com/CausalDataScience).
+<section class="lab-github-section" aria-labelledby="lab-github-title">
+  <div class="lab-github-card">
+    <div class="lab-github-card__logo" aria-hidden="true">
+      <img src="{{ '/assets/img/cdsl-lab-logo.png' | relative_url }}" alt="">
+    </div>
+    <div class="lab-github-card__content">
+      <h2 id="lab-github-title" class="lab-github-card__title">Causal Data Science Lab</h2>
+      <p class="lab-github-card__description">Causal inference, machine learning, and data science at UIUC.</p>
+      <a
+        class="lab-github-card__link"
+        href="https://github.com/CausalDataScience"
+        aria-label="Visit the Causal Data Science Lab GitHub organization"
+      >
+        Visit Lab GitHub <span aria-hidden="true">→</span>
+      </a>
+    </div>
+  </div>
+</section>
 
 Our current research is organized around four connected directions:
 
