@@ -7,7 +7,7 @@ subtitle: <a href='https://ischool.illinois.edu/'>UIUC School of Information Sci
 profile:
   align: right
   image: prof_pic.jpg
-  image_circular: true # crops the image to make it circular
+  image_circular: false # preserves the portrait's natural aspect ratio
   more_info: >
     <p> Yonghan Jung </p>
     <p> Assistant Professor</p>
