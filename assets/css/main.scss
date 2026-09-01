@@ -44,6 +44,14 @@ $max-content-width: {{ site.max_width }};
   color: var(--global-theme-color);
 }
 
+@media (min-width: 576px) {
+  .profile img[alt="prof_pic.jpg"] {
+    display: block;
+    width: 85%;
+    margin-left: auto;
+  }
+}
+
 // Causal Data Science Lab GitHub card
 .lab-github-section {
   clear: both;
