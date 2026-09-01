@@ -45,9 +45,13 @@ $max-content-width: {{ site.max_width }};
 }
 
 @media (min-width: 576px) {
+  .profile.float-right {
+    margin-top: -6rem;
+  }
+
   .profile img[alt="prof_pic.jpg"] {
     display: block;
-    width: 85%;
+    width: 62.5%;
     margin-left: auto;
   }
 }

@@ -2,7 +2,7 @@
 layout: about
 title: about
 permalink: /
-subtitle: <a href='https://ischool.illinois.edu/'>UIUC School of Information Sciences</a>
+subtitle: <a href='https://ischool.illinois.edu/people/yonghan-jung'>UIUC School of Information Sciences</a>
 
 profile:
   align: right
