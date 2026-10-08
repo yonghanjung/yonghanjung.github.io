@@ -3,6 +3,23 @@
 
 @string{aps = {American Physical Society,}}
 
+@unpublished{jung2026dfppi,
+  title         = {Prediction-Powered Data Fusion for Treatment Effect Estimation},
+  author        = {Jung, Yonghan and Yang, Shu},
+  year          = {2026},
+  note          = {Preprint},
+  keyword1      = {fusion},
+  keyword2      = {estimation},
+  keyword3      = {heterogeneous-treatment-effect},
+  rid           = {R-22},
+  bibtex_show   = {true},
+  abstract      = {Randomized controlled trials (RCTs) identify treatment effects without confounding but are often small, whereas observational studies (OBS) are large but may be confounded. Many estimators combining a small RCT with a large OBS have been developed for the average treatment effect (ATE) and the conditional ATE (CATE). However, existing ATE estimators either make assumptions on the OBS or do not borrow enough power from them. The CATE has been studied less than the ATE. Existing CATE methods either assume the OBS are unconfounded, rely on a model of the confounding function, or accept bias in exchange for lower variance. We therefore propose a framework that, without special assumptions on the OBS, fuses the OBS and the RCT by preserving the unbiasedness of RCT-based estimation while borrowing power from the large OBS to boost precision. Applying this principle, we build an ATE estimator, AIPW-Fusion, with closed-form weights and confidence intervals, and two CATE learners, DR-Fusion and R-Fusion. Experiments corroborate our findings.},
+  pdf           = {R_22.pdf},
+  code          = {https://github.com/CausalDataScience/DataFusionPPI},
+  preview       = {R_22.jpg},
+  abbr          = {Preprint}
+}
+
 @techreport{jung2026proximal,
   title         = {Proximal Balancing for Causal Effect Estimation under Unmeasured Confounding},
   author        = {Jung, Yonghan},
