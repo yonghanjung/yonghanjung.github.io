@@ -1,0 +1,2067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multiplication Quest</title>
+  <style>
+    :root {
+      --ink: #17201d;
+      --muted: #5b6761;
+      --paper: #fbfaf5;
+      --panel: #ffffff;
+      --line: #d8ded7;
+      --green: #2f7d5f;
+      --green-2: #dff3e8;
+      --blue: #276f9f;
+      --blue-2: #dfeefa;
+      --gold: #b7791f;
+      --gold-2: #faedcb;
+      --red: #b4493f;
+      --red-2: #f7dfdc;
+      --shadow: 0 16px 36px rgba(35, 43, 38, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(39, 111, 159, 0.07) 1px, transparent 1px),
+        linear-gradient(rgba(47, 125, 95, 0.07) 1px, transparent 1px),
+        var(--paper);
+      background-size: 34px 34px;
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--ink);
+      cursor: pointer;
+      min-height: 44px;
+      padding: 10px 14px;
+      font-weight: 800;
+    }
+
+    button:hover {
+      border-color: var(--green);
+    }
+
+    button:disabled {
+      cursor: default;
+      opacity: 0.52;
+    }
+
+    button:focus-visible,
+    input:focus-visible {
+      outline: 3px solid rgba(39, 111, 159, 0.28);
+      outline-offset: 2px;
+    }
+
+    .shell {
+      width: min(1120px, calc(100vw - 32px));
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 18px 0 24px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 16px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .mark {
+      width: 46px;
+      height: 46px;
+      border: 2px solid var(--ink);
+      border-radius: 8px;
+      background: var(--gold-2);
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+      font-size: 23px;
+      box-shadow: 5px 5px 0 var(--ink);
+      flex: 0 0 auto;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 25px;
+      line-height: 1.1;
+    }
+
+    .subtitle {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .primary {
+      background: var(--green);
+      border-color: var(--green);
+      color: #fff;
+    }
+
+    .danger {
+      border-color: #e6bbb6;
+      color: var(--red);
+      background: #fff;
+    }
+
+    .secondary {
+      border-color: var(--blue);
+      color: var(--blue);
+      background: #fff;
+    }
+
+    .game {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .arena,
+    .side {
+      background: rgba(255, 255, 255, 0.91);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .arena {
+      min-height: 610px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      overflow: hidden;
+    }
+
+    .arena.is-ready {
+      grid-template-rows: auto 1fr;
+    }
+
+    .mode-panel {
+      border-bottom: 1px solid var(--line);
+      background: rgba(248, 250, 246, 0.96);
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .settings-summary-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .settings-summary {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .settings-summary strong {
+      font-size: 17px;
+      line-height: 1.15;
+    }
+
+    .settings-body {
+      display: grid;
+      gap: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+    }
+
+    .settings-body[hidden] {
+      display: none;
+    }
+
+    .mode-header,
+    .mode-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .mode-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .mode-title {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    .table-buttons,
+    .segmented {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .mode-panel button {
+      min-height: 38px;
+      padding: 8px 11px;
+      background: #fff;
+    }
+
+    .play-mode-btn.is-selected,
+    .table-btn.is-selected,
+    .order-btn.is-selected,
+    .time-btn.is-selected,
+    .keyboard-btn.is-selected,
+    #selectAllBtn.is-selected {
+      border-color: var(--green);
+      background: var(--green-2);
+      color: var(--green);
+      box-shadow: inset 0 -3px 0 var(--green);
+    }
+
+    #clearTablesBtn {
+      color: var(--red);
+      border-color: #e6bbb6;
+    }
+
+    .question-zone {
+      display: grid;
+      place-items: center;
+      padding: 28px;
+    }
+
+    .question-wrap {
+      width: min(620px, 100%);
+      display: grid;
+      gap: 18px;
+    }
+
+    .start-gate {
+      border: 2px solid var(--ink);
+      border-radius: 8px;
+      background: var(--gold-2);
+      box-shadow: 6px 6px 0 var(--ink);
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .start-gate[hidden] {
+      display: none;
+    }
+
+    .start-copy {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .start-copy span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    .start-copy strong {
+      font-size: 22px;
+      line-height: 1.1;
+    }
+
+    .start-copy p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 750;
+    }
+
+    .start-btn {
+      min-width: 150px;
+      min-height: 62px;
+      font-size: 24px;
+    }
+
+    .arena.is-ready .question-zone {
+      align-content: center;
+    }
+
+    .arena.is-ready .question-wrap {
+      width: min(620px, 100%);
+    }
+
+    .arena.is-ready .quest-label,
+    .arena.is-ready .problem,
+    .arena.is-ready .answer-row,
+    .arena.is-ready .explanation-panel,
+    .arena.is-ready .feedback,
+    .arena.is-ready .pad {
+      display: none;
+    }
+
+    .game.is-ready .fact-map-panel {
+      display: none;
+    }
+
+    .quest-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 36px;
+      color: var(--muted);
+      font-size: 15px;
+      font-weight: 900;
+    }
+
+    .recall-meter {
+      width: 170px;
+      height: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .recall-meter span {
+      display: block;
+      width: 100%;
+      height: 100%;
+      transform-origin: left center;
+      transform: scaleX(1);
+      background: var(--green);
+    }
+
+    .recall-meter.is-timeout span {
+      background: var(--red);
+    }
+
+    .problem {
+      min-height: 176px;
+      border: 2px solid var(--ink);
+      border-radius: 8px;
+      background: #fff;
+      display: grid;
+      place-items: center;
+      padding: 26px;
+      box-shadow: 7px 7px 0 var(--ink);
+    }
+
+    .problem-text {
+      font-size: 76px;
+      line-height: 1;
+      font-weight: 950;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .problem-text.is-paused {
+      color: var(--muted);
+      font-size: 54px;
+    }
+
+    .question-wrap.is-ready .problem {
+      background: #fffdf3;
+    }
+
+    .question-wrap.is-ready .problem-text {
+      color: var(--muted);
+      font-size: 54px;
+    }
+
+    .answer-row {
+      display: grid;
+      grid-template-columns: minmax(110px, 1fr) auto;
+      gap: 10px;
+    }
+
+    .answer-row.is-repairing {
+      display: none;
+    }
+
+    .answer-row #checkBtn {
+      display: none;
+    }
+
+    .answer-input {
+      width: 100%;
+      min-height: 58px;
+      border: 2px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      font-size: 30px;
+      font-weight: 900;
+      padding: 8px 14px;
+      text-align: center;
+    }
+
+    .answer-input.has-error {
+      border-color: var(--red);
+      background: #fff7f6;
+    }
+
+    .answer-row.is-repairing .answer-input {
+      background: #f3f0eb;
+      color: transparent;
+      opacity: 0.45;
+      pointer-events: none;
+    }
+
+    .answer-row .primary {
+      min-width: 126px;
+    }
+
+    .explanation-panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .explanation-panel[hidden] {
+      display: none;
+    }
+
+    .explanation-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+    }
+
+    .explanation-title {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    .explanation-equation {
+      font-size: 26px;
+      line-height: 1;
+      font-weight: 950;
+    }
+
+    .explanation-groups {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+      gap: 8px;
+    }
+
+    .say-card,
+    .repair-panel {
+      border: 2px solid var(--ink);
+      border-radius: 8px;
+      background: var(--gold-2);
+      box-shadow: 3px 3px 0 var(--ink);
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .say-card strong,
+    .repair-say strong {
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .say-card span,
+    .repair-say span {
+      color: var(--red);
+      font-size: 16px;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    .explanation-actions {
+      display: grid;
+      gap: 6px;
+      justify-items: end;
+    }
+
+    .explanation-actions p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 850;
+    }
+
+    .repair-panel[hidden] {
+      display: none;
+    }
+
+    .repair-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .repair-head span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    .repair-prompt {
+      min-height: 58px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 12px;
+      font-size: 30px;
+      font-weight: 950;
+    }
+
+    .repair-blank {
+      min-width: 58px;
+      min-height: 44px;
+      border: 2px solid var(--blue);
+      border-radius: 8px;
+      background: var(--blue-2);
+      color: var(--blue);
+      display: inline-grid;
+      place-items: center;
+      padding: 4px 10px;
+    }
+
+    .repair-blank.is-active {
+      border-color: var(--red);
+      background: #fff7f6;
+      color: var(--red);
+    }
+
+    .repair-blank.is-filled {
+      border-color: var(--green);
+      background: var(--green-2);
+      color: var(--green);
+    }
+
+    .repair-blank.is-error {
+      border-color: var(--red);
+      background: var(--red-2);
+      color: var(--red);
+    }
+
+    .repair-status {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 850;
+    }
+
+    .repair-status:empty {
+      display: none;
+    }
+
+    .group-box {
+      min-height: 68px;
+      border: 2px solid var(--ink);
+      border-radius: 8px;
+      background: var(--blue-2);
+      display: grid;
+      place-items: center;
+      padding: 8px;
+      box-shadow: 3px 3px 0 var(--ink);
+    }
+
+    .unit-stack {
+      display: grid;
+      grid-template-columns: repeat(var(--unit-cols), 10px);
+      gap: 5px;
+      justify-content: center;
+    }
+
+    .unit-dot {
+      width: 10px;
+      height: 10px;
+      border: 1px solid var(--ink);
+      border-radius: 50%;
+      background: var(--gold-2);
+    }
+
+    .feedback {
+      min-height: 76px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 12px 14px;
+      display: grid;
+      gap: 5px;
+      align-content: center;
+    }
+
+    .feedback strong {
+      font-size: 18px;
+    }
+
+    .feedback p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .feedback.good {
+      border-color: #a8d6bd;
+      background: var(--green-2);
+    }
+
+    .feedback.miss {
+      border-color: #e8b0aa;
+      background: var(--red-2);
+    }
+
+    .feedback.timeout {
+      border-color: #e8b0aa;
+      background: var(--red-2);
+    }
+
+    .feedback.warning {
+      border-color: #dfc170;
+      background: var(--gold-2);
+    }
+
+    .pad {
+      border-top: 1px solid var(--line);
+      background: #f8faf6;
+      padding: 14px;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .pad button {
+      min-height: 48px;
+      padding: 8px 6px;
+      background: #fff;
+      font-size: 18px;
+    }
+
+    .pad-btn.is-delete {
+      border-color: var(--red);
+      background: var(--red-2);
+      color: var(--red);
+    }
+
+    .pad-btn.is-submit {
+      grid-column: span 2;
+      border-color: var(--green);
+      background: var(--green-2);
+      color: var(--green);
+      box-shadow: 3px 3px 0 var(--green);
+    }
+
+    .pad-btn.is-submit:active,
+    .pad-btn.is-delete:active {
+      transform: translateY(2px);
+      box-shadow: 1px 1px 0 currentColor;
+    }
+
+    .side {
+      padding: 16px;
+      display: grid;
+      grid-template-rows: auto auto auto 1fr;
+      gap: 16px;
+      min-height: 610px;
+      align-content: start;
+    }
+
+    .meter {
+      display: grid;
+      gap: 8px;
+    }
+
+    .meter-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 10px;
+      font-weight: 900;
+    }
+
+    .meter-top span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .bar {
+      height: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #f3f5f1;
+    }
+
+    .bar span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--green), var(--blue));
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 11px;
+      min-height: 76px;
+      display: grid;
+      align-content: center;
+      gap: 3px;
+    }
+
+    .stat strong {
+      font-size: 25px;
+      line-height: 1;
+    }
+
+    .stat span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .grid-title {
+      margin: 0 0 8px;
+      color: var(--muted);
+      font-size: 13px;
+      text-transform: uppercase;
+      font-weight: 950;
+    }
+
+    .bucket-board {
+      display: grid;
+      gap: 8px;
+    }
+
+    .bucket-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      min-height: 86px;
+      overflow: hidden;
+    }
+
+    .bucket-card header {
+      min-height: 34px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 12px;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    .bucket-card.correct header {
+      background: var(--green-2);
+      color: var(--green);
+    }
+
+    .bucket-card.wrong header,
+    .bucket-card.timeout header {
+      background: var(--red-2);
+      color: var(--red);
+    }
+
+    .bucket-list {
+      max-height: 102px;
+      overflow: auto;
+      padding: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-content: flex-start;
+    }
+
+    .bucket-empty {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      padding: 4px 2px;
+    }
+
+    .mini-fact {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      min-height: 30px;
+      padding: 6px 7px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 950;
+      line-height: 1;
+    }
+
+    .mini-fact.is-correct-once {
+      border-color: var(--blue);
+      background: var(--blue-2);
+      color: var(--blue);
+    }
+
+    .mini-fact.is-mastered {
+      border-color: var(--green);
+      background: var(--green-2);
+      color: var(--green);
+    }
+
+    .fact-badge {
+      min-width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: inline-grid;
+      place-items: center;
+      font-size: 12px;
+      font-weight: 950;
+      line-height: 1;
+      background: #fff;
+    }
+
+    .mini-fact.is-correct-once .fact-badge {
+      color: var(--blue);
+    }
+
+    .mini-fact.is-mastered .fact-badge {
+      background: var(--green);
+      color: #fff;
+    }
+
+    .fact-grid {
+      display: grid;
+      grid-template-columns: repeat(9, 1fr);
+      gap: 5px;
+      align-content: start;
+    }
+
+    .fact-cell {
+      aspect-ratio: 1;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 10px;
+      font-weight: 950;
+      color: var(--muted);
+      cursor: pointer;
+      min-height: 0;
+      padding: 0;
+    }
+
+    .fact-cell:hover {
+      border-color: var(--blue);
+      color: var(--blue);
+    }
+
+    .fact-cell:disabled {
+      cursor: default;
+      opacity: 0.62;
+    }
+
+    .fact-cell.is-current {
+      border-color: var(--green);
+      background: var(--green-2);
+      color: var(--green);
+    }
+
+    .fact-cell.is-correct-once {
+      border-color: var(--blue);
+      background: var(--blue-2);
+      color: var(--blue);
+    }
+
+    .fact-cell.is-mastered {
+      border-color: var(--green);
+      background: var(--green-2);
+      color: var(--green);
+    }
+
+    .ending {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      background: rgba(23, 32, 29, 0.72);
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .ending.is-open {
+      display: flex;
+    }
+
+    .ending-panel {
+      width: min(520px, 100%);
+      border: 2px solid var(--ink);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 8px 8px 0 var(--ink);
+      padding: 24px;
+      text-align: center;
+      display: grid;
+      gap: 14px;
+    }
+
+    .ending-panel h2 {
+      margin: 0;
+      font-size: 34px;
+    }
+
+    .ending-panel p {
+      margin: 0;
+      color: var(--muted);
+      font-weight: 750;
+    }
+
+    @media (max-width: 850px) {
+      .shell {
+        width: min(100vw - 18px, 720px);
+        padding-top: 10px;
+      }
+
+      .topbar,
+      .game {
+        grid-template-columns: 1fr;
+      }
+
+      .actions {
+        justify-content: stretch;
+      }
+
+      .actions button {
+        flex: 1;
+      }
+
+      .arena,
+      .side {
+        min-height: auto;
+      }
+
+      .question-zone {
+        padding: 16px;
+      }
+
+      .start-gate {
+        grid-template-columns: 1fr;
+      }
+
+      .settings-summary-row {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .start-btn {
+        width: 100%;
+      }
+
+      .problem {
+        min-height: 142px;
+        box-shadow: 5px 5px 0 var(--ink);
+      }
+
+      .problem-text {
+        font-size: 52px;
+      }
+
+      .answer-row {
+        grid-template-columns: 1fr;
+      }
+
+      .explanation-top {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .pad {
+        grid-template-columns: repeat(5, 1fr);
+      }
+
+      .side {
+        grid-template-rows: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark">x</div>
+        <div>
+          <h1>Multiplication Quest</h1>
+          <p class="subtitle">Repeat cards for practice, or conquer every selected fact.</p>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="pauseBtn" class="secondary" type="button">Pause</button>
+        <button id="resetBtn" class="danger" type="button">Reset</button>
+      </div>
+    </header>
+
+    <section class="game">
+      <div class="arena">
+        <section class="mode-panel" aria-label="Game mode">
+          <div class="settings-summary-row">
+            <div class="settings-summary">
+              <span class="mode-title">Setup</span>
+              <strong id="settingsSummary">Conquer - All Tables - Ordered - 10 sec</strong>
+            </div>
+            <button id="settingsToggle" type="button" aria-expanded="false" aria-controls="settingsBody">Settings</button>
+          </div>
+          <div id="settingsBody" class="settings-body" hidden>
+            <div class="mode-row">
+              <span class="mode-title">Play Mode</span>
+              <div id="playModeButtons" class="segmented" aria-label="Play mode choices">
+                <button class="play-mode-btn" type="button" data-play-mode="study">Repeat</button>
+                <button class="play-mode-btn" type="button" data-play-mode="conquer">Conquer</button>
+              </div>
+            </div>
+            <div class="mode-header">
+              <span class="mode-title">Tables</span>
+              <div class="mode-actions">
+                <button id="selectAllBtn" type="button">All</button>
+                <button id="clearTablesBtn" type="button">Clear</button>
+              </div>
+            </div>
+            <div id="tableButtons" class="table-buttons" aria-label="Table choices"></div>
+            <div class="mode-row">
+              <span class="mode-title">Order</span>
+              <div id="orderButtons" class="segmented" aria-label="Order choices">
+                <button class="order-btn" type="button" data-order="ordered">Ordered</button>
+                <button class="order-btn" type="button" data-order="random">Random</button>
+              </div>
+            </div>
+            <div class="mode-row">
+              <span class="mode-title">Time</span>
+              <div id="timeButtons" class="segmented" aria-label="Time choices">
+                <button class="time-btn" type="button" data-time-ms="3000">3 sec</button>
+                <button class="time-btn" type="button" data-time-ms="5000">5 sec</button>
+                <button class="time-btn" type="button" data-time-ms="10000">10 sec</button>
+              </div>
+            </div>
+            <div class="mode-row">
+              <span class="mode-title">Keyboard</span>
+              <div id="keyboardButtons" class="segmented" aria-label="Keyboard choices">
+                <button class="keyboard-btn" type="button" data-keyboard-enabled="true">On</button>
+                <button class="keyboard-btn" type="button" data-keyboard-enabled="false">Off</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="question-zone">
+          <div class="question-wrap">
+            <div id="startGate" class="start-gate">
+              <div class="start-copy">
+                <span>Ready</span>
+                <strong id="startTitle">Multiplication Quest</strong>
+                <p id="startText">Conquer - All Tables - Ordered - 10 sec</p>
+              </div>
+              <button id="startBtn" class="primary start-btn" type="button">Start</button>
+            </div>
+
+            <div class="quest-label">
+              <span id="questLabel">Ready</span>
+              <div class="recall-meter" aria-hidden="true"><span id="recallMeter"></span></div>
+            </div>
+
+            <div class="problem">
+              <div id="problemText" class="problem-text">2 x 1</div>
+            </div>
+
+            <form id="answerForm" class="answer-row" autocomplete="off">
+              <input
+                id="answerInput"
+                class="answer-input"
+                name="answer"
+                inputmode="none"
+                pattern="[0-9]*"
+                aria-label="Answer"
+                aria-readonly="true"
+                readonly
+              />
+              <button id="explanationBtn" class="secondary" type="button" aria-expanded="false">Explanation</button>
+              <button id="checkBtn" class="primary" type="submit">Check</button>
+            </form>
+
+            <div id="explanationPanel" class="explanation-panel" hidden>
+              <div class="explanation-top">
+                <span id="explanationTitle" class="explanation-title">2 boxes with 1 unit each</span>
+                <strong id="explanationEquation" class="explanation-equation">2 x 1 = 2</strong>
+              </div>
+              <div class="say-card">
+                <strong id="explanationSayEquation">2 x 1 = 2</strong>
+                <span>Say it out loud!</span>
+              </div>
+              <div id="explanationGroups" class="explanation-groups" aria-label="Multiplication groups"></div>
+              <div class="explanation-actions">
+                <p id="explanationContinueText">Say it out loud, then continue.</p>
+                <button id="explanationContinueBtn" class="primary" type="button">Continue</button>
+              </div>
+            </div>
+
+            <div id="repairPanel" class="repair-panel" hidden>
+              <div class="repair-head">
+                <span id="repairStepText">Repair 1 / 4</span>
+                <span>Fill the blank</span>
+              </div>
+              <div class="repair-say">
+                <strong id="repairSayEquation">2 x 1 = 2</strong>
+                <span>Say it out loud!</span>
+              </div>
+              <div id="repairPrompt" class="repair-prompt" aria-live="polite"></div>
+              <p id="repairStatus" class="repair-status"></p>
+            </div>
+
+            <div id="feedback" class="feedback" aria-live="polite">
+              <strong>Ready</strong>
+              <p>Every selected fact needs two fast correct answers.</p>
+            </div>
+          </div>
+        </section>
+
+        <div id="numberPad" class="pad" aria-label="Number pad"></div>
+      </div>
+
+      <aside class="side">
+        <div class="meter">
+          <div class="meter-top">
+            <strong>Mastery</strong>
+            <span id="masteryText">0 / 72</span>
+          </div>
+          <div class="bar" aria-hidden="true"><span id="masteryBar"></span></div>
+        </div>
+
+        <div class="stats">
+          <div class="stat">
+            <strong id="stageText">All Tables</strong>
+            <span>Tables</span>
+          </div>
+          <div class="stat">
+            <strong id="turnText">0</strong>
+            <span>Answers</span>
+          </div>
+          <div class="stat">
+            <strong id="stageCountText">0 / 72</strong>
+            <span>Mode Facts</span>
+          </div>
+          <div class="stat">
+            <strong id="activeText">18</strong>
+            <span>In Play</span>
+          </div>
+        </div>
+
+        <div class="bucket-board">
+          <p class="grid-title">Review Cards</p>
+          <section class="bucket-card correct">
+            <header><span>Correct</span><span id="correctCount">0</span></header>
+            <div id="correctList" class="bucket-list"></div>
+          </section>
+          <section class="bucket-card wrong">
+            <header><span>Wrong</span><span id="wrongCount">0</span></header>
+            <div id="wrongList" class="bucket-list"></div>
+          </section>
+          <section class="bucket-card timeout">
+            <header><span>Time-out</span><span id="timeoutCount">0</span></header>
+            <div id="timeoutList" class="bucket-list"></div>
+          </section>
+        </div>
+
+        <div class="fact-map-panel">
+          <p class="grid-title">Selected Fact Map</p>
+          <div id="factGrid" class="fact-grid" aria-label="Fact mastery map"></div>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <div id="ending" class="ending" role="dialog" aria-modal="true" aria-labelledby="endingTitle">
+    <div class="ending-panel">
+      <h2 id="endingTitle">Quest Complete</h2>
+      <p>Every selected multiplication fact is conquered.</p>
+      <button id="playAgainBtn" class="primary" type="button">Play Again</button>
+    </div>
+  </div>
+
+  <script src="./multiplication-game.js"></script>
+  <script>
+    const Game = window.MULTIPLICATION_GAME;
+    const state = Game.loadState();
+    let currentFact = null;
+    let questionStartedAt = Date.now();
+    let questionTimedOut = false;
+    let meterFrame = null;
+    let timeoutTimer = null;
+    let isPaused = false;
+    let pausedElapsedMs = 0;
+    let awaitingNextQuestion = false;
+    let selectedFromMap = false;
+    let nextQuestionTimer = null;
+    let gameStarted = false;
+    let repairSession = null;
+
+    const els = {
+      activeText: document.getElementById('activeText'),
+      arena: document.querySelector('.arena'),
+      answerForm: document.getElementById('answerForm'),
+      answerInput: document.getElementById('answerInput'),
+      checkBtn: document.getElementById('checkBtn'),
+      clearTablesBtn: document.getElementById('clearTablesBtn'),
+      correctCount: document.getElementById('correctCount'),
+      correctList: document.getElementById('correctList'),
+      ending: document.getElementById('ending'),
+      explanationBtn: document.getElementById('explanationBtn'),
+      explanationContinueBtn: document.getElementById('explanationContinueBtn'),
+      explanationContinueText: document.getElementById('explanationContinueText'),
+      explanationEquation: document.getElementById('explanationEquation'),
+      explanationGroups: document.getElementById('explanationGroups'),
+      explanationPanel: document.getElementById('explanationPanel'),
+      explanationSayEquation: document.getElementById('explanationSayEquation'),
+      explanationTitle: document.getElementById('explanationTitle'),
+      factGrid: document.getElementById('factGrid'),
+      feedback: document.getElementById('feedback'),
+      game: document.querySelector('.game'),
+      keyboardButtons: document.getElementById('keyboardButtons'),
+      masteryBar: document.getElementById('masteryBar'),
+      masteryText: document.getElementById('masteryText'),
+      numberPad: document.getElementById('numberPad'),
+      orderButtons: document.getElementById('orderButtons'),
+      pauseBtn: document.getElementById('pauseBtn'),
+      playModeButtons: document.getElementById('playModeButtons'),
+      playAgainBtn: document.getElementById('playAgainBtn'),
+      problemText: document.getElementById('problemText'),
+      questLabel: document.getElementById('questLabel'),
+      recallMeter: document.getElementById('recallMeter'),
+      recallMeterWrap: document.querySelector('.recall-meter'),
+      resetBtn: document.getElementById('resetBtn'),
+      repairPanel: document.getElementById('repairPanel'),
+      repairPrompt: document.getElementById('repairPrompt'),
+      repairSayEquation: document.getElementById('repairSayEquation'),
+      repairStatus: document.getElementById('repairStatus'),
+      repairStepText: document.getElementById('repairStepText'),
+      selectAllBtn: document.getElementById('selectAllBtn'),
+      settingsBody: document.getElementById('settingsBody'),
+      settingsSummary: document.getElementById('settingsSummary'),
+      settingsToggle: document.getElementById('settingsToggle'),
+      stageCountText: document.getElementById('stageCountText'),
+      stageText: document.getElementById('stageText'),
+      startBtn: document.getElementById('startBtn'),
+      startGate: document.getElementById('startGate'),
+      startText: document.getElementById('startText'),
+      startTitle: document.getElementById('startTitle'),
+      tableButtons: document.getElementById('tableButtons'),
+      timeButtons: document.getElementById('timeButtons'),
+      timeoutCount: document.getElementById('timeoutCount'),
+      timeoutList: document.getElementById('timeoutList'),
+      turnText: document.getElementById('turnText'),
+      questionWrap: document.querySelector('.question-wrap'),
+      wrongCount: document.getElementById('wrongCount'),
+      wrongList: document.getElementById('wrongList'),
+    };
+
+    function setExplanationOpen(isOpen) {
+      els.explanationPanel.hidden = !isOpen;
+      els.explanationBtn.textContent = 'Explanation';
+      els.explanationBtn.setAttribute('aria-expanded', String(isOpen));
+      if (isOpen) drawExplanation();
+    }
+
+    function syncKeyboardMode() {
+      const keyboardEnabled = state.settings.keyboardEnabled !== false;
+      els.answerInput.readOnly = !keyboardEnabled;
+      els.answerInput.setAttribute('aria-readonly', String(!keyboardEnabled));
+      els.answerInput.setAttribute('inputmode', keyboardEnabled ? 'numeric' : 'none');
+    }
+
+    function focusAnswerInput() {
+      if (repairSession) return;
+      if (state.settings.keyboardEnabled !== false) els.answerInput.focus();
+    }
+
+    function drawExplanation() {
+      if (!currentFact) {
+        els.explanationGroups.innerHTML = '';
+        return;
+      }
+      const { a, b, product } = currentFact;
+      els.explanationTitle.textContent = `${a} boxes with ${b} ${b === 1 ? 'unit' : 'units'} each`;
+      els.explanationEquation.textContent = `${a} x ${b} = ${product}`;
+      els.explanationSayEquation.textContent = `${a} x ${b} = ${product}`;
+      els.explanationContinueText.textContent = `Say it out loud: ${a} x ${b} = ${product}. Then continue.`;
+      els.explanationGroups.innerHTML = '';
+      const unitCols = Math.min(4, Math.max(1, Math.ceil(Math.sqrt(b))));
+      for (let groupIndex = 0; groupIndex < a; groupIndex += 1) {
+        const box = document.createElement('div');
+        box.className = 'group-box';
+        const units = document.createElement('div');
+        units.className = 'unit-stack';
+        units.style.setProperty('--unit-cols', unitCols);
+        for (let unitIndex = 0; unitIndex < b; unitIndex += 1) {
+          const dot = document.createElement('span');
+          dot.className = 'unit-dot';
+          units.appendChild(dot);
+        }
+        box.appendChild(units);
+        els.explanationGroups.appendChild(box);
+      }
+    }
+
+    function factEquation(fact) {
+      return `${fact.a} x ${fact.b} = ${fact.product}`;
+    }
+
+    function repairItemsForFact(fact) {
+      return [
+        { blanks: [fact.product], parts: [String(fact.a), ' x ', String(fact.b), ' = ', null] },
+        { blanks: [fact.b], parts: [String(fact.a), ' x ', null, ' = ', String(fact.product)] },
+        { blanks: [fact.a], parts: [null, ' x ', String(fact.b), ' = ', String(fact.product)] },
+        { blanks: [fact.a, fact.b, fact.product], parts: [null, ' x ', null, ' = ', null] },
+      ];
+    }
+
+    function setAnswerEntryDisabled(disabled) {
+      els.answerInput.disabled = disabled;
+      els.checkBtn.disabled = disabled;
+      Array.from(els.numberPad.querySelectorAll('button')).forEach((btn) => {
+        btn.disabled = disabled;
+      });
+    }
+
+    function clearRepairSession() {
+      repairSession = null;
+      els.repairPanel.hidden = true;
+      els.repairPrompt.innerHTML = '';
+      els.repairStatus.textContent = '';
+      els.answerForm.classList.remove('is-repairing');
+      els.answerInput.value = '';
+      els.answerInput.classList.remove('has-error');
+    }
+
+    function forceTimeoutForExplanation() {
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+      if (meterFrame) cancelAnimationFrame(meterFrame);
+      markQuestionTimedOut();
+      els.recallMeterWrap.classList.add('is-timeout');
+      els.recallMeter.style.transform = 'scaleX(0)';
+    }
+
+    function startExplanationFlow() {
+      if (!currentFact || isPaused || awaitingNextQuestion) return;
+      forceTimeoutForExplanation();
+      clearRepairSession();
+      setExplanationOpen(true);
+      setAnswerEntryDisabled(true);
+      els.explanationBtn.disabled = true;
+      els.explanationContinueBtn.disabled = false;
+      setFeedback('timeout', 'Time is up', `${factEquation(currentFact)}. Say it out loud!`);
+    }
+
+    function startRepairDrill() {
+      if (!currentFact) return;
+      repairSession = {
+        factId: currentFact.id,
+        items: repairItemsForFact(currentFact),
+        itemIndex: 0,
+        blankIndex: 0,
+        filled: [],
+        entry: '',
+        error: false,
+        hadWrong: false,
+      };
+      els.explanationContinueBtn.disabled = true;
+      els.repairPanel.hidden = false;
+      setAnswerEntryDisabled(false);
+      els.answerInput.disabled = true;
+      els.answerInput.value = '';
+      els.answerInput.classList.remove('has-error');
+      els.answerForm.classList.add('is-repairing');
+      renderRepairDrill();
+      setFeedback('timeout', 'Repair drill', `${factEquation(currentFact)}. Say it out loud! Then fill the blank.`);
+    }
+
+    function renderRepairDrill() {
+      if (!repairSession || !currentFact) return;
+      const item = repairSession.items[repairSession.itemIndex];
+      els.repairStepText.textContent = `Repair ${repairSession.itemIndex + 1} / ${repairSession.items.length}`;
+      els.repairSayEquation.textContent = factEquation(currentFact);
+      els.repairPrompt.innerHTML = '';
+
+      let blankNumber = 0;
+      for (const part of item.parts) {
+        if (part !== null) {
+          const text = document.createElement('span');
+          text.textContent = part;
+          els.repairPrompt.appendChild(text);
+          continue;
+        }
+
+        const blank = document.createElement('span');
+        blank.className = 'repair-blank';
+        const filledValue = repairSession.filled[blankNumber];
+        const isActive = blankNumber === repairSession.blankIndex;
+        if (filledValue !== undefined) {
+          blank.textContent = String(filledValue);
+          blank.classList.add('is-filled');
+        } else if (isActive) {
+          blank.classList.add('is-active');
+          if (repairSession.error) blank.classList.add('is-error');
+          blank.textContent = repairSession.entry || '?';
+        } else {
+          blank.textContent = '?';
+        }
+        els.repairPrompt.appendChild(blank);
+        blankNumber += 1;
+      }
+
+      const expected = item.blanks[repairSession.blankIndex];
+      els.repairStatus.textContent = '';
+      els.answerInput.value = '';
+      els.answerInput.classList.remove('has-error');
+      els.answerInput.setAttribute('aria-label', `Repair answer. Expected ${expected}.`);
+    }
+
+    function handleRepairSubmit() {
+      if (!repairSession || !currentFact) return;
+      const item = repairSession.items[repairSession.itemIndex];
+      const expected = item.blanks[repairSession.blankIndex];
+      const answerText = String(repairSession.entry || '').trim();
+      const answer = Number(answerText);
+
+      if (!answerText || !Number.isInteger(answer)) {
+        repairSession.error = true;
+        renderRepairDrill();
+        setFeedback('warning', 'Type an answer', `${factEquation(currentFact)}. Say it out loud!`);
+        return;
+      }
+
+      if (answer !== expected) {
+        repairSession.hadWrong = true;
+        repairSession.entry = '';
+        repairSession.error = true;
+        renderRepairDrill();
+        setFeedback('miss', 'Try again', `Correct answer: ${expected}. Say it out loud: ${factEquation(currentFact)}.`);
+        els.repairStatus.textContent = `Correct answer: ${expected}. Say it out loud, then try again.`;
+        return;
+      }
+
+      repairSession.filled[repairSession.blankIndex] = expected;
+      repairSession.entry = '';
+      repairSession.error = false;
+      repairSession.blankIndex += 1;
+      if (repairSession.blankIndex < item.blanks.length) {
+        renderRepairDrill();
+        setFeedback('good', 'Good', `Say it again: ${factEquation(currentFact)}.`);
+        return;
+      }
+
+      repairSession.itemIndex += 1;
+      repairSession.blankIndex = 0;
+      repairSession.filled = [];
+      if (repairSession.itemIndex < repairSession.items.length) {
+        renderRepairDrill();
+        setFeedback('good', 'Good', `Say it again: ${factEquation(currentFact)}.`);
+        return;
+      }
+
+      completeRepairDrill();
+    }
+
+    function completeRepairDrill() {
+      if (!repairSession || !currentFact) return;
+      const hadWrong = repairSession.hadWrong;
+      const finalAnswer = hadWrong ? currentFact.product + 1 : currentFact.product;
+      const result = Game.submitAnswer(state, currentFact.id, String(finalAnswer), state.settings.timeLimitMs + 1, {
+        allowMastered: selectedFromMap,
+      });
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+      if (meterFrame) cancelAnimationFrame(meterFrame);
+      clearRepairSession();
+      setAnswerControlsDisabled(true);
+      awaitingNextQuestion = true;
+      updatePauseButton();
+      Game.saveState(state);
+      render();
+
+      if (hadWrong) {
+        setFeedback('miss', 'Saved for practice', `${factEquation(currentFact)}. Say it out loud! It will come back.`);
+      } else {
+        setFeedback('timeout', 'Time-out', `${factEquation(currentFact)}. Say it out loud! It will come back.`);
+      }
+
+      nextQuestionTimer = window.setTimeout(() => {
+        nextQuestionTimer = null;
+        nextQuestion();
+      }, result.bucket === 'wrong' ? 1400 : 1200);
+    }
+
+    function setFeedback(kind, title, body) {
+      els.feedback.className = `feedback ${kind || ''}`.trim();
+      els.feedback.innerHTML = `<strong>${title}</strong><p>${body}</p>`;
+    }
+
+    function settingsSummaryText() {
+      const progress = Game.progressForState(state);
+      const order = progress.orderMode === 'random' ? 'Random' : 'Ordered';
+      return `${progress.playModeLabel} - ${progress.modeLabel} - ${order} - ${progress.timeLimitMs / 1000} sec`;
+    }
+
+    function setSettingsOpen(isOpen) {
+      els.settingsBody.hidden = !isOpen;
+      els.settingsToggle.textContent = isOpen ? 'Done' : 'Settings';
+      els.settingsToggle.setAttribute('aria-expanded', String(isOpen));
+    }
+
+    function stopQuestionTimers() {
+      clearNextQuestionTimer();
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+      if (meterFrame) cancelAnimationFrame(meterFrame);
+      timeoutTimer = null;
+      meterFrame = null;
+    }
+
+    function drawModeControls() {
+      els.tableButtons.innerHTML = '';
+      const selected = state.settings.selectedTables;
+      els.settingsSummary.textContent = settingsSummaryText();
+      Array.from(els.playModeButtons.querySelectorAll('.play-mode-btn')).forEach((btn) => {
+        btn.classList.toggle('is-selected', btn.dataset.playMode === state.settings.playMode);
+      });
+      els.selectAllBtn.classList.toggle('is-selected', selected.length === Game.TABLES.length);
+      for (const table of Game.TABLES) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'table-btn';
+        btn.classList.toggle('is-selected', selected.includes(table));
+        btn.textContent = `${table} Table`;
+        btn.addEventListener('click', () => toggleTable(table));
+        els.tableButtons.appendChild(btn);
+      }
+
+      Array.from(els.orderButtons.querySelectorAll('.order-btn')).forEach((btn) => {
+        btn.classList.toggle('is-selected', btn.dataset.order === state.settings.orderMode);
+      });
+      Array.from(els.timeButtons.querySelectorAll('.time-btn')).forEach((btn) => {
+        btn.classList.toggle('is-selected', Number(btn.dataset.timeMs) === state.settings.timeLimitMs);
+      });
+      Array.from(els.keyboardButtons.querySelectorAll('.keyboard-btn')).forEach((btn) => {
+        const keyboardEnabled = btn.dataset.keyboardEnabled === 'true';
+        btn.classList.toggle('is-selected', keyboardEnabled === (state.settings.keyboardEnabled !== false));
+      });
+      syncKeyboardMode();
+    }
+
+    function toggleTable(table) {
+      const selected = state.settings.selectedTables.slice();
+      const hasTable = selected.includes(table);
+      const nextTables = hasTable
+        ? selected.filter((item) => item !== table)
+        : selected.concat(table);
+      applyMode({ selectedTables: nextTables });
+    }
+
+    function applyMode(nextSettings) {
+      stopQuestionTimers();
+      Game.updateSettings(state, nextSettings);
+      Game.saveState(state);
+      els.ending.classList.remove('is-open');
+      showStartScreen('Ready', settingsSummaryText());
+    }
+
+    function drawFactGrid() {
+      els.factGrid.innerHTML = '';
+      Game.getSelectedFacts(state).forEach((fact) => {
+        const cell = document.createElement('button');
+        cell.type = 'button';
+        cell.className = 'fact-cell';
+        if (currentFact && currentFact.id === fact.id) cell.classList.add('is-current');
+        if (!fact.mastered && fact.correct > 0) cell.classList.add('is-correct-once');
+        if (fact.mastered) cell.classList.add('is-mastered');
+        cell.disabled = !gameStarted || awaitingNextQuestion;
+        cell.setAttribute('aria-label', `Practice ${fact.a} times ${fact.b}`);
+        cell.textContent = `${fact.a}x${fact.b}`;
+        cell.addEventListener('click', () => selectFactFromMap(fact.id));
+        els.factGrid.appendChild(cell);
+      });
+    }
+
+    function clearNextQuestionTimer() {
+      if (!nextQuestionTimer) return;
+      window.clearTimeout(nextQuestionTimer);
+      nextQuestionTimer = null;
+    }
+
+    function selectFactFromMap(factId) {
+      if (!gameStarted || awaitingNextQuestion) return;
+      const fact = state.facts.find((item) => item.id === factId);
+      if (!fact || !state.settings.selectedTables.includes(fact.a)) return;
+      clearNextQuestionTimer();
+      recordTimedOutBeforeSwitch(fact.id);
+      showFact(fact, true);
+      setFeedback('', 'Selected from map', `Solve ${fact.a} x ${fact.b}.`);
+    }
+
+    function recordTimedOutBeforeSwitch(nextFactId) {
+      if (repairSession) return;
+      if (!currentFact || !questionTimedOut || currentFact.id === nextFactId) return;
+      Game.recordTimeout(state, currentFact.id, { allowMastered: selectedFromMap });
+      Game.saveState(state);
+    }
+
+    function startRecallMeter() {
+      if (meterFrame) cancelAnimationFrame(meterFrame);
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+      questionStartedAt = Date.now();
+      pausedElapsedMs = 0;
+      isPaused = false;
+      awaitingNextQuestion = false;
+      questionTimedOut = false;
+      updatePauseButton();
+      els.recallMeterWrap.classList.remove('is-timeout');
+      scheduleTimer();
+      tickRecallMeter();
+    }
+
+    function elapsedForCurrentQuestion() {
+      if (!currentFact) return 0;
+      return pausedElapsedMs + (isPaused ? 0 : Date.now() - questionStartedAt);
+    }
+
+    function scheduleTimer() {
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+      if (!currentFact || isPaused || questionTimedOut) return;
+      const remainingMs = Math.max(0, state.settings.timeLimitMs - elapsedForCurrentQuestion());
+      timeoutTimer = window.setTimeout(markQuestionTimedOut, remainingMs);
+    }
+
+    function tickRecallMeter() {
+      if (!currentFact || isPaused) return;
+      const elapsed = elapsedForCurrentQuestion();
+      const remaining = Math.max(0, 1 - elapsed / state.settings.timeLimitMs);
+      els.recallMeter.style.transform = `scaleX(${remaining})`;
+      if (remaining > 0) {
+        meterFrame = requestAnimationFrame(tickRecallMeter);
+        return;
+      }
+      markQuestionTimedOut();
+    }
+
+    function markQuestionTimedOut() {
+      if (!currentFact || questionTimedOut) return;
+      questionTimedOut = true;
+      els.recallMeterWrap.classList.add('is-timeout');
+      els.recallMeter.style.transform = 'scaleX(0)';
+      setFeedback('timeout', 'Time is up', 'You can still type an answer. Correct goes to Time-out. Wrong goes to Wrong.');
+      updatePauseButton();
+    }
+
+    function togglePause() {
+      if (!currentFact || questionTimedOut) return;
+      if (isPaused) {
+        isPaused = false;
+        questionStartedAt = Date.now();
+        els.problemText.textContent = `${currentFact.a} x ${currentFact.b}`;
+        els.problemText.classList.remove('is-paused');
+        setAnswerControlsDisabled(false);
+        setFeedback('', 'Resumed', 'Keep going.');
+        scheduleTimer();
+        tickRecallMeter();
+      } else {
+        pausedElapsedMs += Date.now() - questionStartedAt;
+        isPaused = true;
+        if (timeoutTimer) clearTimeout(timeoutTimer);
+        if (meterFrame) cancelAnimationFrame(meterFrame);
+        els.problemText.textContent = 'Paused';
+        els.problemText.classList.add('is-paused');
+        setAnswerControlsDisabled(true);
+        setFeedback('', 'Paused', 'Press Resume to continue.');
+      }
+      updatePauseButton();
+    }
+
+    function updatePauseButton() {
+      els.pauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
+      els.pauseBtn.disabled = !gameStarted || awaitingNextQuestion || !currentFact || questionTimedOut;
+    }
+
+    function setAnswerControlsDisabled(disabled) {
+      els.answerInput.disabled = disabled;
+      els.checkBtn.disabled = disabled;
+      els.explanationBtn.disabled = disabled;
+      Array.from(els.numberPad.querySelectorAll('button')).forEach((btn) => {
+        btn.disabled = disabled;
+      });
+    }
+
+    function showStartScreen(title = 'Ready', body = settingsSummaryText()) {
+      gameStarted = false;
+      stopQuestionTimers();
+      currentFact = null;
+      selectedFromMap = false;
+      awaitingNextQuestion = false;
+      isPaused = false;
+      pausedElapsedMs = 0;
+      questionTimedOut = false;
+      els.ending.classList.remove('is-open');
+      els.game.classList.add('is-ready');
+      els.arena.classList.add('is-ready');
+      els.startGate.hidden = false;
+      els.questionWrap.classList.add('is-ready');
+      els.startTitle.textContent = title;
+      els.startText.textContent = body;
+      els.startBtn.disabled = state.settings.selectedTables.length === 0;
+      els.problemText.textContent = state.settings.selectedTables.length ? 'Ready' : 'Pick Tables';
+      els.problemText.classList.remove('is-paused');
+      els.answerInput.value = '';
+      els.answerInput.classList.remove('has-error');
+      setExplanationOpen(false);
+      clearRepairSession();
+      setAnswerControlsDisabled(true);
+      els.recallMeterWrap.classList.remove('is-timeout');
+      els.recallMeter.style.transform = 'scaleX(0)';
+      setFeedback(state.settings.selectedTables.length ? '' : 'warning', title, body);
+      render();
+      updatePauseButton();
+    }
+
+    function startGame() {
+      if (!state.settings.selectedTables.length) {
+        setSettingsOpen(true);
+        showStartScreen('Pick Tables', 'Choose at least one table.');
+        return;
+      }
+      state.buckets = { correct: [], wrong: [], timeout: [] };
+      Game.saveState(state);
+      gameStarted = true;
+      els.game.classList.remove('is-ready');
+      els.arena.classList.remove('is-ready');
+      els.startGate.hidden = true;
+      els.questionWrap.classList.remove('is-ready');
+      nextQuestion();
+    }
+
+    function nextQuestion() {
+      if (!gameStarted) {
+        showStartScreen();
+        return;
+      }
+      clearNextQuestionTimer();
+      currentFact = Game.selectNextFact(state);
+      selectedFromMap = false;
+      awaitingNextQuestion = false;
+      Game.saveState(state);
+      render();
+
+      if (!currentFact) {
+        if (timeoutTimer) clearTimeout(timeoutTimer);
+        if (meterFrame) cancelAnimationFrame(meterFrame);
+        isPaused = false;
+        pausedElapsedMs = 0;
+        updatePauseButton();
+        const progress = Game.progressForState(state);
+        if (progress.complete) {
+          els.ending.classList.add('is-open');
+        } else {
+          els.problemText.textContent = 'Pick a table';
+          els.problemText.classList.remove('is-paused');
+          els.answerInput.value = '';
+          els.answerInput.classList.remove('has-error');
+          setExplanationOpen(false);
+          clearRepairSession();
+          setAnswerControlsDisabled(true);
+          els.recallMeter.style.transform = 'scaleX(0)';
+          setFeedback('', 'Choose a table', 'Use All or pick one or more tables to begin.');
+        }
+        return;
+      }
+
+      showFact(currentFact, false);
+    }
+
+    function showFact(fact, fromMap) {
+      gameStarted = true;
+      currentFact = fact;
+      selectedFromMap = fromMap;
+      awaitingNextQuestion = false;
+      isPaused = false;
+      pausedElapsedMs = 0;
+      questionTimedOut = false;
+      els.ending.classList.remove('is-open');
+      els.game.classList.remove('is-ready');
+      els.arena.classList.remove('is-ready');
+      els.startGate.hidden = true;
+      els.questionWrap.classList.remove('is-ready');
+      els.problemText.textContent = `${currentFact.a} x ${currentFact.b}`;
+      els.problemText.classList.remove('is-paused');
+      els.answerInput.value = '';
+      els.answerInput.classList.remove('has-error');
+      setExplanationOpen(false);
+      clearRepairSession();
+      setAnswerControlsDisabled(false);
+      render();
+      focusAnswerInput();
+      startRecallMeter();
+    }
+
+    function render() {
+      const progress = Game.progressForState(state);
+      els.masteryText.textContent = `${progress.mastered} / ${progress.total}`;
+      els.masteryBar.style.width = `${progress.percent}%`;
+      els.stageText.textContent = progress.modeLabel;
+      els.turnText.textContent = String(state.turn);
+      els.stageCountText.textContent = `${progress.mastered} / ${progress.total}`;
+      els.activeText.textContent = String(progress.active);
+      els.questLabel.textContent = !gameStarted
+        ? 'Ready'
+        : progress.complete
+        ? 'Mode Complete'
+        : `${progress.playModeLabel} - ${progress.modeLabel} - ${progress.orderMode === 'random' ? 'Random' : 'Ordered'}`;
+      drawModeControls();
+      drawFactGrid();
+      if (!els.explanationPanel.hidden) drawExplanation();
+      drawBuckets();
+      if (gameStarted && progress.complete) els.ending.classList.add('is-open');
+    }
+
+    function drawBuckets() {
+      drawBucket('correct', els.correctList, els.correctCount);
+      drawBucket('wrong', els.wrongList, els.wrongCount);
+      drawBucket('timeout', els.timeoutList, els.timeoutCount);
+    }
+
+    function drawBucket(bucketName, listEl, countEl) {
+      const items = state.buckets[bucketName] || [];
+      countEl.textContent = String(items.length);
+      listEl.innerHTML = '';
+      if (!items.length) {
+        const empty = document.createElement('div');
+        empty.className = 'bucket-empty';
+        empty.textContent = 'No cards yet';
+        listEl.appendChild(empty);
+        return;
+      }
+      for (const item of items.slice(0, 12)) {
+        const fact = state.facts.find((candidate) => candidate.id === item.id);
+        const isMastered = Boolean(fact ? fact.mastered : item.mastered);
+        const correctCount = Number(fact ? fact.correct : item.correct) || 0;
+        const card = document.createElement('div');
+        card.className = 'mini-fact';
+        if (bucketName === 'correct' && isMastered) card.classList.add('is-mastered');
+        if (bucketName === 'correct' && !isMastered && correctCount > 0) card.classList.add('is-correct-once');
+
+        const label = document.createElement('span');
+        label.textContent = `${item.a}x${item.b}`;
+        card.appendChild(label);
+
+        if (bucketName === 'correct') {
+          const badge = document.createElement('span');
+          badge.className = 'fact-badge';
+          badge.textContent = isMastered ? '✓' : '①';
+          card.appendChild(badge);
+        }
+        listEl.appendChild(card);
+      }
+    }
+
+    function handleSubmit(evt) {
+      evt.preventDefault();
+      if (!gameStarted || !currentFact || isPaused) return;
+      if (repairSession) {
+        handleRepairSubmit();
+        return;
+      }
+      const answerText = els.answerInput.value.trim();
+      if (!answerText) {
+        els.answerInput.classList.add('has-error');
+        setFeedback('warning', 'Type an answer', 'The answer box is empty.');
+        focusAnswerInput();
+        return;
+      }
+      const elapsed = questionTimedOut ? state.settings.timeLimitMs + 1 : elapsedForCurrentQuestion();
+      const result = Game.submitAnswer(state, currentFact.id, answerText, elapsed, {
+        allowMastered: selectedFromMap,
+      });
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+      if (meterFrame) cancelAnimationFrame(meterFrame);
+      setAnswerControlsDisabled(true);
+      awaitingNextQuestion = true;
+      updatePauseButton();
+      Game.saveState(state);
+
+      if (result.status === 'mastered') {
+        setFeedback('good', 'Conquered', `${currentFact.a} x ${currentFact.b} = ${result.expected}.`);
+      } else if (result.status === 'correct-once') {
+        setFeedback('good', 'Correct', `${currentFact.a} x ${currentFact.b} = ${result.expected}. One more later.`);
+      } else if (result.status === 'timeout-correct') {
+        setFeedback('timeout', 'Time-out', `${result.expected} is correct, but the timer was done.`);
+      } else if (result.status === 'timeout-miss') {
+        setFeedback('miss', 'Wrong', `${currentFact.a} x ${currentFact.b} = ${result.expected}. ${result.hint}`);
+      } else {
+        setFeedback('miss', 'Try again soon', `${currentFact.a} x ${currentFact.b} = ${result.expected}. ${result.hint}`);
+      }
+
+      render();
+      nextQuestionTimer = window.setTimeout(() => {
+        nextQuestionTimer = null;
+        nextQuestion();
+      }, result.bucket === 'correct' ? 850 : 1400);
+    }
+
+    function addPadButton(label, action, className = '') {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `pad-btn ${className}`.trim();
+      btn.textContent = label;
+      btn.addEventListener('click', action);
+      els.numberPad.appendChild(btn);
+    }
+
+    function addAnswerDigit(digit) {
+      if (repairSession) {
+        repairSession.entry = `${repairSession.entry || ''}${digit}`;
+        repairSession.error = false;
+        renderRepairDrill();
+        return;
+      }
+
+      els.answerInput.value += digit;
+      els.answerInput.classList.remove('has-error');
+      focusAnswerInput();
+    }
+
+    function deleteAnswerDigit() {
+      if (repairSession) {
+        repairSession.entry = String(repairSession.entry || '').slice(0, -1);
+        repairSession.error = false;
+        renderRepairDrill();
+        return;
+      }
+
+      els.answerInput.value = els.answerInput.value.slice(0, -1);
+      focusAnswerInput();
+    }
+
+    function buildNumberPad() {
+      for (let n = 1; n <= 9; n += 1) {
+        addPadButton(String(n), () => addAnswerDigit(String(n)));
+      }
+      addPadButton('0', () => addAnswerDigit('0'));
+      addPadButton('Del', deleteAnswerDigit, 'is-delete');
+      addPadButton('Check', () => {
+        els.answerForm.requestSubmit();
+      }, 'is-submit');
+    }
+
+    function resetGame() {
+      stopQuestionTimers();
+      const fresh = Game.resetState();
+      Object.assign(state, fresh);
+      els.ending.classList.remove('is-open');
+      showStartScreen('Ready', 'Conquer - All Tables - Ordered - 10 sec');
+    }
+
+    els.answerForm.addEventListener('submit', handleSubmit);
+    els.answerInput.addEventListener('input', () => {
+      els.answerInput.classList.remove('has-error');
+    });
+    els.explanationBtn.addEventListener('click', () => {
+      startExplanationFlow();
+    });
+    els.explanationContinueBtn.addEventListener('click', () => {
+      startRepairDrill();
+    });
+    els.pauseBtn.addEventListener('click', togglePause);
+    els.settingsToggle.addEventListener('click', () => {
+      setSettingsOpen(els.settingsBody.hidden);
+    });
+    els.startBtn.addEventListener('click', startGame);
+    els.playModeButtons.addEventListener('click', (evt) => {
+      const btn = evt.target.closest('.play-mode-btn');
+      if (!btn) return;
+      applyMode({ playMode: btn.dataset.playMode });
+    });
+    els.selectAllBtn.addEventListener('click', () => {
+      applyMode({ selectedTables: Game.TABLES.slice() });
+    });
+    els.clearTablesBtn.addEventListener('click', () => {
+      applyMode({ selectedTables: [] });
+    });
+    els.orderButtons.addEventListener('click', (evt) => {
+      const btn = evt.target.closest('.order-btn');
+      if (!btn) return;
+      applyMode({ orderMode: btn.dataset.order });
+    });
+    els.timeButtons.addEventListener('click', (evt) => {
+      const btn = evt.target.closest('.time-btn');
+      if (!btn) return;
+      const timeLimitMs = Number(btn.dataset.timeMs);
+      applyMode({ timeLimitMs });
+    });
+    els.keyboardButtons.addEventListener('click', (evt) => {
+      const btn = evt.target.closest('.keyboard-btn');
+      if (!btn) return;
+      applyMode({ keyboardEnabled: btn.dataset.keyboardEnabled === 'true' });
+    });
+    els.resetBtn.addEventListener('click', resetGame);
+    els.playAgainBtn.addEventListener('click', resetGame);
+    buildNumberPad();
+    showStartScreen('Ready', settingsSummaryText());
+  </script>
+</body>
+</html>
