@@ -5,7 +5,7 @@ const integer=(low,high,rng=Math.random)=>low+Math.floor(Math.min(.999999,Math.m
 function problem(op,rng=Math.random,sumLimit=10){
  if(!OPS.includes(op))throw new Error('Invalid operation');
  if(op==='+'){const sum=integer(2,sumLimit,rng),a=integer(1,sum-1,rng);return {a,b:sum-a,op,answer:sum};}
- if(op==='−'){const a=integer(0,sumLimit,rng),b=integer(0,a,rng);return {a,b,op,answer:a-b};}
+ if(op==='−'){if(rng()<.05){const a=integer(1,sumLimit,rng);return {a,b:a,op,answer:0};}let index=integer(0,sumLimit*(sumLimit+1)/2-1,rng),a=1;while(index>=a){index-=a;a++;}return {a,b:index,op,answer:a-index};}
  const a=integer(2,9,rng),b=integer(2,9,rng);return op==='×'?{a,b,op,answer:a*b}:{a:a*b,b,op,answer:a};
 }
 function initial(){return {version:1,settings:{op:'×',seconds:6,difficulty:'easy',difficultLimit:100,count:10,customCount:10},active:null,history:[]};}
