@@ -20,6 +20,8 @@ nav_order: 7
 .misc-project p { font-size: 0.95rem; line-height: 1.55; margin: 0 0 1.25rem; color: var(--global-text-color-light, #667779); }
 .misc-play { margin-top: auto; display: inline-flex; justify-content: center; align-items: center; align-self: flex-start; min-height: 44px; padding: 0.5rem 1.2rem; border-radius: 10px; background: #176b66; color: #fff !important; font-size: 0.95rem; font-weight: 600; text-decoration: none !important; }
 .misc-project--workshop .misc-play { background: #375d86; }
+.misc-game-links { display:flex; flex-wrap:wrap; gap:0.6rem; margin-top:auto; }
+.misc-game-links .misc-play { margin-top:0; }
 .misc-play:hover { filter: brightness(1.12); }
 .misc-project--music { grid-column: 1 / -1; }
 .misc-song-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.6rem; }
@@ -44,7 +46,10 @@ nav_order: 7
     <div class="misc-category">Game</div>
     <h2>Math by Hayden.J</h2>
     <p>Add, multiply, and divide.</p>
-    <a class="misc-play" href="{{ '/misc/math-by-hayden-j/' | relative_url }}" aria-label="Play Math by Hayden.J">Play</a>
+    <div class="misc-game-links">
+      <a class="misc-play" href="{{ '/misc/math-by-hayden-j/' | relative_url }}" aria-label="Play Quick Math by Hayden.J">Quick Math</a>
+      <a class="misc-play" href="{{ '/misc/hayden-math/' | relative_url }}" aria-label="Play Math Lab by Hayden.J">Math Lab</a>
+    </div>
   </article>
   <article class="misc-project misc-project--music">
     <div class="misc-category">Music</div>
