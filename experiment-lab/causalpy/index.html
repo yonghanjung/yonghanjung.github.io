@@ -6,13 +6,13 @@
   <style>
     :root {
       color-scheme: light dark;
-      --bg: #f4f6f8;
+      --bg: #fff;
       --surface: #fff;
-      --ink: #172b3b;
-      --muted: #617382;
-      --line: #dbe2e8;
-      --accent: #007b72;
-      --soft: #e8f4f2;
+      --ink: #24282f;
+      --muted: #6c757d;
+      --line: #e3e5e8;
+      --accent: #1675e1;
+      --soft: #edf5ff;
       --error: #bb3446;
     }
     @media (prefers-color-scheme: dark) {
@@ -22,8 +22,8 @@
         --ink: #e6eef3;
         --muted: #a2b3bf;
         --line: #354a59;
-        --accent: #55cfbb;
-        --soft: #183e3c;
+        --accent: #68adff;
+        --soft: #173454;
         --error: #ff8795;
       }
     }
@@ -71,10 +71,10 @@
     select {
       font: inherit;
       border: 1px solid var(--line);
-      border-radius: 7px;
+      border-radius: 4px;
       background: var(--surface);
       color: var(--ink);
-      padding: 7px 10px;
+      padding: 6px 9px;
     }
     button {
       cursor: pointer;
@@ -88,9 +88,13 @@
     }
     button[aria-pressed="true"],
     .primary {
-      background: var(--accent);
-      color: var(--surface);
+      background: var(--soft);
+      color: var(--accent);
       border-color: var(--accent);
+    }
+    .primary {
+      background: var(--surface);
+      font-weight: 600;
     }
     .toolbar,
     .settings {
@@ -100,13 +104,18 @@
       gap: 8px;
     }
     .toolbar {
-      margin-bottom: 12px;
+      padding: 8px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
     }
     #new-name {
       width: 110px;
     }
     .settings {
       margin-top: 16px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
     }
     .settings input {
       width: 85px;
@@ -121,12 +130,12 @@
     .output {
       background: var(--surface);
       border: 1px solid var(--line);
-      border-radius: 10px;
+      border-radius: 4px;
     }
     .canvas {
       overflow: auto;
-      background-image: radial-gradient(var(--line) 1px, transparent 1px);
-      background-size: 20px 20px;
+      background-image: linear-gradient(90deg, var(--line) 1px, transparent 1px), linear-gradient(var(--line) 1px, transparent 1px);
+      background-size: 24px 24px;
     }
     svg {
       display: block;
@@ -177,7 +186,7 @@
       width: 220px;
       padding: 12px;
       border: 1px solid var(--line);
-      border-radius: 10px;
+      border-radius: 4px;
       background: var(--surface);
       box-shadow: 0 8px 24px #0002;
     }
@@ -194,6 +203,8 @@
     aside h2 {
       font-size: 16px;
       margin: 0 0 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line);
     }
     aside label {
       display: block;
@@ -277,17 +288,19 @@
     <header>
       <div>
         <h1>CausalPy</h1>
-        <p>Double-click to add a node · Click a node to rename or connect · Drag to move</p>
+        <p>Double-click to add a node · Click to rename · Drag onto a node to connect</p>
       </div>
       <button id="generate" class="primary">Generate SCM</button>
     </header>
-    <div class="toolbar">
-      <input id="new-name" value="V1" aria-label="New node name" /><button id="add-node">Add node</button>
-      <button id="move-mode" aria-pressed="true">Move nodes</button><button id="edge-mode" aria-pressed="false">Add edge</button>
-      <button id="remove">Delete selected</button><button id="reset">Reset example</button>
-    </div>
     <div class="layout">
-      <div class="canvas"><svg id="canvas" viewBox="0 0 900 410" aria-label="Editable directed graph"></svg></div>
+      <div class="canvas">
+        <div class="toolbar">
+          <input id="new-name" value="V1" aria-label="New node name" /><button id="add-node">Add node</button>
+          <button id="move-mode" aria-pressed="true">Move nodes</button><button id="edge-mode" aria-pressed="false">Add edge</button>
+          <button id="remove">Delete selected</button><button id="reset">Reset example</button>
+        </div>
+        <svg id="canvas" viewBox="0 0 900 410" aria-label="Editable directed graph"></svg>
+      </div>
       <aside>
         <h2 id="selection-title">Node X</h2>
         <div id="properties">
@@ -308,7 +321,7 @@
         </div>
         <p>Dimension 1 is a scalar. Dimensions 2–8 form one vector variable.</p>
         <p>Hidden nodes must be roots with no parents.</p>
-        <p id="mode-help">Drag a node to change its position.</p>
+        <p id="mode-help">Drag onto a node to connect, or onto empty canvas to move. Select an edge and press Delete to remove it.</p>
       </aside>
     </div>
     <div id="node-menu" role="dialog" aria-label="Node actions" hidden>
@@ -434,7 +447,10 @@
       source = null;
       $("move-mode").setAttribute("aria-pressed", value === "move");
       $("edge-mode").setAttribute("aria-pressed", value === "edge");
-      $("mode-help").textContent = value === "edge" ? "Click the source node, then the target node." : "Drag a node to change its position.";
+      $("mode-help").textContent =
+        value === "edge"
+          ? "Click the source node, then the target node."
+          : "Drag onto a node to connect, or onto empty canvas to move. Select an edge and press Delete to remove it.";
       render();
     }
     function connects(start, end) {
@@ -537,14 +553,10 @@
         edgeElement = event.target.closest("[data-edge]");
       if (nodeElement) {
         const name = nodeElement.dataset.node;
-        if (mode === "edge") {
-          addEdge(name);
-          return;
-        }
         select({ name });
         const node = nodes.find((n) => n.name === name),
           p = point(event);
-        drag = { node, dx: p.x - node.x, dy: p.y - node.y, startX: event.clientX, startY: event.clientY, moved: false };
+        drag = { node, x: node.x, y: node.y, dx: p.x - node.x, dy: p.y - node.y, startX: event.clientX, startY: event.clientY, moved: false };
         svg.setPointerCapture(event.pointerId);
       } else if (edgeElement) select({ edge: JSON.parse(edgeElement.dataset.edge) });
     };
@@ -558,8 +570,20 @@
       render();
     };
     svg.onpointerup = (event) => {
-      if (drag && !drag.moved) openMenu(drag.node.name, event.clientX, event.clientY);
+      if (!drag) return;
+      const { node, x, y, moved } = drag;
       drag = null;
+      if (!moved) mode === "edge" ? addEdge(node.name) : openMenu(node.name, event.clientX, event.clientY);
+      else {
+        const p = point(event),
+          target = nodes.find((n) => n !== node && Math.abs(p.x - n.x) <= 52 && Math.abs(p.y - n.y) <= 30);
+        if (target) {
+          node.x = x;
+          node.y = y;
+          source = node.name;
+          addEdge(target.name);
+        }
+      }
     };
     svg.onpointercancel = () => {
       drag = null;
@@ -584,6 +608,11 @@
       invalidate();
       select(null);
     };
+    document.addEventListener("keydown", (event) => {
+      if (!["Delete", "Backspace"].includes(event.key) || !selected?.edge || event.target.closest("input,textarea,select,[contenteditable]")) return;
+      event.preventDefault();
+      $("remove").click();
+    });
     for (const id of ["observed", "dimension", "family"])
       $(id).onchange = () => {
         const node = nodes.find((n) => n.name === selected?.name);

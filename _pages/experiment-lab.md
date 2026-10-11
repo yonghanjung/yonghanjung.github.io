@@ -2,8 +2,8 @@
 layout: page
 title: Experiment Lab
 permalink: /experiment-lab/
-nav: true
-nav_order: 8
+nav: false
+sitemap: false
 ---
 
 Explore causal models through interactive experiments.
