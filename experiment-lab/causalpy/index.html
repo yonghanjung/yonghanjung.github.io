@@ -164,16 +164,16 @@
       fill: none;
       cursor: pointer;
     }
-    .node rect {
+    .node circle {
       fill: var(--surface);
       stroke: var(--accent);
       stroke-width: 1.8;
     }
-    .node.hidden rect {
+    .node.hidden circle {
       stroke: var(--muted);
       stroke-dasharray: 5 4;
     }
-    .node.selected rect {
+    .node.selected circle {
       stroke-width: 3;
       fill: var(--soft);
     }
@@ -205,6 +205,7 @@
       margin: 0 0 12px;
       padding-bottom: 8px;
       border-bottom: 1px solid var(--line);
+      overflow-wrap: anywhere;
     }
     aside label {
       display: block;
@@ -248,13 +249,6 @@
       color: var(--muted);
       font-weight: 550;
     }
-    .spec {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px 20px;
-      margin: 12px 0;
-      color: var(--muted);
-    }
     details {
       margin-top: 12px;
     }
@@ -284,32 +278,29 @@
     }
   </style>
   <main>
-    <a class="back" href="/experiment-lab/">← Experiment Lab</a>
+    <a class="back" href="/experiment-lab/">← Lab</a>
     <header>
-      <div>
-        <h1>CausalPy</h1>
-        <p>Double-click to add a node · Click to rename · Drag onto a node to connect</p>
-      </div>
+      <h1>CausalPy</h1>
       <button id="generate" class="primary">Generate SCM</button>
     </header>
     <div class="layout">
       <div class="canvas">
         <div class="toolbar">
           <input id="new-name" value="V1" aria-label="New node name" /><button id="add-node">Add node</button>
-          <button id="move-mode" aria-pressed="true">Move nodes</button><button id="edge-mode" aria-pressed="false">Add edge</button>
-          <button id="remove">Delete selected</button><button id="reset">Reset example</button>
+          <button id="move-mode" aria-pressed="true">Move</button><button id="edge-mode" aria-pressed="false">Edge</button>
+          <button id="remove">Delete</button><button id="reset">Reset</button>
         </div>
         <svg id="canvas" viewBox="0 0 900 410" aria-label="Editable directed graph"></svg>
       </div>
       <aside>
-        <h2 id="selection-title">Node X</h2>
+        <h2 id="selection-title">X</h2>
         <div id="properties">
-          <label><input id="observed" type="checkbox" checked /> Observed variable</label>
+          <label><input id="observed" type="checkbox" checked /> Observed</label>
           <label>Dimension <input id="dimension" type="number" min="1" max="8" value="2" /></label>
           <label
-            >Function family
+            >Function
             <select id="family">
-              <option value="">Random · all families</option>
+              <option value="">Random</option>
               <option>linear</option>
               <option>quadratic</option>
               <option>bounded</option>
@@ -319,14 +310,11 @@
             </select></label
           >
         </div>
-        <p>Dimension 1 is a scalar. Dimensions 2–8 form one vector variable.</p>
-        <p>Hidden nodes must be roots with no parents.</p>
-        <p id="mode-help">Drag onto a node to connect, or onto empty canvas to move. Select an edge and press Delete to remove it.</p>
       </aside>
     </div>
     <div id="node-menu" role="dialog" aria-label="Node actions" hidden>
       <input id="rename-input" aria-label="Rename node" />
-      <button id="rename-node">Rename</button><button id="connect-node">Connect from here</button>
+      <button id="rename-node">Rename</button><button id="connect-node">Connect</button>
     </div>
     <div class="settings">
       <label>Model seed <input id="model-seed" type="number" min="0" value="7" /></label>
@@ -335,19 +323,18 @@
       <label
         >Noise
         <select id="noise">
-          <option value="random">Random · normal / uniform</option>
+          <option value="random">Random</option>
           <option>normal</option>
           <option>uniform</option>
         </select></label
       >
     </div>
-    <p id="status" role="status" aria-live="polite">Generate SCM builds a structural causal model and samples data in your browser.</p>
+    <p id="status" role="status" aria-live="polite">Ready</p>
     <section class="output" aria-label="Generated data">
       <strong id="result-title">Sample</strong>
-      <div class="spec" id="spec"></div>
       <div class="scroll"><table id="sample"></table></div>
       <details>
-        <summary>Model details · describe()</summary>
+        <summary>Model</summary>
         <pre id="description"></pre>
       </details>
     </section>
@@ -355,6 +342,7 @@
   <script>
     const $ = (id) => document.getElementById(id),
       svg = $("canvas"),
+      RADIUS = 30,
       NS = "http://www.w3.org/2000/svg";
     let nodes,
       edges,
@@ -370,10 +358,9 @@
     function invalidate() {
       revision++;
       $("sample").replaceChildren();
-      $("spec").replaceChildren();
       $("description").textContent = "";
       $("result-title").textContent = "Sample";
-      message("Graph or settings changed. Select Generate SCM.");
+      message("Ready");
     }
     function element(tag, attributes = {}, text) {
       const el = document.createElementNS(NS, tag);
@@ -402,7 +389,7 @@
         const dx = to.x - from.x,
           dy = to.y - from.y,
           length = Math.hypot(dx, dy) || 1;
-        const gap = Math.min(57, length / 3),
+        const gap = RADIUS,
           d = `M ${from.x + (dx / length) * gap} ${from.y + (dy / length) * gap} L ${to.x - (dx / length) * gap} ${to.y - (dy / length) * gap}`;
         const group = element("g", { "data-edge": JSON.stringify([a, b]), role: "button", tabindex: 0, "aria-label": `${a} → ${b}` });
         group.append(
@@ -422,9 +409,19 @@
           "aria-label": `Node ${node.name}, dimension ${node.dimension}`,
         });
         group.append(
-          element("rect", { x: -52, y: -30, width: 104, height: 60, rx: 10 }),
-          element("text", { "text-anchor": "middle", y: -4, "font-size": 17, "font-weight": 600 }, node.name),
-          element("text", { "text-anchor": "middle", y: 17, "font-size": 12 }, `${node.observed ? "Observed" : "Hidden"} · ${node.dimension}D`)
+          element("title", {}, node.name),
+          element("circle", { r: RADIUS }),
+          element(
+            "text",
+            {
+              "text-anchor": "middle",
+              y: 5,
+              "font-size": node.name.length > 3 ? 12 : 17,
+              "font-weight": 600,
+              ...(node.name.length > 3 ? { textLength: 50, lengthAdjust: "spacingAndGlyphs" } : {}),
+            },
+            node.name.length > 8 ? `${node.name.slice(0, 7)}…` : node.name
+          )
         );
         svg.append(group);
       }
@@ -433,7 +430,7 @@
       selected = value;
       const node = nodes.find((n) => n.name === value?.name);
       $("properties").hidden = !node;
-      $("selection-title").textContent = node ? `Node ${node.name}` : value?.edge ? `${value.edge[0]} → ${value.edge[1]}` : "Nothing selected";
+      $("selection-title").textContent = node ? node.name : value?.edge ? `${value.edge[0]} → ${value.edge[1]}` : "Selection";
       if (node) {
         $("observed").checked = node.observed;
         $("dimension").value = node.dimension;
@@ -447,10 +444,6 @@
       source = null;
       $("move-mode").setAttribute("aria-pressed", value === "move");
       $("edge-mode").setAttribute("aria-pressed", value === "edge");
-      $("mode-help").textContent =
-        value === "edge"
-          ? "Click the source node, then the target node."
-          : "Drag onto a node to connect, or onto empty canvas to move. Select an edge and press Delete to remove it.";
       render();
     }
     function connects(start, end) {
@@ -576,7 +569,7 @@
       if (!moved) mode === "edge" ? addEdge(node.name) : openMenu(node.name, event.clientX, event.clientY);
       else {
         const p = point(event),
-          target = nodes.find((n) => n !== node && Math.abs(p.x - n.x) <= 52 && Math.abs(p.y - n.y) <= 30);
+          target = nodes.find((n) => n !== node && Math.hypot(p.x - n.x, p.y - n.y) <= RADIUS);
         if (target) {
           node.x = x;
           node.y = y;
@@ -690,7 +683,7 @@
     $("generate").onclick = async () => {
       const version = revision;
       $("generate").disabled = true;
-      message("Loading Python and generating SCM…");
+      message("Generating…");
       try {
         const result = await generateSCM({
           nodes,
@@ -716,17 +709,9 @@
         };
         $("sample").append(row(result.columns, "th"));
         for (const values of result.rows.slice(0, 8)) $("sample").append(row(values, "td"));
-        $("spec").replaceChildren();
-        for (const [name, details] of Object.entries(result.model.variables)) {
-          const label = document.createElement("span");
-          label.textContent = `${name} · ${details.dimension}D · ${details.observed ? details.parameters.family : "hidden"} · ${
-            details.parameters.noise_family
-          }`;
-          $("spec").append(label);
-        }
         $("description").textContent = JSON.stringify(result.model, null, 2);
-        $("result-title").textContent = `Sample · ${result.shape[0]} rows × ${result.shape[1]} columns`;
-        message("SCM generated · Observed variables only · Showing up to 8 rows");
+        $("result-title").textContent = `${result.shape[0] > 8 ? `8/${result.shape[0]}` : result.shape[0]} rows × ${result.shape[1]} columns`;
+        message("Generated");
       } catch (error) {
         message(error.message, true);
       } finally {
