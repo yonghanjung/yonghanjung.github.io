@@ -12,22 +12,30 @@ async function initialize(id) {
       py.FS.writeFile(name, await response.text());
     })
   );
-  py.runPython("import json\nfrom editor_engine import generate_scm");
+  py.runPython("import json\nfrom editor_engine import Editor\n_editor = Editor()");
   return py;
 }
 
-self.onmessage = async ({ data: { id, payload } }) => {
+self.onmessage = async ({ data: { id, action, payload } }) => {
   try {
     ready ||= initialize(id).catch((error) => {
       ready = null;
       throw error;
     });
     const py = await ready;
-    postMessage({ id, message: "Generating a fixed Python SCM and sampling data…" });
+    postMessage({ id, message: action === "sample" ? "Sampling…" : "Updating SCM…" });
+    py.globals.set("_action", action);
     py.globals.set("_payload", JSON.stringify(payload));
-    const result = py.runPython("json.dumps(generate_scm(json.loads(_payload)), allow_nan=False)");
+    const result = py.runPython("json.dumps(_editor.request(_action, json.loads(_payload)), allow_nan=False)");
     postMessage({ id, result: JSON.parse(result) });
   } catch (error) {
-    postMessage({ id, error: error.message });
+    postMessage({
+      id,
+      error: error.message
+        .trim()
+        .split("\n")
+        .at(-1)
+        .replace(/^\w+Error:\s*/, ""),
+    });
   }
 };

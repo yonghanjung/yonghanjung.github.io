@@ -30,6 +30,9 @@
     * {
       box-sizing: border-box;
     }
+    [hidden] {
+      display: none !important;
+    }
     body {
       margin: 0;
       background: var(--bg);
@@ -68,6 +71,7 @@
     }
     button,
     input,
+    textarea,
     select {
       font: inherit;
       border: 1px solid var(--line);
@@ -97,6 +101,7 @@
       font-weight: 600;
     }
     .toolbar,
+    .actions,
     .settings {
       display: flex;
       flex-wrap: wrap;
@@ -257,6 +262,22 @@
       max-height: 300px;
       font-size: 12px;
     }
+    #parameters label {
+      display: block;
+      margin: 8px 0;
+    }
+    #parameters {
+      max-height: 360px;
+      overflow: auto;
+    }
+    #parameters textarea {
+      width: 100%;
+      min-height: 65px;
+      font: 12px/1.4 monospace;
+    }
+    #parameters details {
+      margin: 8px 0;
+    }
     @media (max-width: 850px) {
       main {
         padding: 16px;
@@ -281,7 +302,9 @@
     <a class="back" href="/experiment-lab/">← Lab</a>
     <header>
       <h1>CausalPy</h1>
-      <button id="generate" class="primary">Generate SCM</button>
+      <div class="actions">
+        <button id="scm-mode" aria-pressed="false">SCM mode</button><button id="generate" class="primary" disabled>Generate Sample</button>
+      </div>
     </header>
     <div class="layout">
       <div class="canvas">
@@ -310,6 +333,18 @@
             </select></label
           >
         </div>
+        <form id="mechanism" hidden>
+          <div id="parameters"></div>
+          <button id="apply" type="submit">Apply</button>
+          <details>
+            <summary>Function</summary>
+            <pre id="function-source"></pre>
+          </details>
+          <details>
+            <summary>Noise</summary>
+            <pre id="noise-source"></pre>
+          </details>
+        </form>
       </aside>
     </div>
     <div id="node-menu" role="dialog" aria-label="Node actions" hidden>
@@ -331,7 +366,7 @@
     </div>
     <p id="status" role="status" aria-live="polite">Ready</p>
     <section class="output" aria-label="Generated data">
-      <strong id="result-title">Sample</strong>
+      <div class="actions"><strong id="result-title">Sample</strong><button id="download" disabled>CSV</button></div>
       <div class="scroll"><table id="sample"></table></div>
       <details>
         <summary>Model</summary>
@@ -350,17 +385,45 @@
       mode = "move",
       source = null,
       drag = null,
-      revision = 0;
+      revision = 0,
+      scmMode = false,
+      model = null,
+      token = null,
+      sample = null,
+      busy = false,
+      dirty = false,
+      draft = null,
+      shown = "";
     function message(text, error = false) {
       $("status").textContent = text;
       $("status").className = error ? "error" : "";
     }
-    function invalidate() {
+    function controls() {
+      $("generate").disabled = busy || dirty || !model;
+      $("scm-mode").disabled = busy;
+      $("apply").disabled = busy || !dirty;
+      $("download").disabled = !sample;
+      for (const el of document.querySelectorAll(
+        "#mechanism input,#mechanism textarea,#mechanism select,#properties input,#properties select,.settings input,.settings select"
+      ))
+        el.disabled = busy;
+      $("family").disabled = busy || !nodes?.find((n) => n.name === selected?.name)?.observed;
+      $("family").options[0].disabled = scmMode;
+    }
+    function invalidate(definition = true) {
       revision++;
+      sample = null;
       $("sample").replaceChildren();
-      $("description").textContent = "";
       $("result-title").textContent = "Sample";
-      message("Ready");
+      if (definition) {
+        model = token = draft = null;
+        shown = "";
+        dirty = false;
+        $("mechanism").hidden = true;
+        $("description").textContent = "";
+      }
+      controls();
+      message(definition ? (scmMode ? "SCM changed. Reopen SCM mode." : "Ready") : "Changed. Generate Sample.");
     }
     function element(tag, attributes = {}, text) {
       const el = document.createElementNS(NS, tag);
@@ -427,6 +490,12 @@
       }
     }
     function select(value) {
+      if (selected?.name !== value?.name) {
+        dirty = false;
+        shown = "";
+        draft = null;
+        $("mechanism").hidden = true;
+      }
       selected = value;
       const node = nodes.find((n) => n.name === value?.name);
       $("properties").hidden = !node;
@@ -434,9 +503,13 @@
       if (node) {
         $("observed").checked = node.observed;
         $("dimension").value = node.dimension;
-        $("family").value = node.family;
+        $("family").value = model?.variables[node.name]?.parameters.family || node.family;
         $("family").disabled = !node.observed;
       }
+      $("observed").closest("label").hidden = scmMode;
+      $("dimension").closest("label").hidden = scmMode;
+      if (!node || !scmMode || !model) $("mechanism").hidden = true;
+      else inspectNode(node.name);
       render();
     }
     function setMode(value) {
@@ -566,8 +639,10 @@
       if (!drag) return;
       const { node, x, y, moved } = drag;
       drag = null;
-      if (!moved) mode === "edge" ? addEdge(node.name) : openMenu(node.name, event.clientX, event.clientY);
-      else {
+      if (!moved) {
+        if (mode === "edge") addEdge(node.name);
+        else if (!scmMode) openMenu(node.name, event.clientX, event.clientY);
+      } else {
         const p = point(event),
           target = nodes.find((n) => n !== node && Math.hypot(p.x - n.x, p.y - n.y) <= RADIUS);
         if (target) {
@@ -610,6 +685,12 @@
       $(id).onchange = () => {
         const node = nodes.find((n) => n.name === selected?.name);
         if (!node) return;
+        if (id === "family" && scmMode && model) {
+          dirty = true;
+          invalidate(false);
+          changeFunction({ family: $("family").value });
+          return;
+        }
         const dimension = Number($("dimension").value),
           observed = $("observed").checked;
         if (!Number.isInteger(dimension) || dimension < 1 || dimension > 8) {
@@ -628,7 +709,8 @@
         invalidate();
         select({ name: node.name });
       };
-    for (const id of ["model-seed", "data-seed", "rows", "noise"]) $(id).onchange = invalidate;
+    for (const id of ["model-seed", "noise"]) $(id).onchange = () => invalidate();
+    for (const id of ["data-seed", "rows"]) $(id).onchange = () => invalidate(false);
     $("move-mode").onclick = () => setMode("move");
     $("edge-mode").onclick = () => setMode("edge");
     $("reset").onclick = () => {
@@ -649,7 +731,7 @@
     };
     let worker = null,
       requestId = 0;
-    function generateSCM(payload) {
+    function request(action, payload) {
       worker ||= new Worker("./scm-worker.js", { type: "module" });
       const active = worker,
         id = ++requestId;
@@ -663,12 +745,13 @@
           cleanup();
           active.terminate();
           if (worker === active) worker = null;
-          reject(Error("Python could not load. Check your connection and try Generate SCM again."));
+          invalidate();
+          reject(Error("Python stopped. Reopen SCM mode."));
         };
         const receive = (event) => {
           if (event.data.id !== id) return;
           if (event.data.message) {
-            message(event.data.message);
+            if (action !== "inspect") message(event.data.message);
             return;
           }
           cleanup();
@@ -677,26 +760,171 @@
         const timer = setTimeout(failed, 120000);
         active.addEventListener("message", receive);
         active.addEventListener("error", failed);
-        active.postMessage({ id, payload });
+        active.postMessage({ id, action, payload });
       });
     }
+    function install(result) {
+      model = result.model;
+      token = result.token;
+      $("description").textContent = JSON.stringify(model, null, 2);
+    }
+    async function perform(task) {
+      if (busy) return;
+      busy = true;
+      controls();
+      try {
+        await task();
+      } catch (error) {
+        message(error.message, true);
+      } finally {
+        busy = false;
+        controls();
+        if (scmMode && model && selected?.name) inspectNode(selected.name);
+      }
+    }
+    function parameterFields(value, container, path = []) {
+      for (const [key, item] of Object.entries(value)) {
+        if (["kind", "parents", "parent_shapes", "used_parents", "weight_scale"].includes(key)) continue;
+        if (key === "coordinates") {
+          item.forEach((coordinate, i) => {
+            const detail = document.createElement("details"),
+              summary = document.createElement("summary");
+            summary.textContent = `${selected.name}[${i}]`;
+            detail.open = i === 0;
+            detail.append(summary);
+            container.append(detail);
+            parameterFields(coordinate, detail, [...path, key, i]);
+          });
+          continue;
+        }
+        if (item && !Array.isArray(item) && typeof item === "object") {
+          parameterFields(item, container, [...path, key]);
+          continue;
+        }
+        const label = document.createElement("label"),
+          input = document.createElement(Array.isArray(item) ? "textarea" : key === "activation" ? "select" : "input");
+        label.append(document.createTextNode(key));
+        if (key === "activation") for (const name of ["tanh", "relu"]) input.add(new Option(name, name));
+        else if (!Array.isArray(item)) {
+          input.type = "number";
+          input.step = "any";
+        }
+        input.value = Array.isArray(item) ? JSON.stringify(item) : item;
+        input.dataset.path = JSON.stringify([...path, key]);
+        input.oninput = () => {
+          dirty = true;
+          invalidate(false);
+          message("Apply changes.");
+        };
+        label.append(input);
+        container.append(label);
+      }
+    }
+    function showFunction(result) {
+      const name = result.node,
+        variable = model.variables[name];
+      shown = `${token}:${name}`;
+      dirty = false;
+      draft = structuredClone(variable.equation.parameters || {});
+      $("parameters").replaceChildren();
+      if (variable.observed) parameterFields(draft, $("parameters"));
+      $("apply").hidden = !variable.observed;
+      $("family").value = variable.parameters.family || "";
+      $("function-source").textContent = result.function.source + "\n\n" + JSON.stringify(result.function.bindings, null, 2);
+      $("noise-source").textContent = JSON.stringify(variable.noise, null, 2);
+      $("mechanism").hidden = false;
+      controls();
+    }
+    async function inspectNode(name) {
+      if (busy) return;
+      if (shown === `${token}:${name}`) {
+        $("mechanism").hidden = false;
+        controls();
+        return;
+      }
+      $("mechanism").hidden = true;
+      const version = revision,
+        active = token;
+      try {
+        const result = await request("inspect", { token: active, name });
+        if (version === revision && active === token && selected?.name === name && scmMode) showFunction(result);
+      } catch (error) {
+        if (version === revision) message(error.message, true);
+      }
+    }
+    $("scm-mode").onclick = () => {
+      scmMode = !scmMode;
+      $("scm-mode").setAttribute("aria-pressed", scmMode);
+      $("node-menu").hidden = true;
+      if (!scmMode) {
+        select(selected);
+        controls();
+        return;
+      }
+      perform(async () => {
+        if (!model) {
+          const version = revision;
+          const result = await request("build", { nodes, edges, model_seed: Number($("model-seed").value), noise: $("noise").value });
+          if (version !== revision) {
+            invalidate();
+            throw Error("Graph changed. Reopen SCM mode.");
+          }
+          install(result);
+        }
+        select(selected?.name ? selected : { name: nodes[0]?.name });
+        message(dirty ? "Apply changes." : "Generate Sample.");
+      });
+    };
+    function changeFunction(changes) {
+      const name = selected?.name,
+        version = revision;
+      perform(async () => {
+        const result = await request("update", { token, name, ...changes });
+        if (version !== revision) {
+          invalidate();
+          throw Error("Graph changed. Reopen SCM mode.");
+        }
+        install(result);
+        nodes.find((n) => n.name === name).family = model.variables[name].parameters.family;
+        invalidate(false);
+        if (selected?.name === name) showFunction(result);
+        message("Changed. Generate Sample.");
+      });
+    }
+    $("mechanism").onsubmit = (event) => {
+      event.preventDefault();
+      try {
+        const parameters = structuredClone(draft);
+        for (const input of $("parameters").querySelectorAll("[data-path]")) {
+          const path = JSON.parse(input.dataset.path),
+            key = path.pop();
+          let object = parameters;
+          for (const part of path) object = object[part];
+          if (input.tagName === "TEXTAREA") object[key] = JSON.parse(input.value);
+          else if (input.tagName === "SELECT") object[key] = input.value;
+          else {
+            if (!input.value.trim() || !Number.isFinite(Number(input.value))) throw Error("Use finite numbers.");
+            object[key] = Number(input.value);
+          }
+        }
+        changeFunction({ parameters });
+      } catch (error) {
+        message(error.message, true);
+      }
+    };
     $("generate").onclick = async () => {
       const version = revision;
-      $("generate").disabled = true;
-      message("Generating…");
-      try {
-        const result = await generateSCM({
-          nodes,
-          edges,
-          model_seed: Number($("model-seed").value),
+      perform(async () => {
+        const result = await request("sample", {
+          token,
           data_seed: Number($("data-seed").value),
           n: Number($("rows").value),
-          noise: $("noise").value,
         });
         if (version !== revision) {
-          message("Settings changed during generation. Select Generate SCM again.");
+          message("Changed. Generate Sample.");
           return;
         }
+        sample = result;
         $("sample").replaceChildren();
         const row = (values, tag) => {
           const tr = document.createElement("tr");
@@ -708,15 +936,19 @@
           return tr;
         };
         $("sample").append(row(result.columns, "th"));
-        for (const values of result.rows.slice(0, 8)) $("sample").append(row(values, "td"));
-        $("description").textContent = JSON.stringify(result.model, null, 2);
-        $("result-title").textContent = `${result.shape[0] > 8 ? `8/${result.shape[0]}` : result.shape[0]} rows × ${result.shape[1]} columns`;
+        for (const values of result.rows) $("sample").append(row(values, "td"));
+        $("result-title").textContent = `${result.shape[0] > 10 ? `10/${result.shape[0]}` : result.shape[0]} rows × ${result.shape[1]} columns`;
         message("Generated");
-      } catch (error) {
-        message(error.message, true);
-      } finally {
-        $("generate").disabled = false;
-      }
+      });
+    };
+    $("download").onclick = () => {
+      if (!sample) return;
+      const url = URL.createObjectURL(new Blob([sample.csv], { type: "text/csv;charset=utf-8" })),
+        link = document.createElement("a");
+      link.href = url;
+      link.download = "causalpy-sample.csv";
+      link.click();
+      URL.revokeObjectURL(url);
     };
     $("reset").click();
   </script>
