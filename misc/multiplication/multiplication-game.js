@@ -1,13 +1,13 @@
 (function defineMultiplicationGame(root) {
-  const STORAGE_KEY = 'multiplicationQuest.v3';
+  const STORAGE_KEY = "multiplicationQuest.v3";
   const FAST_RECALL_MS = 5000;
   const MIN_TIME_LIMIT_MS = 3000;
   const MAX_TIME_LIMIT_MS = 10000;
   const TIME_LIMIT_OPTIONS_MS = [3000, 5000, 10000];
   const TABLES = [2, 3, 4, 5, 6, 7, 8, 9];
   const MULTIPLIERS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-  const ORDER_MODES = ['ordered', 'random'];
-  const PLAY_MODES = ['study', 'conquer'];
+  const ORDER_MODES = ["ordered", "random"];
+  const PLAY_MODES = ["study", "conquer"];
   const BUCKET_LIMIT = 24;
   const REVIEW_DELAY_RULES = {
     correct: { min: 5, max: 10 },
@@ -46,8 +46,8 @@
   function defaultSettings() {
     return {
       selectedTables: TABLES.slice(),
-      playMode: 'conquer',
-      orderMode: 'ordered',
+      playMode: "conquer",
+      orderMode: "ordered",
       timeLimitMs: 10000,
       keyboardEnabled: false,
     };
@@ -96,18 +96,12 @@
 
   function sanitizeSettings(settings) {
     const fallback = defaultSettings();
-    if (!settings || typeof settings !== 'object') return fallback;
+    if (!settings || typeof settings !== "object") return fallback;
     const selectedTables = sanitizeTables(settings.selectedTables);
-    const orderMode = ORDER_MODES.includes(settings.orderMode)
-      ? settings.orderMode
-      : fallback.orderMode;
-    const playMode = PLAY_MODES.includes(settings.playMode)
-      ? settings.playMode
-      : fallback.playMode;
+    const orderMode = ORDER_MODES.includes(settings.orderMode) ? settings.orderMode : fallback.orderMode;
+    const playMode = PLAY_MODES.includes(settings.playMode) ? settings.playMode : fallback.playMode;
     const timeLimitMs = sanitizeTimeLimit(settings.timeLimitMs);
-    const keyboardEnabled = typeof settings.keyboardEnabled === 'boolean'
-      ? settings.keyboardEnabled
-      : fallback.keyboardEnabled;
+    const keyboardEnabled = typeof settings.keyboardEnabled === "boolean" ? settings.keyboardEnabled : fallback.keyboardEnabled;
     return { selectedTables, playMode, orderMode, timeLimitMs, keyboardEnabled };
   }
 
@@ -127,24 +121,20 @@
     const exact = TIME_LIMIT_OPTIONS_MS.find((item) => item === n);
     if (exact) return exact;
     const clamped = clampInteger(n, MIN_TIME_LIMIT_MS, MAX_TIME_LIMIT_MS);
-    return TIME_LIMIT_OPTIONS_MS
-      .slice()
-      .sort((left, right) => Math.abs(left - clamped) - Math.abs(right - clamped))[0];
+    return TIME_LIMIT_OPTIONS_MS.slice().sort((left, right) => Math.abs(left - clamped) - Math.abs(right - clamped))[0];
   }
 
   function sanitizeBuckets(buckets) {
     const clean = { correct: [], wrong: [], timeout: [] };
-    if (!buckets || typeof buckets !== 'object') return clean;
+    if (!buckets || typeof buckets !== "object") return clean;
     for (const key of Object.keys(clean)) {
-      clean[key] = Array.isArray(buckets[key])
-        ? buckets[key].map(sanitizeBucketEntry).filter(Boolean).slice(0, BUCKET_LIMIT)
-        : [];
+      clean[key] = Array.isArray(buckets[key]) ? buckets[key].map(sanitizeBucketEntry).filter(Boolean).slice(0, BUCKET_LIMIT) : [];
     }
     return clean;
   }
 
   function sanitizeBucketEntry(entry) {
-    if (!entry || typeof entry !== 'object') return null;
+    if (!entry || typeof entry !== "object") return null;
     const a = Number(entry.a);
     const b = Number(entry.b);
     if (!TABLES.includes(a) || !MULTIPLIERS.includes(b)) return null;
@@ -156,7 +146,7 @@
       answer: Number.isFinite(Number(entry.answer)) ? Number(entry.answer) : null,
       turn: clampInteger(entry.turn, 0, 999999),
       at: Number.isFinite(Number(entry.at)) ? Number(entry.at) : Date.now(),
-      label: String(entry.label || ''),
+      label: String(entry.label || ""),
       correct: clampInteger(entry.correct, 0, 9999),
       mastered: Boolean(entry.mastered),
     };
@@ -185,7 +175,7 @@
 
   function getActiveFacts(state) {
     const selectedFacts = getSelectedFacts(state);
-    if (state.settings.playMode === 'study') return selectedFacts;
+    if (state.settings.playMode === "study") return selectedFacts;
     return selectedFacts.filter((fact) => !fact.mastered);
   }
 
@@ -196,7 +186,7 @@
     const dueReviews = active.filter((fact) => fact.attempts > 0 && fact.dueTurn <= state.turn);
     const dueNew = active.filter((fact) => fact.attempts === 0 && fact.dueTurn <= state.turn);
     const pool = dueReviews.length ? dueReviews : dueNew.length ? dueNew : active;
-    if (state.settings.orderMode === 'random') {
+    if (state.settings.orderMode === "random") {
       return selectRandomFact(pool, state);
     }
     return sortFactPool(pool, state)[0];
@@ -204,18 +194,18 @@
 
   function sortFactPool(pool, state) {
     const recentSet = new Set(state.recent.slice(-3));
-    return pool
-      .slice()
-      .sort((left, right) => {
-        const leftRecent = recentSet.has(left.id) ? 1 : 0;
-        const rightRecent = recentSet.has(right.id) ? 1 : 0;
-        return (leftRecent - rightRecent)
-          || (left.dueTurn - right.dueTurn)
-          || (left.correct - right.correct)
-          || (left.attempts - right.attempts)
-          || (left.a - right.a)
-          || (left.b - right.b);
-      });
+    return pool.slice().sort((left, right) => {
+      const leftRecent = recentSet.has(left.id) ? 1 : 0;
+      const rightRecent = recentSet.has(right.id) ? 1 : 0;
+      return (
+        leftRecent - rightRecent ||
+        left.dueTurn - right.dueTurn ||
+        left.correct - right.correct ||
+        left.attempts - right.attempts ||
+        left.a - right.a ||
+        left.b - right.b
+      );
+    });
   }
 
   function selectRandomFact(pool, state) {
@@ -254,7 +244,7 @@
   }
 
   function parseAnswer(input) {
-    const text = String(input ?? '').trim();
+    const text = String(input ?? "").trim();
     if (!/^-?\d+$/.test(text)) return null;
     return Number(text);
   }
@@ -263,17 +253,17 @@
     const fact = state.facts.find((item) => item.id === factIdValue);
     if (!fact) throw new Error(`Unknown fact: ${factIdValue}`);
     const allowMastered = Boolean(options.allowMastered);
-    const rng = typeof options.rng === 'function' ? options.rng : Math.random;
-    if (fact.mastered && state.settings.playMode !== 'study' && !allowMastered) {
+    const rng = typeof options.rng === "function" ? options.rng : Math.random;
+    if (fact.mastered && state.settings.playMode !== "study" && !allowMastered) {
       return {
-        status: 'mastered',
+        status: "mastered",
         correct: true,
         timedOut: false,
         answer: fact.product,
         expected: fact.product,
         fact: cloneFact(fact),
         hint: hintForFact(fact),
-        bucket: 'correct',
+        bucket: "correct",
       };
     }
 
@@ -285,33 +275,31 @@
     fact.attempts += 1;
     fact.lastTurn = state.turn;
 
-    let status = 'miss';
-    let bucket = 'wrong';
+    let status = "miss";
+    let bucket = "wrong";
     let schedule = null;
     if (timedOut && correct) {
-      status = 'timeout-correct';
-      bucket = 'timeout';
+      status = "timeout-correct";
+      bucket = "timeout";
       if (!fact.mastered) fact.correct = 0;
-      schedule = scheduleReview(state, fact, 'timeout', rng);
+      schedule = scheduleReview(state, fact, "timeout", rng);
     } else if (correct) {
       fact.correct += 1;
-      bucket = 'correct';
+      bucket = "correct";
       if (fact.correct >= 2) {
         fact.mastered = true;
-        status = 'mastered';
-        fact.dueTurn = state.settings.playMode === 'study'
-          ? state.turn + 4
-          : Number.POSITIVE_INFINITY;
+        status = "mastered";
+        fact.dueTurn = state.settings.playMode === "study" ? state.turn + 4 : Number.POSITIVE_INFINITY;
       } else {
         fact.mastered = false;
-        status = 'correct-once';
-        schedule = scheduleReview(state, fact, 'correct', rng);
+        status = "correct-once";
+        schedule = scheduleReview(state, fact, "correct", rng);
       }
     } else {
-      status = timedOut ? 'timeout-miss' : 'miss';
-      bucket = timedOut ? 'wrong' : 'wrong';
+      status = timedOut ? "timeout-miss" : "miss";
+      bucket = timedOut ? "wrong" : "wrong";
       if (!fact.mastered) fact.correct = 0;
-      schedule = scheduleReview(state, fact, 'wrong', rng);
+      schedule = scheduleReview(state, fact, "wrong", rng);
     }
 
     state.recent.push(fact.id);
@@ -335,17 +323,17 @@
     const fact = state.facts.find((item) => item.id === factIdValue);
     if (!fact) throw new Error(`Unknown fact: ${factIdValue}`);
     const allowMastered = Boolean(options.allowMastered);
-    const rng = typeof options.rng === 'function' ? options.rng : Math.random;
-    if (fact.mastered && state.settings.playMode !== 'study' && !allowMastered) {
+    const rng = typeof options.rng === "function" ? options.rng : Math.random;
+    if (fact.mastered && state.settings.playMode !== "study" && !allowMastered) {
       return {
-        status: 'mastered',
+        status: "mastered",
         correct: true,
         timedOut: false,
         answer: fact.product,
         expected: fact.product,
         fact: cloneFact(fact),
         hint: hintForFact(fact),
-        bucket: 'correct',
+        bucket: "correct",
       };
     }
 
@@ -354,20 +342,20 @@
     fact.attempts += 1;
     fact.lastTurn = state.turn;
     if (!fact.mastered) fact.correct = 0;
-    const schedule = scheduleReview(state, fact, 'timeout', rng);
+    const schedule = scheduleReview(state, fact, "timeout", rng);
     state.recent.push(fact.id);
     state.recent = state.recent.slice(-8);
-    recordBucket(state, 'timeout', fact, null, 'timeout-skip');
+    recordBucket(state, "timeout", fact, null, "timeout-skip");
 
     return {
-      status: 'timeout-skip',
+      status: "timeout-skip",
       correct: false,
       timedOut: true,
       answer: null,
       expected: fact.product,
       fact: cloneFact(fact),
       hint: hintForFact(fact),
-      bucket: 'timeout',
+      bucket: "timeout",
       schedule,
     };
   }
@@ -405,7 +393,7 @@
     if (a === 4) return `Double ${b}, then double again.`;
     if (a === 9) return `Use 10 x ${b}, then take away ${b}.`;
     if (a === 6) return `Use 5 x ${b}, then add one more ${b}.`;
-    if (a === 7 && b === 8) return 'The 7 x 8 fact is 56.';
+    if (a === 7 && b === 8) return "The 7 x 8 fact is 56.";
     if (a === 8) return `Double ${b}, double again, then double once more.`;
     if (a === 7) return `Use 5 x ${b}, then add 2 x ${b}.`;
     return `${a} groups of ${b} makes ${product}.`;
@@ -413,14 +401,14 @@
 
   function modeLabel(settings) {
     const selected = settings.selectedTables;
-    if (selected.length === 0) return 'No Tables';
-    if (selected.length === TABLES.length) return 'All Tables';
+    if (selected.length === 0) return "No Tables";
+    if (selected.length === TABLES.length) return "All Tables";
     if (selected.length === 1) return `${selected[0]} Table`;
-    return `${selected.join(', ')} Tables`;
+    return `${selected.join(", ")} Tables`;
   }
 
   function playModeLabel(settings) {
-    return settings.playMode === 'study' ? 'Repeat' : 'Conquer';
+    return settings.playMode === "study" ? "Repeat" : "Conquer";
   }
 
   function progressForState(state) {
@@ -438,7 +426,7 @@
       playModeLabel: playModeLabel(state.settings),
       orderMode: state.settings.orderMode,
       timeLimitMs: state.settings.timeLimitMs,
-      complete: state.settings.playMode === 'conquer' && total > 0 && mastered === total,
+      complete: state.settings.playMode === "conquer" && total > 0 && mastered === total,
       buckets: {
         correct: state.buckets.correct.length,
         wrong: state.buckets.wrong.length,
@@ -500,7 +488,7 @@
 
   root.MULTIPLICATION_GAME = api;
 
-  if (typeof module !== 'undefined' && module.exports) {
+  if (typeof module !== "undefined" && module.exports) {
     module.exports = api;
   }
-})(typeof window !== 'undefined' ? window : globalThis);
+})(typeof window !== "undefined" ? window : globalThis);
