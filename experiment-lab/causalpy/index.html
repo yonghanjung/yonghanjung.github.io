@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CausalPy · Graph → SCM</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f4f6f8;
+      --surface: #fff;
+      --ink: #172b3b;
+      --muted: #617382;
+      --line: #dbe2e8;
+      --accent: #007b72;
+      --soft: #e8f4f2;
+      --error: #bb3446;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #12202b;
+        --surface: #192b38;
+        --ink: #e6eef3;
+        --muted: #a2b3bf;
+        --line: #354a59;
+        --accent: #55cfbb;
+        --soft: #183e3c;
+        --error: #ff8795;
+      }
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font:
+        14px/1.5 system-ui,
+        sans-serif;
+    }
+    main {
+      max-width: 1240px;
+      margin: auto;
+      padding: 28px;
+    }
+    .back {
+      display: inline-block;
+      margin-bottom: 16px;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    h1 {
+      font-size: 24px;
+      margin: 0;
+      font-weight: 650;
+      letter-spacing: -0.5px;
+    }
+    p {
+      margin: 4px 0;
+      color: var(--muted);
+    }
+    button,
+    input,
+    select {
+      font: inherit;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--surface);
+      color: var(--ink);
+      padding: 7px 10px;
+    }
+    button {
+      cursor: pointer;
+    }
+    button:hover {
+      border-color: var(--accent);
+    }
+    button:disabled {
+      cursor: wait;
+      opacity: 0.6;
+    }
+    button[aria-pressed="true"],
+    .primary {
+      background: var(--accent);
+      color: var(--surface);
+      border-color: var(--accent);
+    }
+    .toolbar,
+    .settings {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .toolbar {
+      margin-bottom: 12px;
+    }
+    #new-name {
+      width: 110px;
+    }
+    .settings {
+      margin-top: 16px;
+    }
+    .settings input {
+      width: 85px;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 230px;
+      gap: 16px;
+    }
+    .canvas,
+    aside,
+    .output {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+    .canvas {
+      overflow: auto;
+      background-image: radial-gradient(var(--line) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+    svg {
+      display: block;
+      width: 100%;
+      min-width: 680px;
+      height: 410px;
+      touch-action: none;
+      user-select: none;
+    }
+    svg text {
+      fill: var(--ink);
+      pointer-events: none;
+    }
+    .edge {
+      stroke: var(--muted);
+      stroke-width: 1.6;
+      fill: none;
+    }
+    .edge.selected {
+      stroke: var(--accent);
+      stroke-width: 2.5;
+    }
+    .edge-hit {
+      stroke: transparent;
+      stroke-width: 16;
+      fill: none;
+      cursor: pointer;
+    }
+    .node rect {
+      fill: var(--surface);
+      stroke: var(--accent);
+      stroke-width: 1.8;
+    }
+    .node.hidden rect {
+      stroke: var(--muted);
+      stroke-dasharray: 5 4;
+    }
+    .node.selected rect {
+      stroke-width: 3;
+      fill: var(--soft);
+    }
+    .node {
+      cursor: grab;
+    }
+    #node-menu {
+      position: fixed;
+      z-index: 5;
+      width: 220px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface);
+      box-shadow: 0 8px 24px #0002;
+    }
+    #node-menu input {
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    #node-menu button {
+      margin: 2px 0;
+    }
+    aside {
+      padding: 16px;
+    }
+    aside h2 {
+      font-size: 16px;
+      margin: 0 0 12px;
+    }
+    aside label {
+      display: block;
+      margin: 12px 0;
+    }
+    aside input[type="number"],
+    aside select {
+      width: 100%;
+      margin-top: 4px;
+    }
+    aside input[type="checkbox"] {
+      accent-color: var(--accent);
+    }
+    #status {
+      min-height: 24px;
+      margin: 12px 0;
+    }
+    #status.error {
+      color: var(--error);
+    }
+    .output {
+      margin-top: 16px;
+      padding: 16px;
+    }
+    .scroll {
+      overflow: auto;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-variant-numeric: tabular-nums;
+    }
+    th,
+    td {
+      padding: 7px 12px;
+      text-align: right;
+      border-bottom: 1px solid var(--line);
+      white-space: nowrap;
+    }
+    th {
+      color: var(--muted);
+      font-weight: 550;
+    }
+    .spec {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 20px;
+      margin: 12px 0;
+      color: var(--muted);
+    }
+    details {
+      margin-top: 12px;
+    }
+    pre {
+      overflow: auto;
+      max-height: 300px;
+      font-size: 12px;
+    }
+    @media (max-width: 850px) {
+      main {
+        padding: 16px;
+      }
+      header {
+        align-items: flex-start;
+      }
+      .layout {
+        grid-template-columns: 1fr;
+      }
+      aside label {
+        display: inline-block;
+        margin: 6px 18px 6px 0;
+      }
+      aside input[type="number"],
+      aside select {
+        width: auto;
+      }
+    }
+  </style>
+  <main>
+    <a class="back" href="/experiment-lab/">← Experiment Lab</a>
+    <header>
+      <div>
+        <h1>CausalPy</h1>
+        <p>Double-click to add a node · Click a node to rename or connect · Drag to move</p>
+      </div>
+      <button id="generate" class="primary">Generate SCM</button>
+    </header>
+    <div class="toolbar">
+      <input id="new-name" value="V1" aria-label="New node name" /><button id="add-node">Add node</button>
+      <button id="move-mode" aria-pressed="true">Move nodes</button><button id="edge-mode" aria-pressed="false">Add edge</button>
+      <button id="remove">Delete selected</button><button id="reset">Reset example</button>
+    </div>
+    <div class="layout">
+      <div class="canvas"><svg id="canvas" viewBox="0 0 900 410" aria-label="Editable directed graph"></svg></div>
+      <aside>
+        <h2 id="selection-title">Node X</h2>
+        <div id="properties">
+          <label><input id="observed" type="checkbox" checked /> Observed variable</label>
+          <label>Dimension <input id="dimension" type="number" min="1" max="8" value="2" /></label>
+          <label
+            >Function family
+            <select id="family">
+              <option value="">Random · all families</option>
+              <option>linear</option>
+              <option>quadratic</option>
+              <option>bounded</option>
+              <option>binary</option>
+              <option>neural_network</option>
+              <option>decision_tree</option>
+            </select></label
+          >
+        </div>
+        <p>Dimension 1 is a scalar. Dimensions 2–8 form one vector variable.</p>
+        <p>Hidden nodes must be roots with no parents.</p>
+        <p id="mode-help">Drag a node to change its position.</p>
+      </aside>
+    </div>
+    <div id="node-menu" role="dialog" aria-label="Node actions" hidden>
+      <input id="rename-input" aria-label="Rename node" />
+      <button id="rename-node">Rename</button><button id="connect-node">Connect from here</button>
+    </div>
+    <div class="settings">
+      <label>Model seed <input id="model-seed" type="number" min="0" value="7" /></label>
+      <label>Data seed <input id="data-seed" type="number" min="0" value="5" /></label>
+      <label>Rows <input id="rows" type="number" min="0" max="1000" value="8" /></label>
+      <label
+        >Noise
+        <select id="noise">
+          <option value="random">Random · normal / uniform</option>
+          <option>normal</option>
+          <option>uniform</option>
+        </select></label
+      >
+    </div>
+    <p id="status" role="status" aria-live="polite">Generate SCM builds a structural causal model and samples data in your browser.</p>
+    <section class="output" aria-label="Generated data">
+      <strong id="result-title">Sample</strong>
+      <div class="spec" id="spec"></div>
+      <div class="scroll"><table id="sample"></table></div>
+      <details>
+        <summary>Model details · describe()</summary>
+        <pre id="description"></pre>
+      </details>
+    </section>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id),
+      svg = $("canvas"),
+      NS = "http://www.w3.org/2000/svg";
+    let nodes,
+      edges,
+      selected,
+      mode = "move",
+      source = null,
+      drag = null,
+      revision = 0;
+    function message(text, error = false) {
+      $("status").textContent = text;
+      $("status").className = error ? "error" : "";
+    }
+    function invalidate() {
+      revision++;
+      $("sample").replaceChildren();
+      $("spec").replaceChildren();
+      $("description").textContent = "";
+      $("result-title").textContent = "Sample";
+      message("Graph or settings changed. Select Generate SCM.");
+    }
+    function element(tag, attributes = {}, text) {
+      const el = document.createElementNS(NS, tag);
+      for (const [name, value] of Object.entries(attributes)) el.setAttribute(name, value);
+      if (text !== undefined) el.textContent = text;
+      return el;
+    }
+    function render() {
+      svg.replaceChildren();
+      const defs = element("defs"),
+        arrow = element("marker", {
+          id: "arrow",
+          viewBox: "0 0 10 10",
+          refX: 9,
+          refY: 5,
+          markerWidth: 6,
+          markerHeight: 6,
+          orient: "auto-start-reverse",
+        });
+      arrow.append(element("path", { d: "M 0 0 L 10 5 L 0 10 z", fill: "var(--muted)" }));
+      defs.append(arrow);
+      svg.append(defs);
+      for (const [a, b] of edges) {
+        const from = nodes.find((n) => n.name === a),
+          to = nodes.find((n) => n.name === b);
+        const dx = to.x - from.x,
+          dy = to.y - from.y,
+          length = Math.hypot(dx, dy) || 1;
+        const gap = Math.min(57, length / 3),
+          d = `M ${from.x + (dx / length) * gap} ${from.y + (dy / length) * gap} L ${to.x - (dx / length) * gap} ${to.y - (dy / length) * gap}`;
+        const group = element("g", { "data-edge": JSON.stringify([a, b]), role: "button", tabindex: 0, "aria-label": `${a} → ${b}` });
+        group.append(
+          element("path", { d, class: `edge ${selected?.edge?.[0] === a && selected.edge[1] === b ? "selected" : ""}`, "marker-end": "url(#arrow)" }),
+          element("path", { d, class: "edge-hit" })
+        );
+        svg.append(group);
+      }
+      for (const node of nodes) {
+        const active = selected?.name === node.name || source === node.name;
+        const group = element("g", {
+          "data-node": node.name,
+          transform: `translate(${node.x},${node.y})`,
+          class: `node ${node.observed ? "" : "hidden"} ${active ? "selected" : ""}`,
+          role: "button",
+          tabindex: 0,
+          "aria-label": `Node ${node.name}, dimension ${node.dimension}`,
+        });
+        group.append(
+          element("rect", { x: -52, y: -30, width: 104, height: 60, rx: 10 }),
+          element("text", { "text-anchor": "middle", y: -4, "font-size": 17, "font-weight": 600 }, node.name),
+          element("text", { "text-anchor": "middle", y: 17, "font-size": 12 }, `${node.observed ? "Observed" : "Hidden"} · ${node.dimension}D`)
+        );
+        svg.append(group);
+      }
+    }
+    function select(value) {
+      selected = value;
+      const node = nodes.find((n) => n.name === value?.name);
+      $("properties").hidden = !node;
+      $("selection-title").textContent = node ? `Node ${node.name}` : value?.edge ? `${value.edge[0]} → ${value.edge[1]}` : "Nothing selected";
+      if (node) {
+        $("observed").checked = node.observed;
+        $("dimension").value = node.dimension;
+        $("family").value = node.family;
+        $("family").disabled = !node.observed;
+      }
+      render();
+    }
+    function setMode(value) {
+      mode = value;
+      source = null;
+      $("move-mode").setAttribute("aria-pressed", value === "move");
+      $("edge-mode").setAttribute("aria-pressed", value === "edge");
+      $("mode-help").textContent = value === "edge" ? "Click the source node, then the target node." : "Drag a node to change its position.";
+      render();
+    }
+    function connects(start, end) {
+      const pending = [start],
+        seen = new Set();
+      while (pending.length) {
+        const name = pending.pop();
+        if (name === end) return true;
+        if (seen.has(name)) continue;
+        seen.add(name);
+        for (const [a, b] of edges) if (a === name) pending.push(b);
+      }
+      return false;
+    }
+    function addEdge(target) {
+      if (!source) {
+        source = target;
+        render();
+        return;
+      }
+      const from = source;
+      source = null;
+      if (from === target || connects(target, from)) message("A directed acyclic graph cannot contain a self-loop or cycle.", true);
+      else if (!nodes.find((n) => n.name === target).observed) message("A hidden root cannot have an incoming edge.", true);
+      else if (!edges.some(([a, b]) => a === from && b === target)) {
+        edges.push([from, target]);
+        invalidate();
+      }
+      render();
+    }
+    function point(event) {
+      return new DOMPoint(event.clientX, event.clientY).matrixTransform(svg.getScreenCTM().inverse());
+    }
+    function nextName() {
+      let i = 1;
+      while (nodes.some((n) => n.name === `V${i}`)) i++;
+      return `V${i}`;
+    }
+    function availableName(name, current) {
+      return /^[A-Za-z][A-Za-z0-9_]*$/.test(name) && !nodes.some((n) => n.name === name && n !== current);
+    }
+    function createNode(name, x, y) {
+      if (!availableName(name)) {
+        message("Use a unique name starting with a letter.", true);
+        return;
+      }
+      if (nodes.length >= 50) {
+        message("Use at most 50 nodes.", true);
+        return;
+      }
+      nodes.push({ name, observed: true, dimension: 1, family: "", x: Math.max(60, Math.min(840, x)), y: Math.max(40, Math.min(370, y)) });
+      $("new-name").value = nextName();
+      invalidate();
+      select({ name });
+    }
+    function openMenu(name, x, y) {
+      select({ name });
+      $("rename-input").value = name;
+      const menu = $("node-menu");
+      menu.style.left = `${Math.max(8, Math.min(x, innerWidth - 236))}px`;
+      menu.style.top = `${Math.max(8, Math.min(y, innerHeight - 145))}px`;
+      menu.hidden = false;
+    }
+    document.addEventListener("pointerdown", (event) => {
+      if (!event.target.closest("#node-menu")) $("node-menu").hidden = true;
+    });
+    $("rename-node").onclick = () => {
+      const old = selected?.name,
+        node = nodes.find((n) => n.name === old),
+        name = $("rename-input").value.trim();
+      if (!node) return;
+      if (!availableName(name, node)) {
+        message("Use a unique name starting with a letter.", true);
+        return;
+      }
+      node.name = name;
+      edges = edges.map((edge) => edge.map((n) => (n === old ? name : n)));
+      if (source === old) source = name;
+      $("node-menu").hidden = true;
+      invalidate();
+      select({ name });
+    };
+    $("rename-input").onkeydown = (event) => {
+      if (event.key === "Enter") $("rename-node").click();
+    };
+    $("connect-node").onclick = () => {
+      setMode("edge");
+      source = selected.name;
+      $("node-menu").hidden = true;
+      render();
+    };
+    svg.ondblclick = (event) => {
+      if (event.target.closest("[data-node],[data-edge]")) return;
+      const p = point(event);
+      createNode(nextName(), p.x, p.y);
+    };
+    svg.onpointerdown = (event) => {
+      if (event.button !== 0) return;
+      const nodeElement = event.target.closest("[data-node]"),
+        edgeElement = event.target.closest("[data-edge]");
+      if (nodeElement) {
+        const name = nodeElement.dataset.node;
+        if (mode === "edge") {
+          addEdge(name);
+          return;
+        }
+        select({ name });
+        const node = nodes.find((n) => n.name === name),
+          p = point(event);
+        drag = { node, dx: p.x - node.x, dy: p.y - node.y, startX: event.clientX, startY: event.clientY, moved: false };
+        svg.setPointerCapture(event.pointerId);
+      } else if (edgeElement) select({ edge: JSON.parse(edgeElement.dataset.edge) });
+    };
+    svg.onpointermove = (event) => {
+      if (!drag) return;
+      const p = point(event);
+      drag.moved ||= Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4;
+      if (!drag.moved) return;
+      drag.node.x = Math.max(60, Math.min(840, p.x - drag.dx));
+      drag.node.y = Math.max(40, Math.min(370, p.y - drag.dy));
+      render();
+    };
+    svg.onpointerup = (event) => {
+      if (drag && !drag.moved) openMenu(drag.node.name, event.clientX, event.clientY);
+      drag = null;
+    };
+    svg.onpointercancel = () => {
+      drag = null;
+    };
+    svg.onkeydown = (event) => {
+      const node = event.target.closest("[data-node]"),
+        edge = event.target.closest("[data-edge]");
+      if (event.key === "Enter" && node) mode === "edge" ? addEdge(node.dataset.node) : select({ name: node.dataset.node });
+      if (event.key === "Enter" && edge) select({ edge: JSON.parse(edge.dataset.edge) });
+    };
+    $("add-node").onclick = () => {
+      createNode($("new-name").value.trim(), 130 + (nodes.length % 5) * 135, 100 + ((Math.floor(nodes.length / 5) * 55) % 250));
+    };
+    $("remove").onclick = () => {
+      if (!selected) return;
+      $("node-menu").hidden = true;
+      if (selected.name) {
+        nodes = nodes.filter((n) => n.name !== selected.name);
+        edges = edges.filter(([a, b]) => a !== selected.name && b !== selected.name);
+      } else edges = edges.filter(([a, b]) => a !== selected.edge[0] || b !== selected.edge[1]);
+      source = null;
+      invalidate();
+      select(null);
+    };
+    for (const id of ["observed", "dimension", "family"])
+      $(id).onchange = () => {
+        const node = nodes.find((n) => n.name === selected?.name);
+        if (!node) return;
+        const dimension = Number($("dimension").value),
+          observed = $("observed").checked;
+        if (!Number.isInteger(dimension) || dimension < 1 || dimension > 8) {
+          message("Dimension must be an integer from 1 to 8.", true);
+          $("dimension").value = node.dimension;
+          return;
+        }
+        if (!observed && edges.some(([, b]) => b === node.name)) {
+          message("A node with parents cannot be a hidden root.", true);
+          $("observed").checked = true;
+          return;
+        }
+        node.dimension = dimension;
+        node.observed = observed;
+        node.family = $("family").value;
+        invalidate();
+        select({ name: node.name });
+      };
+    for (const id of ["model-seed", "data-seed", "rows", "noise"]) $(id).onchange = invalidate;
+    $("move-mode").onclick = () => setMode("move");
+    $("edge-mode").onclick = () => setMode("edge");
+    $("reset").onclick = () => {
+      $("node-menu").hidden = true;
+      nodes = [
+        { name: "U", observed: false, dimension: 1, family: "", x: 150, y: 200 },
+        { name: "X", observed: true, dimension: 2, family: "linear", x: 450, y: 105 },
+        { name: "Y", observed: true, dimension: 1, family: "linear", x: 745, y: 255 },
+      ];
+      edges = [
+        ["U", "X"],
+        ["U", "Y"],
+        ["X", "Y"],
+      ];
+      invalidate();
+      setMode("move");
+      select({ name: "X" });
+    };
+    let worker = null,
+      requestId = 0;
+    function generateSCM(payload) {
+      worker ||= new Worker("./scm-worker.js", { type: "module" });
+      const active = worker,
+        id = ++requestId;
+      return new Promise((resolve, reject) => {
+        const cleanup = () => {
+          clearTimeout(timer);
+          active.removeEventListener("message", receive);
+          active.removeEventListener("error", failed);
+        };
+        const failed = () => {
+          cleanup();
+          active.terminate();
+          if (worker === active) worker = null;
+          reject(Error("Python could not load. Check your connection and try Generate SCM again."));
+        };
+        const receive = (event) => {
+          if (event.data.id !== id) return;
+          if (event.data.message) {
+            message(event.data.message);
+            return;
+          }
+          cleanup();
+          event.data.error ? reject(Error(event.data.error)) : resolve(event.data.result);
+        };
+        const timer = setTimeout(failed, 120000);
+        active.addEventListener("message", receive);
+        active.addEventListener("error", failed);
+        active.postMessage({ id, payload });
+      });
+    }
+    $("generate").onclick = async () => {
+      const version = revision;
+      $("generate").disabled = true;
+      message("Loading Python and generating SCM…");
+      try {
+        const result = await generateSCM({
+          nodes,
+          edges,
+          model_seed: Number($("model-seed").value),
+          data_seed: Number($("data-seed").value),
+          n: Number($("rows").value),
+          noise: $("noise").value,
+        });
+        if (version !== revision) {
+          message("Settings changed during generation. Select Generate SCM again.");
+          return;
+        }
+        $("sample").replaceChildren();
+        const row = (values, tag) => {
+          const tr = document.createElement("tr");
+          for (const value of values) {
+            const cell = document.createElement(tag);
+            cell.textContent = typeof value === "number" ? Number(value.toFixed(5)) : value;
+            tr.append(cell);
+          }
+          return tr;
+        };
+        $("sample").append(row(result.columns, "th"));
+        for (const values of result.rows.slice(0, 8)) $("sample").append(row(values, "td"));
+        $("spec").replaceChildren();
+        for (const [name, details] of Object.entries(result.model.variables)) {
+          const label = document.createElement("span");
+          label.textContent = `${name} · ${details.dimension}D · ${details.observed ? details.parameters.family : "hidden"} · ${
+            details.parameters.noise_family
+          }`;
+          $("spec").append(label);
+        }
+        $("description").textContent = JSON.stringify(result.model, null, 2);
+        $("result-title").textContent = `Sample · ${result.shape[0]} rows × ${result.shape[1]} columns`;
+        message("SCM generated · Observed variables only · Showing up to 8 rows");
+      } catch (error) {
+        message(error.message, true);
+      } finally {
+        $("generate").disabled = false;
+      }
+    };
+    $("reset").click();
+  </script>
+</html>
