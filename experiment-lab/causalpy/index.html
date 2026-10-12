@@ -594,6 +594,8 @@
       <div id="identification-results" hidden>
         <strong>ID <span id="id-status" class="verdict"></span></strong>
         <div id="id-formula" class="formula"></div>
+        <div id="identified-law" class="formula"></div>
+        <div id="q-definitions" class="formula"></div>
         <details>
           <summary>Details</summary>
           <table id="criteria" aria-label="Identification criteria"></table>
@@ -603,9 +605,7 @@
           </details>
           <details>
             <summary>Query</summary>
-            <div id="identified-law" class="formula"></div>
             <div id="generic-id-formula" class="formula"></div>
-            <div id="q-definitions" class="formula"></div>
             <p>Sums are symbolic; integrate over continuous variables.</p>
             <pre id="query-details"></pre>
           </details>
@@ -1789,19 +1789,21 @@
       details.append(summary, formula, pre);
       return details;
     }
+    function completeFormula(tree) {
+      const pending = tree ? [tree] : [];
+      if (!tree) return false;
+      while (pending.length) {
+        const item = pending.pop();
+        if (["kernel", "extract"].includes(item.type)) return false;
+        pending.push(...(item.factors || []), ...[item.body, item.numerator, item.denominator, item.left, item.right].filter(Boolean));
+      }
+      return true;
+    }
     function formulaSource(result) {
-      const complete = (tree) => {
-        const pending = tree ? [tree] : [];
-        if (!tree) return false;
-        while (pending.length) {
-          const item = pending.pop();
-          if (["kernel", "extract"].includes(item.type)) return false;
-          pending.push(...(item.factors || []), ...[item.body, item.numerator, item.denominator, item.left, item.right].filter(Boolean));
-        }
-        return true;
-      };
       return result.identification.status === "IDENTIFIABLE"
-        ? ["BD", "AC", "SBD", "FD", "Tian"].find((name) => result.criteria[name]?.status === "ACCEPT" && complete(result.criteria[name].formula_tree))
+        ? ["BD", "AC", "SBD", "FD", "Tian", "WMC", "MC", "Product"].find(
+            (name) => result.criteria[name]?.status === "ACCEPT" && completeFormula(result.criteria[name].formula_tree)
+          ) || (result.indexed?.formula_status === "COMPLETE" && completeFormula(result.indexed.literal_formula_tree) ? "Indexed" : null)
         : null;
     }
     function referenceDetails(result, reference) {
@@ -1854,18 +1856,6 @@
       $("other-methods").replaceChildren();
       for (const [name, item] of Object.entries(result.criteria)) if (!titles[name]) $("other-methods").append(methodDetails(name, item));
       $("other-methods").append(methodDetails("Indexed", result.indexed));
-      $("q-definitions").replaceChildren();
-      for (const definition of result.identification.definitions || []) {
-        if (!definition.formula_tree) continue;
-        const math = m(
-          "math",
-          definition.kernel_tree ? formulaNode(definition.kernel_tree) : m("mtext", definition.kernel),
-          m("mo", "="),
-          formulaNode(definition.formula_tree)
-        );
-        math.setAttribute("display", "block");
-        $("q-definitions").append(math);
-      }
       $("identification-results").hidden = false;
       renderEstimand();
     }
@@ -1976,6 +1966,7 @@
       if (!result || $("query-type").value === "counterfactual") return;
       $("id-formula").replaceChildren();
       $("identified-law").replaceChildren();
+      $("q-definitions").replaceChildren();
       let status = result.identification.status,
         reason = "Checked. UNKNOWN means unfinished search.",
         reference;
@@ -2002,11 +1993,42 @@
             ...(referenceValues && referenceValues !== null && Object.keys(referenceValues).length ? [[reference, referenceValues]] : []),
           ]) {
             const source = formulaSource(world),
-              tree = source ? world.criteria[source].formula_tree : world.identification.formula_tree;
-            if (!tree) continue;
-            const definition = m("math", lawName(assignment), m("mo", "="), formulaNode(tree, undefined, 0, undefined, assignment));
-            definition.setAttribute("display", "block");
-            $("identified-law").append(definition);
+              tree =
+                source === "Indexed"
+                  ? world.indexed.literal_formula_tree
+                  : source
+                    ? world.criteria[source].formula_tree
+                    : world.identification.formula_tree;
+            if (!tree || ["BD", "AC"].includes(source)) continue;
+            try {
+              const budget = { remaining: 5000, used: new Set(nodes.map((n) => n.name)) },
+                complete = completeFormula(tree),
+                body = formulaNode(tree, budget, 0, undefined, complete ? assignment : {}),
+                evaluated =
+                  !complete && Object.keys(assignment).length ? m("mrow", fence(body), m("msub", m("mo", "|"), assignmentMath(assignment))) : body,
+                definition = m("math", lawName(assignment), m("mo", "="), evaluated);
+              definition.setAttribute("display", "block");
+              $("identified-law").append(definition);
+              if (!complete) {
+                if (!$("q-definitions").childElementCount)
+                  $("q-definitions").append(
+                    Object.assign(document.createElement("p"), { textContent: "Values apply to treatment arguments; summed copies stay unchanged." })
+                  );
+                for (const item of world.identification.definitions || []) {
+                  if (!item.formula_tree) continue;
+                  const math = m(
+                    "math",
+                    item.kernel_tree ? formulaNode(item.kernel_tree, budget) : m("mtext", item.kernel),
+                    m("mo", "="),
+                    formulaNode(item.formula_tree, budget)
+                  );
+                  math.setAttribute("display", "block");
+                  $("q-definitions").append(math);
+                }
+              }
+            } catch {
+              $("identified-law").append(Object.assign(document.createElement("p"), { textContent: "Formula display limit; source is in Details." }));
+            }
           }
         }
       } catch (error) {
