@@ -2,7 +2,7 @@
 <html lang="en">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CausalPy · Graph → SCM</title>
+  <title>CausalPy · Graph · Identification · SCM</title>
   <style>
     :root {
       color-scheme: light dark;
@@ -278,6 +278,70 @@
     #parameters details {
       margin: 8px 0;
     }
+    .query {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: end;
+      gap: 10px;
+    }
+    .query label {
+      display: grid;
+      gap: 4px;
+    }
+    .query input {
+      width: 130px;
+    }
+    .query select {
+      width: 90px;
+    }
+    #analysis-status {
+      min-height: 24px;
+      margin: 12px 0;
+    }
+    #analysis-status.error {
+      color: var(--error);
+    }
+    #criteria {
+      table-layout: fixed;
+    }
+    #criteria th,
+    #criteria td {
+      text-align: left;
+      white-space: normal;
+      vertical-align: top;
+    }
+    #criteria th:first-child {
+      width: 65px;
+    }
+    #criteria td:nth-child(2) {
+      width: 145px;
+    }
+    #criteria details {
+      margin: 0;
+    }
+    .verdict {
+      font-size: 12px;
+      font-weight: 650;
+    }
+    .verdict[data-status="ACCEPT"],
+    .verdict[data-status="IDENTIFIABLE"] {
+      color: var(--accent);
+    }
+    .verdict[data-status^="NO_"],
+    .verdict[data-status="NOT_IDENTIFIABLE"] {
+      color: var(--error);
+    }
+    #other-methods details {
+      padding: 8px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    #graph-library {
+      max-width: 210px;
+    }
+    #id-formula {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
     @media (max-width: 850px) {
       main {
         padding: 16px;
@@ -311,7 +375,10 @@
         <div class="toolbar">
           <input id="new-name" value="V1" aria-label="New node name" /><button id="add-node">Add node</button>
           <button id="move-mode" aria-pressed="true">Move</button><button id="edge-mode" aria-pressed="false">Edge</button>
-          <button id="remove">Delete</button><button id="reset">Reset</button>
+          <button id="remove">Delete</button><button id="reset">Reset</button> <button id="examples">Examples</button
+          ><select id="graph-library" aria-label="UCA graph library" hidden>
+            <option value="">UCA graphs…</option>
+          </select>
         </div>
         <svg id="canvas" viewBox="0 0 900 410" aria-label="Editable directed graph"></svg>
       </div>
@@ -351,6 +418,45 @@
       <input id="rename-input" aria-label="Rename node" />
       <button id="rename-node">Rename</button><button id="connect-node">Connect</button>
     </div>
+    <section class="output" aria-label="Identification">
+      <form id="identification-query" class="query">
+        <label title="Observed intervention nodes, separated by commas; blank means no intervention."
+          >X<input id="query-x" aria-label="Intervention nodes X" value="X" placeholder="X1, X2"
+        /></label>
+        <label title="Observed outcome nodes, separated by commas."
+          >Y<input id="query-y" aria-label="Outcome nodes Y" value="Y" placeholder="Y1, Y2" required
+        /></label>
+        <label title="A supplied back-door adjustment set; blank checks the empty set. Automatic BD search is separate."
+          >Check Z<input id="query-z" aria-label="Supplied BD adjustment set Z" placeholder="∅"
+        /></label>
+        <label title="Shared search deadline. UNKNOWN means the search was not completed."
+          >Budget<select id="search-budget" aria-label="Search budget">
+            <option value="3">3 s</option>
+            <option value="10">10 s</option>
+            <option value="30">30 s</option>
+          </select></label
+        >
+        <button id="analyze" type="submit" class="primary">Analyze</button>
+      </form>
+      <p id="analysis-status" role="status" aria-live="polite">Ready</p>
+      <div id="identification-results" hidden>
+        <strong>ID <span id="id-status" class="verdict"></span></strong>
+        <pre id="id-formula"></pre>
+        <table id="criteria" aria-label="Identification criteria"></table>
+        <details>
+          <summary>Methods</summary>
+          <div id="other-methods"></div>
+        </details>
+        <details>
+          <summary>Query</summary>
+          <pre id="query-details"></pre>
+        </details>
+      </div>
+      <details id="graph-provenance" hidden>
+        <summary>Graph source</summary>
+        <pre id="graph-source"></pre>
+      </details>
+    </section>
     <div class="settings">
       <label>Model seed <input id="model-seed" type="number" min="0" value="7" /></label>
       <label>Data seed <input id="data-seed" type="number" min="0" value="5" /></label>
@@ -393,12 +499,32 @@
       busy = false,
       dirty = false,
       draft = null,
-      shown = "";
+      shown = "",
+      analysisRevision = 0,
+      graphKey = "",
+      library = [];
     function message(text, error = false) {
       $("status").textContent = text;
       $("status").className = error ? "error" : "";
     }
+    function analysisMessage(text, error = false) {
+      $("analysis-status").textContent = text;
+      $("analysis-status").className = error ? "error" : "";
+    }
+    function graphSignature() {
+      return JSON.stringify([nodes.map(({ name, observed }) => [name, observed]).sort(), edges.map((edge) => [...edge]).sort()]);
+    }
+    function clearAnalysis() {
+      analysisRevision++;
+      $("identification-results").hidden = true;
+      $("criteria").replaceChildren();
+      $("other-methods").replaceChildren();
+      analysisMessage("Changed. Analyze.");
+    }
     function controls() {
+      $("analyze").disabled = busy;
+      $("examples").disabled = busy;
+      $("graph-library").disabled = busy;
       $("generate").disabled = busy || dirty || !model;
       $("scm-mode").disabled = busy;
       $("apply").disabled = busy || !dirty;
@@ -432,6 +558,13 @@
       return el;
     }
     function render() {
+      const next = graphSignature();
+      if (next !== graphKey) {
+        graphKey = next;
+        clearAnalysis();
+        $("graph-provenance").hidden = true;
+        $("graph-library").value = "";
+      }
       svg.replaceChildren();
       const defs = element("defs"),
         arrow = element("marker", {
@@ -746,12 +879,12 @@
           active.terminate();
           if (worker === active) worker = null;
           invalidate();
-          reject(Error("Python stopped. Reopen SCM mode."));
+          reject(Error("Python stopped. Retry Analyze or reopen SCM mode."));
         };
         const receive = (event) => {
           if (event.data.id !== id) return;
           if (event.data.message) {
-            if (action !== "inspect") message(event.data.message);
+            if (action !== "inspect") (action === "identify" || action === "examples" ? analysisMessage : message)(event.data.message);
             return;
           }
           cleanup();
@@ -768,14 +901,14 @@
       token = result.token;
       $("description").textContent = JSON.stringify(model, null, 2);
     }
-    async function perform(task) {
+    async function perform(task, report = message) {
       if (busy) return;
       busy = true;
       controls();
       try {
         await task();
       } catch (error) {
-        message(error.message, true);
+        report(error.message, true);
       } finally {
         busy = false;
         controls();
@@ -950,6 +1083,137 @@
       link.click();
       URL.revokeObjectURL(url);
     };
+    function showText(value) {
+      const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+      return text.length > 50000 ? `${text.slice(0, 50000)}\n… Display shortened (${text.length} characters).` : text;
+    }
+    function verdict(status) {
+      const span = document.createElement("span");
+      span.className = "verdict";
+      span.dataset.status = status;
+      span.textContent = status;
+      return span;
+    }
+    function methodDetails(name, result) {
+      const details = document.createElement("details"),
+        summary = document.createElement("summary"),
+        pre = document.createElement("pre");
+      summary.append(document.createTextNode(`${name} `), verdict(result.status));
+      pre.textContent = showText(result);
+      details.append(summary, pre);
+      return details;
+    }
+    function showAnalysis(result) {
+      $("id-status").replaceWith(Object.assign(verdict(result.identification.status), { id: "id-status" }));
+      $("id-formula").textContent = showText(result.identification.formula || "");
+      $("criteria").replaceChildren();
+      const titles = {
+        BD: "Back-door Criterion (automatic witness search)",
+        SBD: "Sequential Back-door Criterion",
+        WMC: "Weak Multilinearity Criterion",
+        MC: "Multilinearity Criterion",
+      };
+      for (const name of Object.keys(titles)) {
+        const item = result.criteria[name],
+          row = document.createElement("tr"),
+          label = document.createElement("th"),
+          status = document.createElement("td"),
+          cell = document.createElement("td");
+        label.textContent = name;
+        label.title = titles[name];
+        status.append(verdict(item.status));
+        const details = methodDetails("Details", item);
+        if (name === "BD" && item.supplied_status) {
+          const check = document.createElement("p");
+          check.append(document.createTextNode("Check Z: "), verdict(item.supplied_status));
+          cell.append(check);
+        }
+        cell.append(details);
+        row.append(label, status, cell);
+        $("criteria").append(row);
+      }
+      $("other-methods").replaceChildren();
+      for (const [name, item] of Object.entries(result.criteria)) if (!titles[name]) $("other-methods").append(methodDetails(name, item));
+      $("other-methods").append(methodDetails("Indexed", result.indexed));
+      $("query-details").textContent = showText({
+        query: result.query,
+        budget: result.budget,
+        definitions: result.identification.definitions,
+        extraction: result.identification.extraction,
+        trace: result.identification.trace,
+      });
+      $("identification-results").hidden = false;
+      analysisMessage("Analyzed. UNKNOWN means unfinished search.");
+    }
+    const queryNames = (id) => [
+      ...new Set(
+        $(id)
+          .value.trim()
+          .split(/[\s,]+/)
+          .filter(Boolean)
+      ),
+    ];
+    for (const id of ["query-x", "query-y", "query-z", "search-budget"]) $(id).oninput = clearAnalysis;
+    $("identification-query").onsubmit = (event) => {
+      event.preventDefault();
+      const version = analysisRevision,
+        signature = graphSignature(),
+        fields = ["query-x", "query-y", "query-z", "search-budget"].map((id) => $(id).value);
+      perform(async () => {
+        $("identification-results").hidden = true;
+        analysisMessage("Checking identification…");
+        const result = await request("identify", {
+          nodes,
+          edges,
+          X: queryNames("query-x"),
+          Y: queryNames("query-y"),
+          Z: queryNames("query-z"),
+          max_seconds: Number($("search-budget").value),
+          max_orders: 256,
+          max_mc_unions: 256,
+        });
+        if (
+          version !== analysisRevision ||
+          signature !== graphSignature() ||
+          fields.some((value, i) => value !== $(["query-x", "query-y", "query-z", "search-budget"][i]).value)
+        ) {
+          analysisMessage("Changed. Analyze.");
+          return;
+        }
+        showAnalysis(result);
+      }, analysisMessage);
+    };
+    $("examples").onclick = () =>
+      perform(async () => {
+        library = await request("examples", {});
+        for (const graph of library) $("graph-library").add(new Option(graph.title, graph.id));
+        $("graph-library").hidden = false;
+        $("examples").hidden = true;
+        analysisMessage("Choose a UCA graph.");
+      }, analysisMessage);
+    $("graph-library").onchange = () => {
+      const graph = library.find((g) => g.id === $("graph-library").value);
+      if (!graph) return;
+      nodes = structuredClone(graph.nodes).map((node) => ({ dimension: 1, family: "", ...node }));
+      edges = structuredClone(graph.edges);
+      for (const [key, id] of [
+        ["X", "query-x"],
+        ["Y", "query-y"],
+        ["Z", "query-z"],
+      ])
+        $(id).value = (graph[key] || []).join(", ");
+      $("node-menu").hidden = true;
+      invalidate();
+      setMode("move");
+      select({ name: graph.X[0] || graph.Y[0] });
+      $("new-name").value = nextName();
+      $("graph-library").value = graph.id;
+      $("graph-source").textContent = showText({ title: graph.title, source: graph.source });
+      $("graph-provenance").hidden = false;
+      clearAnalysis();
+      analysisMessage("Graph loaded. Analyze.");
+    };
     $("reset").click();
+    analysisMessage("Ready");
   </script>
 </html>
