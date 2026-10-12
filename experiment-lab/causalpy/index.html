@@ -443,7 +443,7 @@
     <header>
       <h1>CausalPy</h1>
       <div class="actions">
-        <label>Rows <input id="rows" type="number" min="0" max="1000" value="8" /></label>
+        <label>Rows <input id="rows" type="number" min="0" max="1000" value="512" /></label>
         <button id="scm-mode" aria-pressed="false">SCM mode</button><button id="generate" class="primary" disabled>Generate Sample</button>
       </div>
     </header>
@@ -496,11 +496,12 @@
             </select></label
           >
         </div>
+        <div id="equation-view" class="specification" hidden>
+          <strong id="equation-title">Function template</strong>
+          <div id="applied-equation" class="formula"></div>
+          <small id="equation-state"></small>
+        </div>
         <form id="mechanism" hidden>
-          <div class="specification">
-            <strong>Applied equation</strong>
-            <div id="applied-equation" class="formula"></div>
-          </div>
           <strong id="parameter-state">Parameters</strong>
           <div id="parameters"></div>
           <button id="apply" type="submit">Apply</button>
@@ -532,7 +533,7 @@
           </select></label
         >
         <label title="Observed intervention nodes, separated by commas; blank means no intervention."
-          >Treatment<input id="query-x" aria-label="Treatment nodes" value="X" placeholder="X, A"
+          >Treatment<input id="query-x" aria-label="Treatment nodes" value="A" placeholder="A, X"
         /></label>
         <label title="Observed outcome nodes, separated by commas."
           >Outcome<input id="query-y" aria-label="Outcome nodes" value="Y" placeholder="Y" required
@@ -544,9 +545,9 @@
             <option value="mean_difference">Mean difference</option>
           </select></label
         >
-        <label>Values<input id="query-values" class="assignments" aria-label="Intervention values JSON" value='{"X":1}' /></label>
+        <label>Values<input id="query-values" class="assignments" aria-label="Intervention values JSON" value='{"A":1}' /></label>
         <label id="reference-field" hidden
-          >Reference values<input id="query-reference" class="assignments" aria-label="Reference intervention values JSON" value='{"X":0}'
+          >Reference values<input id="query-reference" class="assignments" aria-label="Reference intervention values JSON" value='{"A":0}'
         /></label>
         <label id="evidence-field" hidden title="Values observed in the factual world."
           >Factual evidence<input id="query-evidence" class="assignments" aria-label="Factual evidence JSON" value="{}" placeholder='{"X":0,"A":1}'
@@ -582,8 +583,8 @@
       <div id="query-formula" class="formula"></div>
       <p id="query-status" role="status" aria-live="polite">Open SCM mode to compute.</p>
       <div id="query-results" hidden>
-        <strong>SCM Monte Carlo · approximate</strong>
-        <table id="query-estimates" aria-label="SCM query estimates"></table>
+        <strong id="query-result-label">SCM Monte Carlo · approximate</strong>
+        <div class="scroll"><table id="query-estimates" aria-label="Sample and SCM query estimates"></table></div>
         <details>
           <summary>Details</summary>
           <pre id="query-diagnostics"></pre>
@@ -624,7 +625,7 @@
           >Noise
           <select id="noise">
             <option value="random">Random</option>
-            <option>normal</option>
+            <option selected>normal</option>
             <option>uniform</option>
           </select></label
         >
@@ -723,6 +724,7 @@
         $("description").textContent = "";
       }
       clearComputation();
+      showEquation();
       controls();
       message(definition ? (scmMode ? "SCM changed. Reopen SCM mode." : "Ready") : "Changed. Generate Sample.");
     }
@@ -817,6 +819,7 @@
       $("observed").closest("label").hidden = scmMode;
       $("dimension").closest("label").hidden = scmMode;
       $("family").closest("label").hidden = scmMode && !node?.observed;
+      showEquation();
       if (!node || !scmMode || !model) $("mechanism").hidden = true;
       else inspectNode(node.name);
       render();
@@ -1199,7 +1202,7 @@
           ["X", "A"],
           ["X", "Y"],
         ],
-        X: ["X"],
+        X: ["A"],
         Y: ["Y"],
         Z: [],
       });
@@ -1226,7 +1229,11 @@
           if (event.data.id !== id) return;
           if (event.data.message) {
             if (action !== "inspect")
-              (action === "query" ? queryMessage : action === "identify" || action === "examples" ? analysisMessage : message)(event.data.message);
+              (action === "query" || action === "compare"
+                ? queryMessage
+                : action === "identify" || action === "examples"
+                  ? analysisMessage
+                  : message)(event.data.message);
             return;
           }
           cleanup();
@@ -1242,6 +1249,7 @@
       model = result.model;
       token = result.token;
       $("description").textContent = JSON.stringify(model, null, 2);
+      showEquation();
       clearComputation();
       updateQuery();
     }
@@ -1444,6 +1452,69 @@
       math.setAttribute("display", "block");
       return math;
     }
+    function equationTemplate(node) {
+      const parents = edges.filter(([, target]) => target === node.name).map(([name]) => name),
+        noise = m("msub", m("mi", "ε"), mathName(node.name)),
+        sub = (letter, names) => m("msub", m("mi", letter), mathList(names.map(mathName))),
+        family = node.family,
+        simple = node.dimension === 1 && parents.every((name) => nodes.find((n) => n.name === name).dimension === 1),
+        signal = m("mrow", sub("b", [node.name]));
+      for (const parent of parents)
+        signal.append(
+          m("mo", "+"),
+          sub("c", [node.name, parent]),
+          family === "quadratic" ? m("msup", mathName(parent), m("mn", 2)) : mathName(parent)
+        );
+      signal.append(m("mo", "+"), noise);
+      let value = noise;
+      if (node.observed) {
+        if (simple && ["linear", "quadratic", "bounded", "binary"].includes(family)) {
+          value = ["bounded", "binary"].includes(family) ? m("mrow", m("mi", "σ"), fence(signal)) : signal;
+          if (family === "binary") value = m("mrow", m("mi", "𝟙"), fence(m("mrow", sub("R", [node.name]), m("mo", "<"), value), "[", "]"));
+        } else
+          value = m(
+            "mrow",
+            sub("f", [node.name]),
+            fence(mathList([...parents.map(mathName), noise, ...(family === "binary" ? [sub("R", [node.name])] : [])]))
+          );
+      }
+      const math = m(
+        "math",
+        m(
+          "mtable",
+          m("mtr", m("mtd", mathName(node.name), m("mo", "="), value)),
+          ...(node.observed && family === "binary"
+            ? [
+                m(
+                  "mtr",
+                  m(
+                    "mtd",
+                    sub("R", [node.name]),
+                    m("mo", "∼"),
+                    m("mi", "Uniform"),
+                    fence(
+                      node.dimension > 1
+                        ? m("msup", fence(mathList([m("mn", 0), m("mn", 1)]), "[", "]"), m("mn", node.dimension))
+                        : mathList([m("mn", 0), m("mn", 1)])
+                    )
+                  )
+                ),
+              ]
+            : [])
+        )
+      );
+      math.setAttribute("display", "block");
+      return math;
+    }
+    function showEquation() {
+      const node = nodes?.find((n) => n.name === selected?.name),
+        variable = model?.variables[node?.name];
+      $("equation-view").hidden = !node;
+      if (!node) return;
+      $("equation-title").textContent = variable ? "Applied equation" : "Function template";
+      $("applied-equation").replaceChildren(variable ? equationMath(variable, node.name) : equationTemplate(node));
+      $("equation-state").textContent = variable ? "" : node.observed ? "Parameters are drawn in SCM mode." : "Noise only.";
+    }
     function noiseMath(variable, name) {
       const noise = variable.noise,
         source = noise.parameters?.source || noise,
@@ -1638,6 +1709,7 @@
     $("generate").onclick = async () => {
       const version = revision;
       perform(async () => {
+        clearComputation();
         const result = await request("sample", {
           token,
           data_seed: Number($("data-seed").value),
@@ -1662,6 +1734,13 @@
         for (const values of result.rows) $("sample").append(row(values, "td"));
         $("result-title").textContent = `${result.shape[0] > 10 ? `10/${result.shape[0]}` : result.shape[0]} rows × ${result.shape[1]} columns`;
         message("Generated");
+        if ($("query-type").value === "interventional" && $("query-summary").value === "mean") {
+          try {
+            if (!Object.keys(assignments("query-evidence")).length) await computeQuery();
+          } catch (error) {
+            queryMessage(error.message, true);
+          }
+        }
       });
     };
     $("download").onclick = () => {
@@ -2009,60 +2088,87 @@
         clearComputation();
         updateQuery();
       };
-    $("compute-query").onclick = () =>
-      perform(async () => {
-        const intervention = assignments("query-values"),
-          evidence = assignments("query-evidence"),
-          actions = queryNames("query-x"),
-          summary = $("query-summary").value;
-        if (actions.length !== Object.keys(intervention).length || actions.some((name) => !Object.hasOwn(intervention, name)))
-          throw Error("Treatment names must match Values keys.");
-        if ($("query-type").value !== "counterfactual" && Object.keys(evidence).length)
-          throw Error("Factual evidence is for Counterfactual. Clear it to {}.");
-        if (
-          summary === "probability" &&
-          (!$("event-column").value || !$("event-value").value.trim() || !Number.isFinite(Number($("event-value").value)))
-        )
-          throw Error("Choose an outcome column and a finite event value.");
-        const version = queryRevision,
-          currentToken = token,
-          payload = {
-            token,
-            type: $("query-type").value,
-            targets: queryNames("query-y"),
-            intervention,
-            evidence,
-            summary,
-            event: summary === "probability" ? { [$("event-column").value]: { op: $("event-op").value, value: Number($("event-value").value) } } : {},
-            n: Number($("query-draws").value),
-            data_seed: Number($("data-seed").value),
-            max_seconds: 10,
-          };
-        if (summary === "mean_difference") payload.reference = assignments("query-reference");
-        $("query-results").hidden = true;
-        const result = await request("query", payload);
-        if (version !== queryRevision || currentToken !== token || result.token !== token) {
-          queryMessage("Changed. Compute.");
-          return;
-        }
-        $("query-estimates").replaceChildren();
-        $("query-estimates").hidden = result.status !== "OK";
-        if (result.status === "OK") {
-          const values = result.values || { Probability: result.value };
-          for (const [name, value] of Object.entries(values)) {
-            const row = document.createElement("tr"),
-              label = document.createElement("th"),
-              cell = document.createElement("td");
-            label.textContent = name;
-            cell.textContent = Number(value.toPrecision(8));
-            row.append(label, cell);
-            $("query-estimates").append(row);
-          }
-        }
-        $("query-diagnostics").textContent = showText(result);
-        $("query-results").hidden = false;
-        queryMessage(result.status === "OK" ? "Computed." : result.status + (result.reason ? ": " + result.reason : ""), result.status !== "OK");
-      }, queryMessage);
+    async function computeQuery() {
+      const intervention = assignments("query-values"),
+        evidence = assignments("query-evidence"),
+        actions = queryNames("query-x"),
+        summary = $("query-summary").value;
+      if (actions.length !== Object.keys(intervention).length || actions.some((name) => !Object.hasOwn(intervention, name)))
+        throw Error("Treatment names must match Values keys.");
+      if ($("query-type").value !== "counterfactual" && Object.keys(evidence).length)
+        throw Error("Factual evidence is for Counterfactual. Clear it to {}.");
+      if (
+        summary === "probability" &&
+        (!$("event-column").value || !$("event-value").value.trim() || !Number.isFinite(Number($("event-value").value)))
+      )
+        throw Error("Choose an outcome column and a finite event value.");
+      const version = queryRevision,
+        currentToken = token,
+        currentSample = sample?.sample_id,
+        payload = {
+          token,
+          type: $("query-type").value,
+          targets: queryNames("query-y"),
+          intervention,
+          evidence,
+          summary,
+          event: summary === "probability" ? { [$("event-column").value]: { op: $("event-op").value, value: Number($("event-value").value) } } : {},
+          n: Number($("query-draws").value),
+          data_seed: Number($("data-seed").value),
+          max_seconds: 10,
+        };
+      if (summary === "mean_difference") payload.reference = assignments("query-reference");
+      $("query-results").hidden = true;
+      const result = await request(currentSample ? "compare" : "query", currentSample ? { ...payload, sample_id: currentSample } : payload);
+      if (
+        version !== queryRevision ||
+        currentToken !== token ||
+        result.token !== token ||
+        (currentSample && (sample?.sample_id !== currentSample || result.sample_id !== currentSample))
+      ) {
+        queryMessage("Changed. Compute.");
+        return;
+      }
+      const reference = result.scm_reference || result,
+        estimate = result.data_estimate,
+        values = reference.status === "OK" ? reference.values || { Probability: reference.value } : {},
+        names = [...new Set([...Object.keys(values), ...Object.keys(estimate?.values || {})])],
+        tableRow = (items, header = false) => {
+          const row = document.createElement("tr");
+          items.forEach((item, i) => {
+            const cell = document.createElement(header || !i ? "th" : "td");
+            cell.textContent = typeof item === "number" ? Number(item.toPrecision(8)) : item;
+            row.append(cell);
+          });
+          return row;
+        };
+      $("query-estimates").replaceChildren();
+      $("query-estimates").hidden = !names.length;
+      $("query-result-label").textContent = estimate ? "Sample comparison · approximate" : "SCM Monte Carlo · approximate";
+      if (estimate) $("query-estimates").append(tableRow(["Outcome", "Data estimate", "SCM reference (Monte Carlo)", "Difference"], true));
+      for (const name of names)
+        $("query-estimates").append(
+          tableRow(
+            estimate
+              ? [name, estimate.values?.[name] ?? estimate.status, values[name] ?? reference.status, result.difference?.[name] ?? "—"]
+              : [name, values[name]]
+          )
+        );
+      $("query-diagnostics").textContent = showText(result);
+      $("query-results").hidden = false;
+      const issues = (
+        estimate
+          ? [
+              ["Data estimate", estimate],
+              ["SCM reference", reference],
+            ]
+          : [["SCM", reference]]
+      )
+        .filter(([, value]) => value.status !== "OK")
+        .map(([label, value]) => label + " " + value.status + (value.reason ? ": " + value.reason : ""));
+      queryMessage(issues.join(" · ") || "Computed.", !!issues.length);
+    }
+    $("compute-query").onclick = () => perform(computeQuery, queryMessage);
     $("identification-query").onsubmit = (event) => {
       event.preventDefault();
       if ($("query-type").value === "counterfactual") {

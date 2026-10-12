@@ -1,7 +1,7 @@
 import { loadPyodide } from "https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide.mjs";
 
 const baseURL = "https://cdn.jsdelivr.net/pyodide/v0.29.4/full/";
-let ready, network, identification, scm, pandas;
+let ready, network, identification, scm, pandas, comparison;
 async function sources(py, names) {
   await Promise.all(
     names.map(async (name) => {
@@ -49,7 +49,12 @@ async function prepare(py, action, id) {
         scm = null;
         throw error;
       }));
-    if (action === "sample" || action === "update")
+    if (action === "compare")
+      await (comparison ||= sources(py, ["graph.py", "adjustment.py"]).catch((error) => {
+        comparison = null;
+        throw error;
+      }));
+    if (action === "sample" || action === "update" || action === "compare")
       await (pandas ||= py.loadPackage("pandas").catch((error) => {
         pandas = null;
         throw error;
@@ -68,8 +73,13 @@ self.onmessage = async ({ data: { id, action, payload } }) => {
     postMessage({
       id,
       message:
-        { sample: "Sampling…", query: "Computing SCM query…", identify: "Checking identification…", examples: "Loading graph library…" }[action] ||
-        "Updating SCM…",
+        {
+          sample: "Sampling…",
+          compare: "Comparing Sample and SCM…",
+          query: "Computing SCM query…",
+          identify: "Checking identification…",
+          examples: "Loading graph library…",
+        }[action] || "Updating SCM…",
     });
     py.globals.set("_action", action);
     py.globals.set("_payload", JSON.stringify(payload));
