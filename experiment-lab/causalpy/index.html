@@ -594,8 +594,6 @@
       <div id="identification-results" hidden>
         <strong>ID <span id="id-status" class="verdict"></span></strong>
         <div id="id-formula" class="formula"></div>
-        <div id="identified-law" class="formula"></div>
-        <div id="q-definitions" class="formula"></div>
         <details>
           <summary>Details</summary>
           <table id="criteria" aria-label="Identification criteria"></table>
@@ -606,7 +604,12 @@
           <details>
             <summary>Query</summary>
             <div id="generic-id-formula" class="formula"></div>
-            <p>Sums are symbolic; integrate over continuous variables.</p>
+            <div id="identified-law" class="formula"></div>
+            <div id="q-definitions" class="formula"></div>
+            <p>
+              Σ denotes summation for discrete variables and integration for continuous variables; P denotes the corresponding probability mass or
+              density.
+            </p>
             <pre id="query-details"></pre>
           </details>
         </details>
@@ -1307,11 +1310,19 @@
       const child = (value, scope = aliases) => formulaNode(value, budget, depth + 1, scope, values),
         argument = (value) => mathArgument(value, aliases, values);
       if (tree.type === "number") return m("mn", tree.value);
-      if (tree.type === "probability")
+      if (["probability", "expectation", "event"].includes(tree.type))
         return m(
           "mrow",
-          m("mi", tree.source || "P"),
-          fence(m("mrow", mathList(tree.outcomes.map(argument)), ...(tree.given.length ? [m("mo", "|"), mathList(tree.given.map(argument))] : [])))
+          m("mi", tree.type === "expectation" ? "E" : tree.source || "P"),
+          fence(
+            m(
+              "mrow",
+              tree.type === "event" ? eventMath(aliases) : mathList(tree.outcomes.map(argument)),
+              ...(tree.given.length ? [m("mo", "|"), mathList(tree.given.map(argument))] : [])
+            ),
+            tree.type === "expectation" ? "[" : "(",
+            tree.type === "expectation" ? "]" : ")"
+          )
         );
       if (tree.type === "kernel")
         return m(
@@ -1922,43 +1933,76 @@
     function lawName(values) {
       return Object.keys(values).length ? m("msub", m("mi", "I"), assignmentMath(values)) : m("mi", "I");
     }
+    const freeTarget = (argument, name) => argument.variable === name && argument.label === name && !Object.hasOwn(argument, "value"),
+      formulaChildren = (tree) => [...(tree.factors || []), ...[tree.body, tree.numerator, tree.denominator, tree.left, tree.right].filter(Boolean)];
+    function targetIn(tree, name, depth = 0) {
+      if (depth > 96) throw Error("Formula display limit.");
+      if (tree.type === "sum" && tree.variables.some((argument) => argument.label === name)) return false;
+      return (
+        [...(tree.outcomes || []), ...(tree.given || [])].some((argument) => freeTarget(argument, name)) ||
+        formulaChildren(tree).some((child) => targetIn(child, name, depth + 1))
+      );
+    }
+    function summaryTree(tree, name, kind, depth = 0) {
+      if (depth > 96) throw Error("Formula display limit.");
+      const child = (value) => summaryTree(value, name, kind, depth + 1);
+      if (tree.type === "probability" && (!tree.source || tree.source === "P")) {
+        const targets = tree.outcomes.filter((argument) => freeTarget(argument, name));
+        if (targets.length !== 1 || tree.given.some((argument) => freeTarget(argument, name))) return null;
+        const rest = tree.outcomes.filter((argument) => !freeTarget(argument, name)),
+          moment = { type: kind, outcomes: targets, given: [...rest, ...tree.given] };
+        return rest.length ? { type: "product", factors: [moment, { ...tree, outcomes: rest }] } : moment;
+      }
+      if (tree.type === "sum" && !tree.variables.some((argument) => argument.label === name)) {
+        const body = child(tree.body);
+        return body && { ...tree, body };
+      }
+      if (tree.type === "product") {
+        const indices = tree.factors.flatMap((factor, i) => (targetIn(factor, name) ? [i] : []));
+        if (indices.length !== 1) return null;
+        const body = child(tree.factors[indices[0]]);
+        return body && { ...tree, factors: tree.factors.map((factor, i) => (i === indices[0] ? body : factor)) };
+      }
+      if (tree.type === "ratio" && !targetIn(tree.denominator, name)) {
+        const numerator = child(tree.numerator);
+        return numerator && { ...tree, numerator };
+      }
+      return null;
+    }
     function summaryMath(result, values, summary) {
       const names = queryNames("query-y"),
         target = () => (summary === "probability" ? eventMath() : mathList(names.map(mathName))),
         operator = summary === "probability" ? "P" : "E",
-        bracket = (body) => fence(body, operator === "P" ? "(" : "[", operator === "P" ? ")" : "]"),
-        row = ["BD", "AC"].map((name) => result.criteria[name]).find((r) => r?.status === "ACCEPT" && r.witness?.Z),
-        used = new Set(nodes.map((n) => n.name));
+        bracket = (body) => fence(body, operator === "P" ? "(" : "[", operator === "P" ? ")" : "]");
       if (!Object.keys(values).length) return m("mrow", m("mi", operator), bracket(target()));
-      if (row) {
-        const Z = row.witness.Z,
-          aliases = Z.map((name) => dummyName(name, used)),
-          retained = Object.fromEntries((result.query?.actions || Object.keys(values)).map((name) => [name, values[name]])),
-          condition = [
-            ...(Object.keys(retained).length ? [assignmentMath(retained)] : []),
-            ...Z.map((name, i) => m("mrow", mathName(name), m("mo", "="), mathName(aliases[i]))),
-          ],
-          conditional = m("mrow", m("mi", operator), bracket(m("mrow", target(), ...(condition.length ? [m("mo", "|"), mathList(condition)] : []))));
-        return Z.length
-          ? m(
-              "mrow",
-              m("mo", "∫"),
-              conditional,
-              m("mi", "d"),
-              m("msub", m("mi", "P"), mathList(Z.map(mathName))),
-              fence(mathList(aliases.map(mathName)))
-            )
-          : conditional;
-      }
-      const aliases = new Map(names.map((name) => [name, dummyName(name, used)])),
+      const source = formulaSource(result),
+        tree =
+          source === "Indexed"
+            ? result.indexed.literal_formula_tree
+            : source
+              ? result.criteria[source].formula_tree
+              : result.identification.formula_tree;
+      if (!completeFormula(tree)) throw Error("Closed-form display unavailable; symbolic certificate is in Details.");
+      const budget = { remaining: 5000, used: new Set(nodes.map((n) => n.name)) },
+        compact =
+          names.length === 1 && nodes.find((node) => node.name === names[0])?.dimension === 1
+            ? summaryTree(tree, names[0], summary === "probability" ? "event" : "expectation")
+            : null;
+      if (compact) return formulaNode(compact, budget, 0, undefined, values);
+      const aliases = new Map(names.map((name) => [name, dummyName(name, budget.used)])),
+        coordinates = mathList([...aliases.values()].map(mathName)),
         weight =
-          summary === "probability" ? m("msub", m("mn", 1), fence(eventMath(aliases), "{", "}")) : mathList([...aliases.values()].map(mathName));
+          summary === "probability"
+            ? m("msub", m("mn", 1), fence(eventMath(aliases), "{", "}"))
+            : names.length > 1
+              ? fence(coordinates, "[", "]")
+              : coordinates;
       return m(
         "mrow",
-        m("mo", "∫"),
+        m("munder", m("mo", "∑"), mathList([...aliases.values()].map(mathName))),
         weight,
-        lawName(values),
-        fence(mathList([...aliases.values()].map((name) => m("mrow", m("mi", "d"), mathName(name)))))
+        m("mo", "·"),
+        fence(formulaNode(tree, budget, 0, aliases, values))
       );
     }
     function renderEstimand() {
@@ -1974,6 +2018,7 @@
         const values = actionValues(),
           summary = $("query-summary").value,
           referenceValues = summary === "mean_difference" ? checkedAssignments("query-reference") : null;
+        if (summary === "probability") eventMath();
         reference = referenceValues
           ? Object.keys(referenceValues).length
             ? identificationCache.get(analysisKey(Object.keys(referenceValues)))
@@ -1984,10 +2029,17 @@
           reason = reference ? "No certified observable formula for this contrast." : "Identify the reference world for this contrast.";
         }
         if (status === "IDENTIFIABLE") {
-          const expression = summaryMath(result, values, summary === "mean_difference" ? "mean" : summary),
-            math = m("math", referenceValues ? m("mrow", expression, m("mo", "−"), summaryMath(reference, referenceValues, "mean")) : expression);
-          math.setAttribute("display", "block");
-          $("id-formula").append(math);
+          try {
+            const expression = summaryMath(result, values, summary === "mean_difference" ? "mean" : summary),
+              right = referenceValues
+                ? m("mrow", fence(expression), m("mo", "−"), fence(summaryMath(reference, referenceValues, "mean")))
+                : expression,
+              math = m("math", m("mrow", queryMath().firstElementChild, m("mo", "="), right));
+            math.setAttribute("display", "block");
+            $("id-formula").append(math);
+          } catch (error) {
+            $("id-formula").textContent = error.message;
+          }
           for (const [world, assignment] of [
             [result, values],
             ...(referenceValues && referenceValues !== null && Object.keys(referenceValues).length ? [[reference, referenceValues]] : []),
