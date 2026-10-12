@@ -344,6 +344,32 @@
     .query select {
       width: 90px;
     }
+    #query-type,
+    #query-summary {
+      width: 155px;
+    }
+    .query .assignments {
+      width: 240px;
+      max-width: 100%;
+      font-family: monospace;
+    }
+    .formula {
+      max-width: 100%;
+      overflow-x: auto;
+      padding: 10px 0;
+    }
+    .formula math {
+      font-size: 17px;
+      margin: 0;
+      text-align: left;
+    }
+    #query-status {
+      min-height: 24px;
+      margin: 8px 0;
+    }
+    #query-status.error {
+      color: var(--error);
+    }
     #analysis-status {
       min-height: 24px;
       margin: 12px 0;
@@ -430,9 +456,9 @@
               <label>Nodes <input id="graph-nodes" aria-label="Graph nodes" placeholder="X, A, Y, ~U" /></label>
               <label
                 >Edges
-                <textarea id="graph-edges" aria-label="Graph edges or JSON" rows="5" placeholder="X -> A, Y&#10;A -> Y&#10;U -> X, A"></textarea>
+                <textarea id="graph-edges" aria-label="Graph edges or JSON" rows="5" placeholder="U -> A, Y&#10;A -> Y&#10;X -> A, Y"></textarea>
               </label>
-              <p>~U: hidden · X[2]: cluster · JSON graph_dict accepted.</p>
+              <p>~U: hidden · X[2]: cluster · X@180:240: position · JSON graph_dict accepted.</p>
               <button id="load-graph" type="submit">Load graph</button>
               <button id="examples" type="button">Library</button>
               <select id="graph-library" aria-label="UCA graph library" hidden>
@@ -473,14 +499,14 @@
         <form id="mechanism" hidden>
           <div class="specification">
             <strong>Applied equation</strong>
-            <pre id="applied-equation"></pre>
+            <div id="applied-equation" class="formula"></div>
           </div>
           <strong id="parameter-state">Parameters</strong>
           <div id="parameters"></div>
           <button id="apply" type="submit">Apply</button>
           <div class="specification">
             <strong>Noise law</strong>
-            <pre id="noise-law"></pre>
+            <div id="noise-law" class="formula"></div>
           </div>
           <details>
             <summary>Python source</summary>
@@ -497,18 +523,49 @@
       <input id="rename-input" aria-label="Rename node" />
       <button id="rename-node">Rename</button><button id="connect-node">Connect</button>
     </div>
-    <section class="output" aria-label="Identification">
+    <section class="output" aria-label="Query">
       <form id="identification-query" class="query">
+        <label
+          >Type<select id="query-type" aria-label="Query type">
+            <option value="interventional">Interventional</option>
+            <option value="counterfactual">Counterfactual</option>
+          </select></label
+        >
         <label title="Observed intervention nodes, separated by commas; blank means no intervention."
           >Treatment<input id="query-x" aria-label="Treatment nodes" value="X" placeholder="X, A"
         /></label>
         <label title="Observed outcome nodes, separated by commas."
           >Outcome<input id="query-y" aria-label="Outcome nodes" value="Y" placeholder="Y" required
         /></label>
-        <button id="analyze" type="submit" class="primary">Identify</button>
+        <label
+          >Summary<select id="query-summary" aria-label="Query summary">
+            <option value="mean">Mean</option>
+            <option value="probability">Probability</option>
+            <option value="mean_difference">Mean difference</option>
+          </select></label
+        >
+        <label>Values<input id="query-values" class="assignments" aria-label="Intervention values JSON" value='{"X":1}' /></label>
+        <label id="reference-field" hidden
+          >Reference values<input id="query-reference" class="assignments" aria-label="Reference intervention values JSON" value='{"X":0}'
+        /></label>
+        <label id="evidence-field" hidden title="Values observed in the factual world."
+          >Factual evidence<input id="query-evidence" class="assignments" aria-label="Factual evidence JSON" value="{}" placeholder='{"X":0,"A":1}'
+        /></label>
+        <div id="event-fields" class="actions" hidden>
+          <label>Event<select id="event-column" aria-label="Probability event column"></select></label>
+          <select id="event-op" aria-label="Probability event operator">
+            <option value=">=">≥</option>
+            <option value="<=">≤</option>
+            <option value="==">=</option>
+          </select>
+          <input id="event-value" type="number" step="any" aria-label="Probability event value" value="0" />
+        </div>
+        <button id="compute-query" type="button" class="primary" disabled>Compute</button>
+        <button id="analyze" type="submit">Identify</button>
         <details>
           <summary>Query options</summary>
           <div class="actions">
+            <label>Draws<input id="query-draws" type="number" min="256" max="10000" value="2048" /></label>
             <label title="A supplied back-door adjustment set; blank checks the empty set. Automatic BD search is separate."
               >Check Z<input id="query-z" aria-label="Supplied BD adjustment set Z" placeholder="∅"
             /></label>
@@ -522,18 +579,34 @@
           </div>
         </details>
       </form>
+      <div id="query-formula" class="formula"></div>
+      <p id="query-status" role="status" aria-live="polite">Open SCM mode to compute.</p>
+      <div id="query-results" hidden>
+        <strong>SCM Monte Carlo · approximate</strong>
+        <table id="query-estimates" aria-label="SCM query estimates"></table>
+        <details>
+          <summary>Details</summary>
+          <pre id="query-diagnostics"></pre>
+        </details>
+      </div>
       <p id="analysis-status" role="status" aria-live="polite">Ready</p>
       <div id="identification-results" hidden>
         <strong>ID <span id="id-status" class="verdict"></span></strong>
-        <pre id="id-formula"></pre>
-        <table id="criteria" aria-label="Identification criteria"></table>
+        <div id="id-formula" class="formula"></div>
         <details>
-          <summary>Methods</summary>
-          <div id="other-methods"></div>
-        </details>
-        <details>
-          <summary>Query</summary>
-          <pre id="query-details"></pre>
+          <summary>Details</summary>
+          <table id="criteria" aria-label="Identification criteria"></table>
+          <details>
+            <summary>Methods</summary>
+            <div id="other-methods"></div>
+          </details>
+          <details>
+            <summary>Query</summary>
+            <div id="generic-id-formula" class="formula"></div>
+            <div id="q-definitions" class="formula"></div>
+            <p>Sums are symbolic; integrate over continuous variables.</p>
+            <pre id="query-details"></pre>
+          </details>
         </details>
       </div>
       <details id="graph-provenance" hidden>
@@ -587,6 +660,7 @@
       draft = null,
       shown = "",
       analysisRevision = 0,
+      queryRevision = 0,
       graphKey = "",
       library = [];
     function message(text, error = false) {
@@ -596,6 +670,15 @@
     function analysisMessage(text, error = false) {
       $("analysis-status").textContent = text;
       $("analysis-status").className = error ? "error" : "";
+    }
+    function queryMessage(text, error = false) {
+      $("query-status").textContent = text;
+      $("query-status").className = error ? "error" : "";
+    }
+    function clearComputation() {
+      queryRevision++;
+      $("query-results").hidden = true;
+      queryMessage(model ? "Changed. Compute." : "Open SCM mode to compute.");
     }
     function graphSignature() {
       return JSON.stringify([nodes.map(({ name, observed }) => [name, observed]).sort(), edges.map((edge) => [...edge]).sort()]);
@@ -608,7 +691,8 @@
       analysisMessage("Changed. Identify.");
     }
     function controls() {
-      $("analyze").disabled = busy;
+      $("analyze").disabled = busy || $("query-type").value === "counterfactual";
+      $("compute-query").disabled = busy || dirty || !model;
       $("load-graph").disabled = busy;
       $("examples").disabled = busy;
       $("graph-library").disabled = busy;
@@ -635,6 +719,7 @@
         $("mechanism").hidden = true;
         $("description").textContent = "";
       }
+      clearComputation();
       controls();
       message(definition ? (scmMode ? "SCM changed. Reopen SCM mode." : "Ready") : "Changed. Generate Sample.");
     }
@@ -936,9 +1021,14 @@
     $("move-mode").onclick = () => setMode("move");
     $("edge-mode").onclick = () => setMode("edge");
     function nodeSpec(text) {
-      const match = /^(~)?([A-Za-z][A-Za-z0-9_]*)(?:\[(\d+)\])?$/.exec(text);
-      if (!match) throw Error("Use node names, ~U for hidden, or X[2] for a cluster.");
-      return { name: match[2], observed: !match[1], dimension: Number(match[3] || 1) };
+      const match = /^(~)?([A-Za-z][A-Za-z0-9_]*)(?:\[(\d+)\])?(?:@([^:\s,]+):([^:\s,]+))?$/.exec(text);
+      if (!match) throw Error("Use X, ~U, X[2], or X@180:240.");
+      return {
+        name: match[2],
+        observed: !match[1],
+        dimension: Number(match[3] || 1),
+        ...(match[4] ? { x: Number(match[4]), y: Number(match[5]) } : {}),
+      };
     }
     function typedGraph() {
       const text = $("graph-edges").value.trim(),
@@ -1038,7 +1128,9 @@
       return { ...graph, nodes: next, edges: pairs };
     }
     function graphText() {
-      $("graph-nodes").value = nodes.map((n) => (n.observed ? "" : "~") + n.name + (n.dimension > 1 ? "[" + n.dimension + "]" : "")).join(", ");
+      $("graph-nodes").value = nodes
+        .map((n) => (n.observed ? "" : "~") + n.name + (n.dimension > 1 ? "[" + n.dimension + "]" : "") + "@" + n.x + ":" + n.y)
+        .join(", ");
       $("graph-edges").value = edges.map(([a, b]) => a + " -> " + b).join("\n");
     }
     function loadGraph(input) {
@@ -1051,6 +1143,16 @@
         ["Z", "query-z"],
       ])
         if (key in graph) $(id).value = graph[key].join(", ");
+      const defaults = (value) =>
+        Object.fromEntries(
+          queryNames("query-x").map((name) => {
+            const dimension = nodes.find((n) => n.name === name)?.dimension || 1;
+            return [name, dimension > 1 ? Array(dimension).fill(value) : value];
+          })
+        );
+      $("query-values").value = JSON.stringify(defaults(1));
+      $("query-reference").value = JSON.stringify(defaults(0));
+      $("query-evidence").value = "{}";
       $("node-menu").hidden = true;
       scmMode = false;
       $("scm-mode").setAttribute("aria-pressed", false);
@@ -1060,6 +1162,7 @@
       $("new-name").value = nextName();
       graphText();
       clearAnalysis();
+      updateQuery();
       const roles = [...queryNames("query-x"), ...queryNames("query-y")];
       analysisMessage(
         roles.every((name) => nodes.some((n) => n.name === name && n.observed)) && queryNames("query-y").length
@@ -1087,11 +1190,11 @@
           { name: "Y", observed: true, dimension: 1, family: "linear", x: 780, y: 270 },
         ],
         edges: [
-          ["X", "A"],
-          ["A", "Y"],
-          ["X", "Y"],
-          ["U", "X"],
           ["U", "A"],
+          ["U", "Y"],
+          ["A", "Y"],
+          ["X", "A"],
+          ["X", "Y"],
         ],
         X: ["X"],
         Y: ["Y"],
@@ -1119,7 +1222,8 @@
         const receive = (event) => {
           if (event.data.id !== id) return;
           if (event.data.message) {
-            if (action !== "inspect") (action === "identify" || action === "examples" ? analysisMessage : message)(event.data.message);
+            if (action !== "inspect")
+              (action === "query" ? queryMessage : action === "identify" || action === "examples" ? analysisMessage : message)(event.data.message);
             return;
           }
           cleanup();
@@ -1135,6 +1239,8 @@
       model = result.model;
       token = result.token;
       $("description").textContent = JSON.stringify(model, null, 2);
+      clearComputation();
+      updateQuery();
     }
     async function perform(task, report = message) {
       if (busy) return;
@@ -1153,74 +1259,190 @@
     function outputName(variable, index) {
       return variable.columns?.[index] || (variable.shape?.length ? selected.name + "[" + index + "]" : selected.name);
     }
-    function equationText(variable, name) {
-      if (!variable.observed) return name + " = ε_" + name;
-      const parameters = variable.equation.parameters || {},
-        parts = parameters.coordinates || [parameters];
-      const text = parts
-        .map((p, i) => {
-          const output = outputName(variable, i),
-            noise = "ε_" + output,
-            inputs = "[" + (p.parents || Object.keys(p.coefficients || {})).join(", ") + "]";
-          if (p.kind === "neural_network")
-            return (
-              output +
-              ":\nh0 = " +
-              inputs +
-              "\nhℓ = " +
-              p.activation +
-              "(hℓ−1 @ Wℓ + bℓ), ℓ = 1…" +
-              p.depth +
-              "\n" +
-              output +
-              " = h" +
-              p.depth +
-              " @ v + " +
-              p.intercept +
-              " + " +
-              noise
-            );
-          if (p.kind === "decision_tree")
-            return p.depth === 0
-              ? output + " = " + p.leaves[0] + " + " + noise
-              : output +
-                  ":\ninputs = " +
-                  inputs +
-                  "\nk = 0\nfor " +
-                  p.depth +
-                  " levels:\n  k = 2*k + 1 + (inputs[features[k]] > thresholds[k])\n" +
-                  output +
-                  " = leaves[k − " +
-                  (2 ** p.depth - 1) +
-                  "] + " +
-                  noise;
-          const signal =
-            String(p.intercept) +
-            Object.entries(p.coefficients || {})
-              .map(([input, c]) => "\n " + (c < 0 ? "− " : "+ ") + Math.abs(c) + " × " + input + (p.kind === "quadratic" ? "²" : ""))
-              .join("") +
-            "\n + " +
-            noise;
-          if (p.kind === "bounded") return output + " = sigmoid(\n " + signal + "\n)";
-          if (p.kind === "binary") return "p_" + output + " = sigmoid(\n " + signal + "\n)\n" + output + " ~ Bernoulli(p_" + output + ")";
-          return output + " = " + signal;
-        })
-        .join("\n\n");
-      return text + (parts.some((p) => ["bounded", "binary"].includes(p.kind)) ? "\n\nsigmoid(t) = 1 / (1 + exp(−t))" : "");
+    function m(tag, ...children) {
+      const node = document.createElementNS("http://www.w3.org/1998/Math/MathML", tag);
+      node.append(...children.map((child) => (child instanceof Node ? child : document.createTextNode(String(child)))));
+      return node;
     }
-    function noiseText(variable, name) {
+    const fence = (body, left = "(", right = ")") => m("mrow", m("mo", left), body, m("mo", right)),
+      mathList = (items) => m("mrow", ...items.flatMap((item, i) => (i ? [m("mo", ","), item] : [item])));
+    function mathName(name) {
+      const coordinate = /^(.*)\[(\d+)\]$/.exec(name);
+      return coordinate ? m("msub", m("mi", coordinate[1]), m("mn", coordinate[2])) : m("mi", name);
+    }
+    function mathArgument(argument) {
+      if (Object.hasOwn(argument, "value")) return m("mrow", mathName(argument.variable), m("mo", "="), m("mn", argument.value));
+      const copy = /@([0-9]+)$/.exec(argument.label || "");
+      return copy ? m("msub", mathName(argument.variable), m("mrow", m("mo", "@"), m("mn", copy[1]))) : mathName(argument.label || argument.variable);
+    }
+    function formulaNode(tree, budget = { remaining: 5000 }, depth = 0) {
+      if (!tree || --budget.remaining < 0 || depth > 96) throw Error("Formula display limit.");
+      const child = (value) => formulaNode(value, budget, depth + 1);
+      if (tree.type === "number") return m("mn", tree.value);
+      if (tree.type === "probability")
+        return m(
+          "mrow",
+          m("mi", tree.source || "P"),
+          fence(
+            m("mrow", mathList(tree.outcomes.map(mathArgument)), ...(tree.given.length ? [m("mo", "|"), mathList(tree.given.map(mathArgument))] : []))
+          )
+        );
+      if (tree.type === "kernel")
+        return m(
+          "mrow",
+          m("msub", m("mi", "Q"), mathList(tree.nodes.map(mathName))),
+          ...(tree.arguments?.length ? [fence(mathList(tree.arguments.map(mathArgument)))] : [])
+        );
+      if (tree.type === "sum") return m("mrow", m("munder", m("mo", "∑"), mathList(tree.variables.map(mathArgument))), fence(child(tree.body)));
+      if (tree.type === "extract") return m("mrow", m("msub", m("mi", "δ"), mathList(tree.nodes.map(mathName))), child(tree.body));
+      if (tree.type === "ratio") return m("mfrac", child(tree.numerator), child(tree.denominator));
+      if (tree.type === "add") return m("mrow", child(tree.left), m("mo", "+"), child(tree.right));
+      if (tree.type === "product")
+        return tree.factors.length
+          ? m(
+              "mrow",
+              ...tree.factors.flatMap((factor, i) => [
+                ...(i ? [m("mo", "·")] : []),
+                ["sum", "add"].includes(factor.type) ? fence(child(factor)) : child(factor),
+              ])
+            )
+          : m("mn", 1);
+      throw Error("Unknown formula node.");
+    }
+    function showFormula(container, tree, raw = "") {
+      container.replaceChildren();
+      if (!tree) {
+        if (raw) container.textContent = "Formula source is in Details.";
+        return;
+      }
+      try {
+        const math = m("math", formulaNode(tree));
+        math.setAttribute("display", "block");
+        container.append(math);
+      } catch {
+        container.textContent = "Formula is too large to display; see Details.";
+      }
+    }
+    function equationMath(variable, name) {
+      const epsilon = (output) => m("msub", m("mi", "ε"), mathName(output)),
+        sub = (label, index) => m("msub", m("mi", label), index instanceof Node ? index : m("mn", index)),
+        rows = [],
+        line = (left, operator, right) => rows.push(m("mtr", m("mtd", left, m("mo", operator), right)));
+      if (!variable.observed) line(mathName(name), "=", epsilon(name));
+      else
+        for (const [i, p] of (variable.equation.parameters.coordinates || [variable.equation.parameters]).entries()) {
+          const output = outputName(variable, i),
+            inputs = p.parents || Object.keys(p.coefficients || {}),
+            noise = epsilon(output);
+          if (p.kind === "neural_network") {
+            line(sub("h", 0), "=", fence(mathList(inputs.map(mathName)), "[", "]"));
+            line(
+              sub("h", m("mi", "ℓ")),
+              "=",
+              m(
+                "mrow",
+                m("mi", p.activation),
+                fence(
+                  m("mrow", sub("h", m("mrow", m("mi", "ℓ"), m("mo", "−"), m("mn", 1))), sub("W", m("mi", "ℓ")), m("mo", "+"), sub("b", m("mi", "ℓ")))
+                )
+              )
+            );
+            rows.push(m("mtr", m("mtd", m("mtext", "ℓ = 1…" + p.depth))));
+            line(mathName(output), "=", m("mrow", sub("h", p.depth), m("mi", "v"), m("mo", "+"), m("mn", p.intercept), m("mo", "+"), noise));
+          } else if (p.kind === "decision_tree" && p.depth) {
+            line(m("mi", "x"), "=", fence(mathList(inputs.map(mathName)), "[", "]"));
+            line(sub("k", 0), "=", m("mn", 0));
+            const k = () => sub("k", m("mi", "ℓ"));
+            line(
+              sub("k", m("mrow", m("mi", "ℓ"), m("mo", "+"), m("mn", 1))),
+              "=",
+              m(
+                "mrow",
+                m("mn", 2),
+                k(),
+                m("mo", "+"),
+                m("mn", 1),
+                m("mo", "+"),
+                m("mi", "𝟙"),
+                fence(m("mrow", sub("x", sub("feature", k())), m("mo", ">"), sub("threshold", k())), "[", "]")
+              )
+            );
+            rows.push(m("mtr", m("mtd", m("mtext", "ℓ = 0…" + (p.depth - 1)))));
+            line(
+              mathName(output),
+              "=",
+              m("mrow", sub("leaf", m("mrow", sub("k", p.depth), m("mo", "−"), m("mn", 2 ** p.depth - 1))), m("mo", "+"), noise)
+            );
+          } else {
+            const signal = m("mtable", m("mtr", m("mtd", m("mn", p.kind === "decision_tree" ? p.leaves[0] : p.intercept))));
+            signal.setAttribute("columnalign", "left");
+            for (const [input, coefficient] of Object.entries(p.coefficients || {}))
+              signal.append(
+                m(
+                  "mtr",
+                  m(
+                    "mtd",
+                    m("mo", coefficient < 0 ? "−" : "+"),
+                    m("mn", Math.abs(coefficient)),
+                    m("mo", "·"),
+                    p.kind === "quadratic" ? m("msup", mathName(input), m("mn", 2)) : mathName(input)
+                  )
+                )
+              );
+            signal.append(m("mtr", m("mtd", m("mo", "+"), noise)));
+            const probability = sub("p", mathName(output)),
+              value = ["bounded", "binary"].includes(p.kind) ? m("mrow", m("mi", "σ"), fence(signal)) : signal;
+            line(p.kind === "binary" ? probability : mathName(output), "=", value);
+            if (p.kind === "binary") {
+              line(
+                mathName(output),
+                "=",
+                m("mrow", m("mi", "𝟙"), fence(m("mrow", sub("R", mathName(output)), m("mo", "<"), sub("p", mathName(output))), "[", "]"))
+              );
+              line(sub("R", mathName(output)), "∼", m("mrow", m("mi", "Uniform"), fence(mathList([m("mn", 0), m("mn", 1)]))));
+            }
+          }
+        }
+      if (
+        variable.observed &&
+        (variable.equation.parameters.coordinates || [variable.equation.parameters]).some((p) => ["bounded", "binary"].includes(p.kind))
+      )
+        line(
+          m("mrow", m("mi", "σ"), fence(m("mi", "t"))),
+          "=",
+          m("mfrac", m("mn", 1), m("mrow", m("mn", 1), m("mo", "+"), m("msup", m("mi", "e"), m("mrow", m("mo", "−"), m("mi", "t")))))
+        );
+      const table = m("mtable", ...rows),
+        math = m("math", table);
+      table.setAttribute("columnalign", "left");
+      math.setAttribute("display", "block");
+      return math;
+    }
+    function noiseMath(variable, name) {
       const noise = variable.noise,
         source = noise.parameters?.source || noise,
         { loc = 0, scale = 1 } = source.keywords || {},
         law =
           source.distribution === "norm"
-            ? "Normal(mean=" + loc + ", std=" + scale + ")"
+            ? m("mrow", m("mi", "Normal"), fence(mathList([m("mi", "μ"), m("msup", m("mi", "σ"), m("mn", 2))])))
             : source.distribution === "uniform"
-              ? "Uniform[" + loc + ", " + (loc + scale) + "]"
-              : source.distribution || source.kind;
-      return noise.parameters?.mixing
-        ? "ε_" + name + " = e @ M\nIndependent e coordinates ~ " + law + "\nM: Noise details"
-        : "ε_" + name + " ~ " + law;
+              ? m("mrow", m("mi", "Uniform"), fence(mathList([m("mi", "a"), m("mi", "b")])))
+              : m("mtext", source.distribution || source.kind),
+        parameters = source.distribution === "norm" ? { μ: loc, σ: scale } : source.distribution === "uniform" ? { a: loc, b: loc + scale } : {},
+        epsilon = m("msub", m("mi", "ε"), mathName(name)),
+        row = (...items) => m("mtr", m("mtd", ...items)),
+        table = m(
+          "mtable",
+          ...(noise.parameters?.mixing
+            ? [row(epsilon, m("mo", "="), m("mi", "E"), m("mi", "M")), row(m("msub", m("mi", "E"), m("mi", "i")), m("mo", "∼"), law)]
+            : [row(epsilon, m("mo", "∼"), law)]),
+          ...Object.entries(parameters).map(([key, value]) => row(m("mi", key), m("mo", "="), m("mn", value))),
+          ...(noise.parameters?.mixing ? [row(m("mtext", "Independent Eᵢ; M in Noise details"))] : [])
+        ),
+        math = m("math", table);
+      table.setAttribute("columnalign", "left");
+      math.setAttribute("display", "block");
+      return math;
     }
     function parameterFields(value, container, path = []) {
       let advanced = null;
@@ -1297,7 +1519,7 @@
       shown = `${token}:${name}`;
       dirty = false;
       draft = structuredClone(variable.equation.parameters || {});
-      $("applied-equation").textContent = equationText(variable, name);
+      $("applied-equation").replaceChildren(equationMath(variable, name));
       $("parameter-state").textContent = "Parameters";
       $("parameter-state").hidden = !variable.observed;
       $("parameters").replaceChildren();
@@ -1306,7 +1528,7 @@
       $("family").value = variable.parameters.family || "";
       $("function-source").textContent = result.function.source + "\n\n" + JSON.stringify(result.function.bindings, null, 2);
       $("noise-source").textContent = JSON.stringify(variable.noise, null, 2);
-      $("noise-law").textContent = noiseText(variable, name);
+      $("noise-law").replaceChildren(noiseMath(variable, name));
       $("mechanism").hidden = false;
       controls();
     }
@@ -1442,12 +1664,32 @@
         pre = document.createElement("pre");
       summary.append(document.createTextNode(`${name} `), verdict(result.status));
       pre.textContent = showText(result);
-      details.append(summary, pre);
+      const formula = document.createElement("div");
+      formula.className = "formula";
+      showFormula(formula, result.formula_tree, result.formula);
+      details.append(summary, formula, pre);
       return details;
     }
     function showAnalysis(result) {
       $("id-status").replaceWith(Object.assign(verdict(result.identification.status), { id: "id-status" }));
-      $("id-formula").textContent = showText(result.identification.formula || "");
+      const complete = (tree) => {
+          const pending = tree ? [tree] : [];
+          if (!tree) return false;
+          while (pending.length) {
+            const item = pending.pop();
+            if (["kernel", "extract"].includes(item.type)) return false;
+            pending.push(...(item.factors || []), ...[item.body, item.numerator, item.denominator, item.left, item.right].filter(Boolean));
+          }
+          return true;
+        },
+        source =
+          result.identification.status === "IDENTIFIABLE"
+            ? ["BD", "AC", "SBD", "FD", "Tian"].find(
+                (name) => result.criteria[name].status === "ACCEPT" && complete(result.criteria[name].formula_tree)
+              )
+            : null;
+      showFormula($("id-formula"), source ? result.criteria[source].formula_tree : result.identification.formula_tree, result.identification.formula);
+      showFormula($("generic-id-formula"), result.identification.formula_tree, result.identification.formula);
       $("criteria").replaceChildren();
       const titles = {
         BD: "Back-door Criterion (automatic witness search)",
@@ -1477,7 +1719,21 @@
       $("other-methods").replaceChildren();
       for (const [name, item] of Object.entries(result.criteria)) if (!titles[name]) $("other-methods").append(methodDetails(name, item));
       $("other-methods").append(methodDetails("Indexed", result.indexed));
+      $("q-definitions").replaceChildren();
+      for (const definition of result.identification.definitions || []) {
+        if (!definition.formula_tree) continue;
+        const math = m(
+          "math",
+          definition.kernel_tree ? formulaNode(definition.kernel_tree) : m("mtext", definition.kernel),
+          m("mo", "="),
+          formulaNode(definition.formula_tree)
+        );
+        math.setAttribute("display", "block");
+        $("q-definitions").append(math);
+      }
       $("query-details").textContent = showText({
+        formula: result.identification.formula,
+        displayed_formula_source: source || "ID",
         query: result.query,
         budget: result.budget,
         definitions: result.identification.definitions,
@@ -1495,9 +1751,167 @@
           .filter(Boolean)
       ),
     ];
-    for (const id of ["query-x", "query-y", "query-z", "search-budget"]) $(id).oninput = clearAnalysis;
+    function assignments(id) {
+      const value = JSON.parse($(id).value || "{}");
+      if (!value || typeof value !== "object" || Array.isArray(value)) throw Error("Use a JSON object of node values.");
+      return value;
+    }
+    function queryColumns() {
+      return queryNames("query-y").flatMap((name) => {
+        const node = nodes.find((n) => n.name === name && n.observed);
+        return node
+          ? model?.variables[name]?.columns || (node.dimension > 1 ? Array.from({ length: node.dimension }, (_, i) => `${name}[${i}]`) : [name])
+          : [];
+      });
+    }
+    function assignmentMath(values) {
+      const valueMath = (value) => (Array.isArray(value) ? fence(mathList(value.map((v) => m("mn", v))), "[", "]") : m("mn", value));
+      return mathList(Object.entries(values).map(([name, value]) => m("mrow", mathName(name), m("mo", "="), valueMath(value))));
+    }
+    function queryMath() {
+      const intervention = assignments("query-values"),
+        evidence = assignments("query-evidence"),
+        summary = $("query-summary").value,
+        counterfactual = $("query-type").value === "counterfactual",
+        targets = () => mathList(queryNames("query-y").map(mathName)),
+        action = (values) => m("mrow", m("mi", "do"), fence(assignmentMath(values))),
+        decorated = (target, values) => (Object.keys(values).length ? m("msub", target, assignmentMath(values)) : target),
+        expect = (target, values) =>
+          m("mrow", m("mi", "E"), fence(m("mrow", target, ...(Object.keys(values).length ? [m("mo", "|"), action(values)] : [])), "[", "]"));
+      let body;
+      if (summary === "mean_difference" && !counterfactual)
+        body = m("mrow", expect(targets(), intervention), m("mo", "−"), expect(targets(), assignments("query-reference")));
+      else {
+        let target = summary === "probability" ? mathName($("event-column").value) : targets();
+        if (counterfactual) target = decorated(target, intervention);
+        if (summary === "probability")
+          target = m("mrow", target, m("mo", { ">=": "≥", "<=": "≤", "==": "=" }[$("event-op").value]), m("mn", $("event-value").value));
+        if (summary === "mean_difference") target = m("mrow", target, m("mo", "−"), decorated(targets(), assignments("query-reference")));
+        const condition = counterfactual
+          ? Object.keys(evidence).length
+            ? [m("mo", "|"), assignmentMath(evidence)]
+            : []
+          : Object.keys(intervention).length
+            ? [m("mo", "|"), action(intervention)]
+            : [];
+        body = m(
+          "mrow",
+          m("mi", summary === "probability" ? "P" : "E"),
+          fence(m("mrow", target, ...condition), summary === "probability" ? "(" : "[", summary === "probability" ? ")" : "]")
+        );
+      }
+      const math = m("math", body);
+      math.setAttribute("display", "block");
+      return math;
+    }
+    function updateQuery() {
+      const summary = $("query-summary").value;
+      let hasEvidence = true;
+      try {
+        hasEvidence = Object.keys(assignments("query-evidence")).length > 0;
+      } catch {}
+      $("evidence-field").hidden = $("query-type").value !== "counterfactual" && !hasEvidence;
+      $("reference-field").hidden = summary !== "mean_difference";
+      $("event-fields").hidden = summary !== "probability";
+      const selected = $("event-column").value;
+      $("event-column").replaceChildren(...queryColumns().map((name) => new Option(name, name)));
+      if (queryColumns().includes(selected)) $("event-column").value = selected;
+      $("query-formula").replaceChildren();
+      try {
+        $("query-formula").append(queryMath());
+      } catch {}
+      controls();
+    }
+    for (const id of ["query-x", "query-y", "query-z", "search-budget"])
+      $(id).oninput = () => {
+        clearAnalysis();
+        clearComputation();
+        updateQuery();
+      };
+    for (const id of [
+      "query-type",
+      "query-summary",
+      "query-values",
+      "query-reference",
+      "query-evidence",
+      "event-column",
+      "event-op",
+      "event-value",
+      "query-draws",
+    ])
+      $(id).oninput = () => {
+        if (id === "query-values")
+          try {
+            const names = Object.keys(assignments(id)).join(", ");
+            if (names !== $("query-x").value) {
+              $("query-x").value = names;
+              clearAnalysis();
+            }
+          } catch {}
+        if (id === "query-type") clearAnalysis();
+        clearComputation();
+        updateQuery();
+      };
+    $("compute-query").onclick = () =>
+      perform(async () => {
+        const intervention = assignments("query-values"),
+          evidence = assignments("query-evidence"),
+          actions = queryNames("query-x"),
+          summary = $("query-summary").value;
+        if (actions.length !== Object.keys(intervention).length || actions.some((name) => !Object.hasOwn(intervention, name)))
+          throw Error("Treatment names must match Values keys.");
+        if ($("query-type").value !== "counterfactual" && Object.keys(evidence).length)
+          throw Error("Factual evidence is for Counterfactual. Clear it to {}.");
+        if (
+          summary === "probability" &&
+          (!$("event-column").value || !$("event-value").value.trim() || !Number.isFinite(Number($("event-value").value)))
+        )
+          throw Error("Choose an outcome column and a finite event value.");
+        const version = queryRevision,
+          currentToken = token,
+          payload = {
+            token,
+            type: $("query-type").value,
+            targets: queryNames("query-y"),
+            intervention,
+            evidence,
+            summary,
+            event: summary === "probability" ? { [$("event-column").value]: { op: $("event-op").value, value: Number($("event-value").value) } } : {},
+            n: Number($("query-draws").value),
+            data_seed: Number($("data-seed").value),
+            max_seconds: 10,
+          };
+        if (summary === "mean_difference") payload.reference = assignments("query-reference");
+        $("query-results").hidden = true;
+        const result = await request("query", payload);
+        if (version !== queryRevision || currentToken !== token || result.token !== token) {
+          queryMessage("Changed. Compute.");
+          return;
+        }
+        $("query-estimates").replaceChildren();
+        $("query-estimates").hidden = result.status !== "OK";
+        if (result.status === "OK") {
+          const values = result.values || { Probability: result.value };
+          for (const [name, value] of Object.entries(values)) {
+            const row = document.createElement("tr"),
+              label = document.createElement("th"),
+              cell = document.createElement("td");
+            label.textContent = name;
+            cell.textContent = Number(value.toPrecision(8));
+            row.append(label, cell);
+            $("query-estimates").append(row);
+          }
+        }
+        $("query-diagnostics").textContent = showText(result);
+        $("query-results").hidden = false;
+        queryMessage(result.status === "OK" ? "Computed." : result.status + (result.reason ? ": " + result.reason : ""), result.status !== "OK");
+      }, queryMessage);
     $("identification-query").onsubmit = (event) => {
       event.preventDefault();
+      if ($("query-type").value === "counterfactual") {
+        analysisMessage("Identification checks interventional distributions.");
+        return;
+      }
       const version = analysisRevision,
         signature = graphSignature(),
         fields = ["query-x", "query-y", "query-z", "search-budget"].map((id) => $(id).value);

@@ -20,7 +20,7 @@ async function initialize(id) {
       "examples.py",
       "identification_engine.py",
     ].map(async (name) => {
-      const response = await fetch(new URL(name, import.meta.url));
+      const response = await fetch(new URL(name, import.meta.url), { cache: "no-cache" });
       if (!response.ok) throw Error(`Could not load ${name}. Please retry.`);
       py.FS.writeFile(name, await response.text());
     })
@@ -38,7 +38,9 @@ self.onmessage = async ({ data: { id, action, payload } }) => {
     const py = await ready;
     postMessage({
       id,
-      message: { sample: "Sampling…", identify: "Checking identification…", examples: "Loading graph library…" }[action] || "Updating SCM…",
+      message:
+        { sample: "Sampling…", query: "Computing SCM query…", identify: "Checking identification…", examples: "Loading graph library…" }[action] ||
+        "Updating SCM…",
     });
     py.globals.set("_action", action);
     py.globals.set("_payload", JSON.stringify(payload));

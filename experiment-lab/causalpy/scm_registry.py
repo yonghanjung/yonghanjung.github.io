@@ -3,7 +3,7 @@
 import numpy as np
 import inspect
 from scipy import stats
-from scipy.special import expit
+from scipy.special import expit, log_expit
 
 
 # Edit these candidates/ranges before building a model, never while drawing rows.
@@ -26,14 +26,20 @@ def _make_equation(parents, rng, kind):
     coefficients = {parent: float(rng.uniform(*prior["coefficient_range"])) for parent in parents}
     intercept = float(rng.uniform(*prior["intercept_range"]))
 
-    def equation(noise, rng, num_sample, **values):
+    def equation(noise, rng, num_sample, _uniform=None, **values):
         linear = np.full(num_sample, intercept)
         for parent, coefficient in coefficients.items():
             value = values[parent]
             linear += coefficient * (value ** 2 if kind == "quadratic" else value)
         linear += noise
         if kind == "binary":
-            return rng.binomial(1, expit(linear))
+            # This explicit innovation can be inferred and reused across worlds.
+            if isinstance(_uniform, tuple):
+                orientation, log_threshold = _uniform
+                return np.where(orientation, log_threshold < log_expit(linear),
+                                log_threshold > log_expit(-linear)).astype(int)
+            uniform = rng.random(num_sample) if _uniform is None else _uniform
+            return (uniform < expit(linear)).astype(int)
         return expit(linear) if kind == "bounded" else linear
 
     equation._scm_parameters = {"kind": kind, "coefficients": coefficients,
@@ -127,13 +133,16 @@ def _cluster_equation(parent_shapes, output_shape, kind, rng):
         raise TypeError("Equation factories must return callables")
     signatures = [inspect.signature(equation) for equation in equations]
 
-    def equation(noise, rng, num_sample, **values):
+    def equation(noise, rng, num_sample, _uniform=None, **values):
         inputs = {key: values[name][:, i] if parent_shapes[name] else values[name]
                   for name, i, key in features}
         outputs = []
         for i, (function, signature) in enumerate(zip(equations, signatures)):
             arguments = dict(inputs, noise=noise[:, i] if output_shape else noise,
                              rng=rng, num_sample=num_sample)
+            if _uniform is not None:
+                arguments["_uniform"] = (tuple(value[:, i] for value in _uniform) if isinstance(_uniform, tuple)
+                                          else _uniform[:, i]) if output_shape else _uniform
             if not any(p.kind == inspect.Parameter.VAR_KEYWORD for p in signature.parameters.values()):
                 arguments = {key: value for key, value in arguments.items() if key in signature.parameters}
             value = np.asarray(function(**arguments))

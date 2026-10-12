@@ -172,6 +172,17 @@ class Editor:
             return {"token": self.token, "model": self.model.describe()}
         if self.model is None or payload.get("token") != self.token:
             raise ValueError("SCM expired. Reopen SCM mode.")
+        if action == "query":
+            n = _integer(payload.get("n", 2048), "draws", 10000)
+            seed = _integer(payload.get("data_seed", 5), "data seed", 2**32 - 1)
+            seconds = payload.get("max_seconds", 10)
+            if n < 256 or type(seconds) not in (int, float) or not np.isfinite(seconds) or not 0 <= seconds <= 30:
+                raise ValueError("Use 256 to 10000 draws and a query budget from 0 to 30 seconds.")
+            result = self.model.query(payload.get("targets"), query_type=payload.get("type", "interventional"),
+                intervention=payload.get("intervention", {}), evidence=payload.get("evidence", {}),
+                reference=payload.get("reference"), summary=payload.get("summary", "mean"), event=payload.get("event"),
+                n=n, seed=seed, max_seconds=seconds)
+            return dict(result, token=self.token)
         if action == "sample":
             n = _integer(payload.get("n", 10), "rows", 1000)
             seed = _integer(payload.get("data_seed", 5), "data seed", 2**32 - 1)

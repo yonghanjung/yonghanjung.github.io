@@ -11,11 +11,13 @@ import hashlib
 import inspect
 import random
 import threading
+from time import perf_counter
 
 import networkx as nx
 import numpy as np
 import pandas as pd
 from scipy import stats
+from scipy.special import log_expit, logit, logsumexp
 
 from scm_registry import EQUATION_FAMILIES, NOISE_FAMILIES, _select_family, _cluster_equation
 
@@ -124,6 +126,21 @@ class U:
         """Describe the law; arbitrary samplers are not serialized."""
         return _noise_description(self.distribution)
 
+    def logpdf(self, values):
+        """Joint row density, including independent scalar coordinates."""
+        distribution = self.distribution
+        density = getattr(distribution, "_scm_logpdf", None) or getattr(distribution, "logpdf", None)
+        if density is None:
+            raise NotImplementedError("Counterfactual inference needs an explicit continuous noise density.")
+        result = np.asarray(density(values))
+        return result.sum(axis=1) if result.ndim == 2 else result.reshape(-1)
+
+    def supports_density(self):
+        """Capability check without drawing noise or claiming callable support."""
+        supported = getattr(self.distribution, "_scm_density_supported", False)
+        return bool((supported() if callable(supported) else supported)
+                    or callable(getattr(self.distribution, "logpdf", None)))
+
 
 def _cluster_noise(distribution, dimension, model_rng):
     """Freeze a dense mixing matrix; draw fresh coordinate noise for each row."""
@@ -139,6 +156,15 @@ def _cluster_noise(distribution, dimension, model_rng):
         return values @ mixing
 
     sample._scm_parameters = {"source": law.describe(), "mixing": mixing.tolist()}
+
+    def logpdf(values):
+        if np.linalg.cond(mixing) > 1e12:
+            raise NotImplementedError("Cluster noise mixing is singular or ill-conditioned.")
+        unmixed = np.linalg.solve(mixing.T, np.asarray(values).T).T
+        return law.logpdf(unmixed) - np.linalg.slogdet(mixing)[1]
+
+    sample._scm_logpdf = logpdf
+    sample._scm_density_supported = lambda: law.supports_density() and np.linalg.cond(mixing) <= 1e12
     return U(sample)
 
 
@@ -404,6 +430,234 @@ class StructuralCausalModel:
         """Draw observed variables after constant intervention, preserving this model."""
         return self.intervene(values).sample_observational(n, seed=seed)
 
+    def _query_kind(self, name):
+        equation = self.equations[name]
+        if equation is _noise_value and not self._variables[name]["observed"]:
+            return "hidden_root"
+        kind = getattr(equation, "_scm_parameters", {}).get("kind")
+        if (kind not in EQUATION_FAMILIES or getattr(equation, "__module__", None) != "scm_registry"
+                or self._uses_legacy_rng(name)):
+            raise NotImplementedError(f"{name}: numerical queries support generated equation families and hidden noise roots.")
+        return kind
+
+    def _query_location(self, name, parents, n):
+        """Pre-noise score; reuse fixed neural/tree functions without duplicating them."""
+        parameters = self.equations[name]._scm_parameters
+        shape = self._variables[name]["shape"]
+        if parameters["kind"] in {"neural_network", "decision_tree"}:
+            return np.asarray(self._evaluate(name, dict(parents, noise=np.zeros((n,) + shape),
+                                                       rng=self._variable_rng(0, name), num_sample=n)))
+        inputs = {f"{parent}[{i}]" if parent_shape else parent:
+                  parents[parent][:, i] if parent_shape else parents[parent]
+                  for parent, parent_shape in parameters.get("parent_shapes", {}).items()
+                  for i in range(parent_shape[0] if parent_shape else 1)} if "coordinates" in parameters else parents
+        columns = []
+        for p in parameters.get("coordinates", [parameters]):
+            score = np.full(n, p["intercept"], dtype=float)
+            for parent, coefficient in p["coefficients"].items():
+                score += coefficient * (inputs[parent] ** 2 if p["kind"] == "quadratic" else inputs[parent])
+            columns.append(score)
+        return np.column_stack(columns) if shape else columns[0]
+
+    def query(self, targets, *, intervention=None, evidence=None, reference=None,
+              query_type="interventional", summary="mean", event=None, n=2048, seed=5,
+              max_seconds=10):
+        """Monte Carlo quantities of this generated SCM, never fitted from sample data.
+
+        Counterfactual equality evidence uses regular conditional densities and
+        sequential residual likelihood weighting. Binary innovations are shared
+        Uniform thresholds. No generic custom-function abduction is attempted.
+        Mean differences use two action worlds with paired exogenous draws.
+        ESS/weight cutoffs are engineering diagnostics, not confidence guarantees.
+        """
+        started = perf_counter()
+        self.validate()
+        n, seed = _integer(n, "draws"), _integer(seed, "data seed")
+        if (not n or not isinstance(query_type, str) or not isinstance(summary, str)
+                or query_type not in {"interventional", "counterfactual"} or summary not in {"mean", "probability", "mean_difference"}):
+            raise ValueError("Use positive draws, Interventional/Counterfactual and a supported summary.")
+        if (max_seconds is not None and (isinstance(max_seconds, bool) or not isinstance(max_seconds, (int, float))
+                or not np.isfinite(max_seconds) or max_seconds < 0)):
+            raise ValueError("max_seconds must be a finite nonnegative number or None.")
+        if (not isinstance(targets, list) or not targets
+                or any(not isinstance(v, str) or v not in self._variables or not self._variables[v]["observed"] for v in targets)
+                or len(targets) != len(set(targets))):
+            raise ValueError("Targets must be distinct observed node names.")
+
+        def assignments(values, label):
+            if not isinstance(values, dict):
+                raise ValueError(f"{label} must be a JSON object of whole-node values.")
+            result = {}
+            for name, value in values.items():
+                if name not in self._variables or not self._variables[name]["observed"]:
+                    raise ValueError(f"{label}: select an observed node, not an individual coordinate.")
+                array = np.asarray(value, dtype=float)
+                if array.shape != self._variables[name]["shape"] or not np.isfinite(array).all():
+                    raise ValueError(f"{label} {name}: use finite values with shape {self._variables[name]['shape']}.")
+                if self._variables[name]["variable_type"] == "binary" and not np.isin(array, [0, 1]).all():
+                    raise ValueError(f"{label} {name}: binary values must be 0 or 1.")
+                result[name] = array.copy()
+            return result
+
+        intervention = assignments({} if intervention is None else intervention, "Intervention")
+        evidence = assignments({} if evidence is None else evidence, "Factual evidence")
+        if evidence and query_type != "counterfactual":
+            raise ValueError("Factual evidence belongs to Counterfactual queries.")
+        if summary == "mean_difference" and reference is None:
+            raise ValueError("Mean difference requires a reference intervention object; {} means no intervention.")
+        reference = assignments({} if reference is None else reference, "Reference")
+        query = dict(type=query_type, targets=targets, summary=summary,
+                     intervention={v:a.tolist() for v,a in intervention.items()},
+                     evidence={v:a.tolist() for v,a in evidence.items()},
+                     reference={v:a.tolist() for v,a in reference.items()}, event=event or {}, n=n, data_seed=seed)
+        diagnostics = dict(n=n, method="sequential residual likelihood weighting" if evidence else "prior Monte Carlo",
+                           binary_coupling="shared independent Uniform thresholds", conditioning="full-node equality density" if evidence else "none")
+        result = dict(status="UNKNOWN", approximate=True, query=query, diagnostics=diagnostics)
+        deadline = None if max_seconds is None else started + max_seconds
+
+        def check_time():
+            if deadline is not None and perf_counter() >= deadline:
+                raise TimeoutError("Numerical query deadline exhausted.")
+
+        def columns(values):
+            flat = {}
+            for name in targets:
+                labels = self._variables[name].get("columns", [name] if not self._variables[name]["shape"]
+                                                   else [f"{name}{i+1}" for i in range(values[name].shape[1])])
+                flat.update({label:values[name] if values[name].ndim == 1 else values[name][:, i] for i,label in enumerate(labels)})
+            return flat
+
+        def world(actions):
+            values, preserved = {}, {}
+            for name in order:
+                check_time()
+                if name in actions:
+                    values[name] = np.broadcast_to(actions[name], (n,) + actions[name].shape)
+                    preserved[name] = name in evidence and np.array_equal(actions[name], evidence[name])
+                elif all(preserved[p] for p in self.graph.predecessors(name)):
+                    # Structural identity, not a tolerance-based equality test.
+                    values[name], preserved[name] = factual[name], True
+                else:
+                    preserved[name] = False
+                    parents = {p:values[p] for p in self.graph.predecessors(name)}
+                    values[name] = np.asarray(self._evaluate(name, dict(parents, noise=noises[name], _uniform=uniforms.get(name),
+                        rng=self._variable_rng(seed, name), num_sample=n)))
+                if not np.isfinite(values[name]).all():
+                    raise FloatingPointError(f"{name}: nonfinite action-world values.")
+            return columns(values), preserved
+
+        try:
+            check_time()
+            relevant = set(targets) | set(evidence)
+            relevant |= set().union(*(nx.ancestors(self.graph, v) for v in relevant))
+            order = list(nx.topological_sort(self.graph.subgraph(relevant)))
+            kinds, noises, uniforms, factual = {}, {}, {}, {}
+            log_weights = np.zeros(n)
+            with np.errstate(over="raise", invalid="raise", divide="ignore"):
+                for name in order:
+                    check_time()
+                    kinds[name] = self._query_kind(name)
+                    shape = self._variables[name]["shape"]
+                    if shape is None:
+                        raise NotImplementedError("Queries require explicit scalar/vector shapes.")
+                    source = self.noise_distributions[name]
+                    law = source if isinstance(source, U) else U(source)
+                    law.logpdf(np.zeros((1,) + shape))  # Unknown sampler densities fail explicitly.
+                    rng = self._variable_rng(seed, name)
+                    noise = self._draw_noise(name, rng, n)
+                    parents = {p:factual[p] for p in self.graph.predecessors(name)}
+                    observed = evidence.get(name)
+                    if kinds[name] == "binary":
+                        score = self._query_location(name, parents, n) + noise
+                        uniform = np.column_stack([rng.random(n) for _ in range(shape[0])]) if shape else rng.random(n)
+                        orientation, log_threshold = np.ones_like(uniform, dtype=bool), np.log(uniform)
+                        if observed is not None:
+                            likelihood = np.where(observed == 1, log_expit(score), log_expit(-score))
+                            log_weights += likelihood.sum(axis=1) if shape else likelihood
+                            orientation = np.broadcast_to(observed == 1, uniform.shape)
+                            log_threshold += likelihood
+                        uniforms[name] = (orientation, log_threshold)
+                    elif observed is not None:
+                        score = self._query_location(name, parents, n)
+                        if kinds[name] == "bounded":
+                            if np.any((observed <= 0) | (observed >= 1)):
+                                raise ValueError(f"{name}: bounded equality evidence must be strictly between 0 and 1.")
+                            noise = logit(observed) - score
+                            log_weights -= np.log(observed * (1 - observed)).sum()
+                        else:
+                            noise = observed - score
+                        log_weights += law.logpdf(noise)
+                    noises[name] = noise
+                    factual[name] = np.broadcast_to(observed, (n,) + shape) if observed is not None else np.asarray(
+                        self._evaluate(name, dict(parents, noise=noise, _uniform=uniforms.get(name), rng=rng, num_sample=n)))
+                    if not np.isfinite(factual[name]).all():
+                        raise FloatingPointError(f"{name}: nonfinite factual values.")
+                check_time()
+                normalizer = logsumexp(log_weights)
+                if not np.isfinite(normalizer):
+                    result["reason"] = "NO_EFFECTIVE_SAMPLES: no sampled particle has positive evidence density; impossibility is not established."
+                    return result
+                weights = np.exp(log_weights - normalizer)
+                weights /= weights.sum()
+                ess, largest = min(n, 1 / np.sum(weights ** 2)), float(weights.max())
+                diagnostics.update(ess=float(ess), max_weight=largest)
+                if ess < 100 or largest > 0.1:
+                    result["reason"] = "LOW_ESS: posterior particles failed the engineering cutoff (ESS >= 100, max weight <= 0.1)."
+                    return result
+                primary, preserved = world(intervention)
+                if summary == "mean_difference":
+                    baseline, _ = world(reference)
+                    result.update(intervention_values={v:float(weights @ a) for v,a in primary.items()},
+                                  reference_values={v:float(weights @ a) for v,a in baseline.items()})
+                    primary = {v:a-baseline[v] for v,a in primary.items()}
+                if summary == "probability":
+                    operations = {"==":np.equal, "!=":np.not_equal, "<":np.less, "<=":np.less_equal, ">":np.greater, ">=":np.greater_equal}
+                    if not isinstance(event, dict) or not event:
+                        raise ValueError("Probability requires an event on target coordinates.")
+                    hits = np.ones(n, dtype=bool)
+                    for column, condition in event.items():
+                        if (column not in primary or not isinstance(condition, dict) or condition.get("op") not in operations
+                                or type(condition.get("value")) not in (int, float) or not np.isfinite(condition["value"])):
+                            raise ValueError("Each event needs a target column, a comparison operator and a finite numeric threshold.")
+                        name = next(v for v in targets if column in self._variables[v].get("columns", [v] if not self._variables[v]["shape"]
+                                    else [f"{v}{i+1}" for i in range(self._variables[v]["shape"][0])]))
+                        exact_point = name in intervention or (preserved[name] and name in evidence)
+                        if condition["op"] in {"==", "!="} and kinds[name] != "binary" and not exact_point:
+                            raise NotImplementedError("Continuous equality after changed parents is unsupported; choose >= or <=.")
+                        if kinds[name] != "binary" and not exact_point:
+                            resolution = 64 * np.finfo(float).eps * np.maximum(1, np.maximum(np.abs(primary[column]), abs(condition["value"])))
+                            boundary_mass = float(weights @ (np.abs(primary[column] - condition["value"]) <= resolution))
+                            if boundary_mass > 0.01:
+                                diagnostics.update(unresolved_boundary_weight=boundary_mass, resolution_relative=64*np.finfo(float).eps)
+                                raise FloatingPointError("NUMERICAL_RESOLUTION: material posterior mass cannot be resolved at the event threshold.")
+                        hits &= operations[condition["op"]](primary[column], condition["value"])
+                    primary = {"probability":hits.astype(float)}
+                    diagnostics["event_hits"] = int(hits.sum())
+                    diagnostics["comparison"] = "Exact floating-point comparison; continuous atoms at a threshold may be sensitive to roundoff."
+                means = {v:float(weights @ a) for v,a in primary.items()}
+                if summary == "probability":
+                    means["probability"] = 1.0 if hits.all() else 0.0 if not hits.any() else min(1.0, float(weights[hits].sum()))
+                errors = {v:float(np.sqrt(np.sum(weights ** 2 * (a-means[v]) ** 2))) for v,a in primary.items()}
+                if summary == "probability":
+                    result.update(value=means["probability"], standard_error=errors["probability"])
+                else:
+                    result.update(values=means, standard_errors=errors)
+                check_time()
+                result["status"] = "OK"
+        except NotImplementedError as error:
+            result.update(status="UNSUPPORTED", reason=str(error))
+        except (FloatingPointError, np.linalg.LinAlgError) as error:
+            message = str(error)
+            result.update(reason=message if message.startswith("NUMERICAL_RESOLUTION:") else "NUMERICAL_INSTABILITY: " + message)
+        except TimeoutError as error:
+            result.update(reason=str(error))
+        finally:
+            diagnostics["elapsed_seconds"] = perf_counter() - started
+        if result["status"] != "OK":
+            for key in ("values", "standard_errors", "value", "standard_error", "intervention_values", "reference_values"):
+                result.pop(key, None)
+        return result
+
     def generate_observational_samples(self, num_samples, seed=None):
         """Compatibility name for sample_observational."""
         return self.sample_observational(num_samples, seed=seed)
@@ -438,7 +692,12 @@ class StructuralCausalModel:
                 variables[name]["dimension"] = details["shape"][0] if details["shape"] else 1
         return {"model_seed": self.model_seed, "variables": variables,
                 "callable_state": "Callables/noise laws are shared on replacement; use pure functions.",
-                "counterfactual_supported": False}
+                "counterfactual_supported": all(((self.equations[v] is _noise_value and not d["observed"])
+                    or (getattr(self.equations[v], "__module__", None) == "scm_registry" and not self._uses_legacy_rng(v)
+                        and getattr(self.equations[v], "_scm_parameters", {}).get("kind") in EQUATION_FAMILIES)
+                    ) and U(self.noise_distributions[v].distribution if isinstance(self.noise_distributions[v], U)
+                            else self.noise_distributions[v]).supports_density() for v,d in self._variables.items()),
+                "counterfactual_method": "generated SCM residual likelihood weighting; shared binary Uniform thresholds"}
 
     @property
     def graph_dict(self):

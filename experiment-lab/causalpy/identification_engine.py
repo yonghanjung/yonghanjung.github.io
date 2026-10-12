@@ -91,6 +91,76 @@ def _render(expr, registry=None):
     return None if expr is None else visit(expr)
 
 
+def _tree(expr, registry=None):
+    """A bounded MathML-ready tree; preserve lexical copies and literal values."""
+    labels, remaining = {}, [50000]
+    def argument(variable, value):
+        if isinstance(value, ii.Value):
+            return dict(variable=variable, value=value.value, label=str(value.value))
+        if value.scope != 'free' and value not in labels:
+            labels[value] = f'{value.variable}@{len(labels)+1}'
+        return dict(variable=variable, label=value.variable if value.scope == 'free' else labels[value])
+    def visit(e):
+        remaining[0] -= 1
+        if remaining[0] < 0:
+            raise ii.ExpressionLimit('Formula tree occurrence budget exhausted')
+        if isinstance(e, ii.Scalar):
+            return dict(type='number', value=str(e.value))
+        if isinstance(e, ii.ObsKernel):
+            return dict(type='probability', source=e.source,
+                outcomes=[argument(v,s) for v,s in e.outcomes], given=[argument(v,s) for v,s in e.given])
+        if isinstance(e, ii.QRef):
+            return dict(type='kernel', nodes=list(registry.records[e.index].nodes),
+                        arguments=[argument(v,s) for v,s in e.arguments])
+        if isinstance(e, ii.Sum):
+            return dict(type='sum', variables=[argument(s.variable,s) for s in e.slots], body=visit(e.body))
+        if isinstance(e, ii.Product):
+            return dict(type='product', factors=[visit(f) for f in e.factors])
+        if isinstance(e, ii.Ratio):
+            return dict(type='ratio', numerator=visit(e.numerator), denominator=visit(e.denominator))
+        if isinstance(e, ii.Add):
+            return dict(type='add', left=visit(e.left), right=visit(e.right))
+        raise TypeError('Unknown expression node.')
+    return None if expr is None else visit(expr)
+
+
+def _adjustment_expression(X,Y,Z):
+    if not Z:
+        return ii.ObsKernel(ii._bindings(Y),ii._bindings(X))
+    return ii._marginal(ii.Product((ii.ObsKernel(ii._bindings(Y), ii._bindings(set(X)|set(Z))),
+                                    ii.ObsKernel(ii._bindings(Z)))), set(Z))
+
+
+def _fd_expression(X,Y,Z,C):
+    if not X:
+        return ii.ObsKernel(ii._bindings(Y))
+    natural = {v:ii.Slot(v,'fd-natural') for v in X}
+    bindings = lambda names: tuple((v,natural.get(v,ii.Slot(v))) for v in sorted(names))
+    inner = ii.Sum(tuple(natural.values()),ii.Product((
+        ii.ObsKernel(ii._bindings(Y),bindings(set(Z)|set(X)|set(C))),
+        ii.ObsKernel(bindings(set(X)|set(C))))))
+    return ii._marginal(ii.Product((ii.ObsKernel(ii._bindings(Z),ii._bindings(set(X)|set(C))),inner)),set(Z)|set(C))
+
+
+def _tian_expression(witness):
+    if not witness.actions:
+        return ii.ObsKernel(ii._bindings(witness.outcomes))
+    x, natural = witness.actions[0], ii.Slot(witness.actions[0],'tian-natural')
+    outside, inside = [], []
+    for head,given,bound in witness.factors:
+        binding = lambda v: natural if bound and v == x else ii.Slot(v)
+        factor = ii.ObsKernel(((head,binding(head)),),tuple((v,binding(v)) for v in given))
+        (inside if bound else outside).append(factor)
+    expression = ii.Product(tuple(outside)+(ii.Sum((natural,),ii.Product(tuple(inside))),))
+    return ii._marginal(expression,set(witness.order)-set(witness.actions)-set(witness.outcomes))
+
+
+def _wmc_expression(witness):
+    groups = [ii._marginal(ii.Product(tuple(ii.ObsKernel(ii._bindings(head),ii._bindings(given))
+                 for head,given in factors)),set(summed)) for summed,factors in witness.groups]
+    return ii._marginal(ii.Product(tuple(groups)),set(witness.D)-set(witness.outcomes))
+
+
 def _sbd_expression(witness):
     factors = [ii.ObsKernel(ii._bindings(head), ii._bindings(given)) for head, given in witness.factors]
     summed = {v for block in witness.auxiliary_blocks for v in block}
@@ -104,26 +174,35 @@ def _id_formula(H, X, Y, trace):
     Keeping these named kernels avoids an exponentially expanded display.
     """
     if not X:
-        return 'P(' + ', '.join(sorted(Y)) + ')', []
+        return 'P(' + ', '.join(sorted(Y)) + ')', [], _tree(ii.ObsKernel(ii._bindings(Y)))
     order = graph.find_topological_order(H)
     label = lambda nodes: 'Q[' + ','.join(v for v in order if v in nodes) + ']'
-    definitions, D, factors = [], set(), []
+    definitions, D, factors, trees = [], set(), [], []
     for key, path in trace[1].items():
         W = set(path[0])
         seed = ['P(' + v + (' | ' + ', '.join(order[:i]) if i else '') + ')'
                 for i, v in enumerate(order) if v in W]
-        definitions.append(dict(kernel=label(W), formula=' × '.join(seed)))
+        definitions.append(dict(kernel=label(W), formula=' × '.join(seed), kernel_tree=dict(type='kernel',nodes=sorted(W)),
+            formula_tree=_tree(ii.Product(tuple(ii.ObsKernel(ii._bindings([v]),ii._bindings(order[:i]))
+                        for i,v in enumerate(order) if v in W)))))
         for A, operation in zip(path[1:], trace[2][key][1:]):
             A = set(A)
             body = ('Σ_{' + ','.join(sorted(W-A)) + '} ' if operation == 'Σ' else 'δ_{' + ','.join(sorted(A)) + '} ')
-            definitions.append(dict(kernel=label(A), formula=body + label(W)))
+            kernel = dict(type='kernel',nodes=[v for v in order if v in W])
+            tree = (dict(type='sum',variables=[dict(variable=v,label=v) for v in sorted(W-A)],body=kernel)
+                    if operation == 'Σ' else dict(type='extract',nodes=sorted(A),body=kernel))
+            definitions.append(dict(kernel=label(A), formula=body + label(W), kernel_tree=dict(type='kernel',nodes=sorted(A)),formula_tree=tree))
             W = A
         D.update(W)
         factors.append(label(W))
+        trees.append(dict(type='kernel',nodes=[v for v in order if v in W]))
     formula = ' × '.join(factors)
     if D-set(Y):
         formula = 'Σ_{' + ','.join(sorted(D-set(Y))) + '} (' + formula + ')'
-    return formula, definitions
+    tree = dict(type='product',factors=trees)
+    if D-set(Y):
+        tree = dict(type='sum',variables=[dict(variable=v,label=v) for v in sorted(D-set(Y))],body=tree)
+    return formula, definitions, tree
 
 
 def analyze(payload):
@@ -162,8 +241,8 @@ def analyze(payload):
     try:
         trace = identify.ID_return_Ctree(G, X, Y)
         status = 'NOT_IDENTIFIABLE' if trace[0] == 0 else 'IDENTIFIABLE'
-        formula, definitions = (None, []) if trace[0] == 0 else _id_formula(H, actions, outcomes, trace)
-        identification = dict(status=status, formula=formula, trace=trace, definitions=definitions,
+        formula, definitions, tree = (None, [], None) if trace[0] == 0 else _id_formula(H, actions, outcomes, trace)
+        identification = dict(status=status, formula=formula, formula_tree=tree, trace=trace, definitions=definitions,
             extraction='δ_A Q[W] = product over A of ratios of adjacent topological-prefix marginals of Q[W].')
     except ValueError as error:
         trace = None
@@ -177,14 +256,16 @@ def analyze(payload):
             return _row('NO_BD')
         if not adjustment.check_backdoor_criterion(H, x, y, Z):
             raise RuntimeError('BD separator failed its criterion.')
-        return _row('ACCEPT', adjustment.adjustment_estimand(x,y,Z,False) if x else _id_formula(H,actions,outcomes,trace)[0], {'Z':Z})
+        return _row('ACCEPT', adjustment.adjustment_estimand(x,y,Z,False) if x else _id_formula(H,actions,outcomes,trace)[0], {'Z':Z},
+                    formula_tree=_tree(_adjustment_expression(x,y,Z) if x else ii.ObsKernel(ii._bindings(y))))
     safe('BD', bd)
     def ac():
         try:
             Z = adjustment.construct_minimum_adjustment_set(G, X, Y)
         except ValueError:
             return _row('NO_AC')
-        return _row('ACCEPT', adjustment.adjustment_estimand(x,y,Z,False) if x else 'P(' + ', '.join(y) + ')', {'Z':Z})
+        return _row('ACCEPT', adjustment.adjustment_estimand(x,y,Z,False) if x else 'P(' + ', '.join(y) + ')', {'Z':Z},
+                    formula_tree=_tree(_adjustment_expression(x,y,Z) if x else ii.ObsKernel(ii._bindings(y))))
     safe('AC', ac)
     if 'Z' in payload:
         Z = payload['Z']
@@ -195,28 +276,32 @@ def analyze(payload):
     def sbd():
         result = SBD.find_sbd(G,X,Y,max_orders=orders,max_seconds=remaining(),strategy='exhaustive')
         return _row(result.status, _render(_sbd_expression(result.witness)) if result.witness else None,
-                    asdict(result.witness) if result.witness else None, searched=result.searched)
+                    asdict(result.witness) if result.witness else None, searched=result.searched,
+                    formula_tree=_tree(_sbd_expression(result.witness)) if result.witness else None)
     safe('SBD', sbd)
     def fd():
         witness = frontdoor.constructive_minimum_FD(G,X,Y)
         if witness:
-            return _row('ACCEPT', frontdoor.frontdoor_estimand(x,y,witness['Z'],witness['C'],False),witness)
+            return _row('ACCEPT', frontdoor.frontdoor_estimand(x,y,witness['Z'],witness['C'],False),witness,
+                        formula_tree=_tree(_fd_expression(x,y,witness['Z'],witness['C'])))
         result = frontdoor.find_conditional_fd(G,X,Y,max_candidates=256,max_seconds=remaining())
         witness = result.witness
-        return _row(result.status, frontdoor.frontdoor_estimand(x,y,witness['Z'],witness['C'],False) if witness else None,witness,searched=result.searched)
+        return _row(result.status, frontdoor.frontdoor_estimand(x,y,witness['Z'],witness['C'],False) if witness else None,witness,searched=result.searched,
+                    formula_tree=_tree(_fd_expression(x,y,witness['Z'],witness['C'])) if witness else None)
     def singleton():
         if len(actions) > 1:
             return _row('UNSUPPORTED', reason='Tian 2002 supports one retained treatment.')
         if not tian.check_Tian_criterion(G,X,Y):
             return _row('NO_TIAN')
         witness = tian.tian_witness(G,X,Y)
-        return _row('ACCEPT', witness.expression(),asdict(witness))
+        return _row('ACCEPT', witness.expression(),asdict(witness),formula_tree=_tree(_tian_expression(witness)))
     safe('Tian', singleton)
     criteria['gTian'] = dict(criteria['Tian'], alias='Tian; current verified singleton API')
     def wmc():
         result = tian.find_wmc(G,X,Y,max_orders=orders,max_seconds=remaining(),strategy='exhaustive')
         return _row(result.status,result.witness.expression() if result.witness else None,
-                    asdict(result.witness) if result.witness else None,searched=result.searched)
+                    asdict(result.witness) if result.witness else None,searched=result.searched,
+                    formula_tree=_tree(_wmc_expression(result.witness)) if result.witness else None)
     safe('WMC', wmc)
     def product():
         if trace is None:
@@ -224,7 +309,7 @@ def analyze(payload):
         if trace[0] == 0:
             return _row('NO_PRODUCT')
         if not actions:
-            return _row('ACCEPT', identification['formula'],{'blocks':[]})
+            return _row('ACCEPT', identification['formula'],{'blocks':[]},formula_tree=identification['formula_tree'])
         certificates, expressions, D, unknown = [], [], set(), False
         for path in trace[1].values():
             B = set(path[-1]); D.update(B)
@@ -240,7 +325,7 @@ def analyze(payload):
         if unknown:
             return _row('UNKNOWN', witness={'accepted_blocks':certificates})
         expression = ii._marginal(ii.Product(tuple(expressions)), D-outcomes)
-        return _row('ACCEPT',_render(expression),{'blocks':certificates})
+        return _row('ACCEPT',_render(expression),{'blocks':certificates},formula_tree=_tree(expression))
     def mc():
         nonlocal indexed
         if len(graph.observed_nodes(G)) > 18:
@@ -251,10 +336,12 @@ def analyze(payload):
         indexed = dict(status=result.status, formula_status=result.formula_status,
             formula=_render(result.expression,result.registry), literal_formula=_render(result.literal_expression,result.registry),
             mc_formula=_render(result.mc_expression,result.registry),mc_partition=result.mc_partition,
+            formula_tree=_tree(result.expression,result.registry),literal_formula_tree=_tree(result.literal_expression,result.registry),
+            mc_formula_tree=_tree(result.mc_expression,result.registry),
             mc_search_status=result.mc_search_status,selected_derivation=result.selected_derivation,indexing_status=result.indexing_status)
         status = result.mc_search_status if result.status != 'NOT_IDENTIFIABLE' else 'NO_MC'
         return _row(status,indexed['mc_formula'],{'partition':result.mc_partition,
-            'certificates':[asdict(w) for w in result.mc_certificates]},reason=(
+            'certificates':[asdict(w) for w in result.mc_certificates]},formula_tree=indexed['mc_formula_tree'],reason=(
                 'MC certificate is valid; formula expansion is unfinished.' if result.mc_search_status == 'ACCEPT' and result.formula_status == 'UNKNOWN'
                 else 'MC failure excludes MC only; generic identification is a separate result.'))
     safe('MC', mc)
