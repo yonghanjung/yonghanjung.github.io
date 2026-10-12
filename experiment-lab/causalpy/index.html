@@ -602,6 +602,7 @@
           </details>
           <details>
             <summary>Query</summary>
+            <div id="identified-law" class="formula"></div>
             <div id="generic-id-formula" class="formula"></div>
             <div id="q-definitions" class="formula"></div>
             <p>Sums are symbolic; integrate over continuous variables.</p>
@@ -662,6 +663,7 @@
       analysisRevision = 0,
       queryRevision = 0,
       graphKey = "",
+      identificationCache = new Map(),
       library = [];
     function message(text, error = false) {
       $("status").textContent = text;
@@ -685,6 +687,7 @@
     }
     function clearAnalysis() {
       analysisRevision++;
+      identificationCache.clear();
       $("identification-results").hidden = true;
       $("criteria").replaceChildren();
       $("other-methods").replaceChildren();
@@ -1184,14 +1187,14 @@
     $("reset").onclick = () =>
       loadGraph({
         nodes: [
-          { name: "U", observed: false, dimension: 1, family: "", x: 120, y: 105 },
-          { name: "X", observed: true, dimension: 1, family: "linear", x: 285, y: 250 },
-          { name: "A", observed: true, dimension: 1, family: "linear", x: 560, y: 105 },
-          { name: "Y", observed: true, dimension: 1, family: "linear", x: 780, y: 270 },
+          { name: "U", observed: false, dimension: 1, family: "", x: 160, y: 170 },
+          { name: "X", observed: true, dimension: 1, family: "linear", x: 460, y: 75 },
+          { name: "A", observed: true, dimension: 1, family: "linear", x: 300, y: 75 + 160 * Math.sqrt(3) },
+          { name: "Y", observed: true, dimension: 1, family: "linear", x: 620, y: 75 + 160 * Math.sqrt(3) },
         ],
         edges: [
           ["U", "A"],
-          ["U", "Y"],
+          ["U", "X"],
           ["A", "Y"],
           ["X", "A"],
           ["X", "Y"],
@@ -1270,30 +1273,53 @@
       const coordinate = /^(.*)\[(\d+)\]$/.exec(name);
       return coordinate ? m("msub", m("mi", coordinate[1]), m("mn", coordinate[2])) : m("mi", name);
     }
-    function mathArgument(argument) {
-      if (Object.hasOwn(argument, "value")) return m("mrow", mathName(argument.variable), m("mo", "="), m("mn", argument.value));
-      const copy = /@([0-9]+)$/.exec(argument.label || "");
-      return copy ? m("msub", mathName(argument.variable), m("mrow", m("mo", "@"), m("mn", copy[1]))) : mathName(argument.label || argument.variable);
+    function dummyName(name, used) {
+      let alias = name.toLowerCase();
+      while (used.has(alias)) alias += "′";
+      used.add(alias);
+      return alias;
     }
-    function formulaNode(tree, budget = { remaining: 5000 }, depth = 0) {
+    function mathArgument(argument, aliases = new Map(), values = {}) {
+      if (Object.hasOwn(argument, "value")) return assignmentMath({ [argument.variable]: argument.value });
+      if (!aliases.has(argument.label) && argument.label === argument.variable && Object.hasOwn(values, argument.variable))
+        return assignmentMath({ [argument.variable]: values[argument.variable] });
+      const copy = /@([0-9]+)$/.exec(argument.label || ""),
+        alias = aliases.get(argument.label);
+      return alias || copy
+        ? m(
+            "mrow",
+            mathName(argument.variable),
+            m("mo", "="),
+            alias ? mathName(alias) : m("msub", mathName(argument.variable.toLowerCase()), m("mn", copy[1]))
+          )
+        : mathName(argument.label || argument.variable);
+    }
+    function formulaNode(tree, budget = { remaining: 5000, used: new Set(nodes.map((n) => n.name)) }, depth = 0, aliases = new Map(), values = {}) {
       if (!tree || --budget.remaining < 0 || depth > 96) throw Error("Formula display limit.");
-      const child = (value) => formulaNode(value, budget, depth + 1);
+      const child = (value, scope = aliases) => formulaNode(value, budget, depth + 1, scope, values),
+        argument = (value) => mathArgument(value, aliases, values);
       if (tree.type === "number") return m("mn", tree.value);
       if (tree.type === "probability")
         return m(
           "mrow",
           m("mi", tree.source || "P"),
-          fence(
-            m("mrow", mathList(tree.outcomes.map(mathArgument)), ...(tree.given.length ? [m("mo", "|"), mathList(tree.given.map(mathArgument))] : []))
-          )
+          fence(m("mrow", mathList(tree.outcomes.map(argument)), ...(tree.given.length ? [m("mo", "|"), mathList(tree.given.map(argument))] : [])))
         );
       if (tree.type === "kernel")
         return m(
           "mrow",
           m("msub", m("mi", "Q"), mathList(tree.nodes.map(mathName))),
-          ...(tree.arguments?.length ? [fence(mathList(tree.arguments.map(mathArgument)))] : [])
+          ...(tree.arguments?.length ? [fence(mathList(tree.arguments.map(argument)))] : [])
         );
-      if (tree.type === "sum") return m("mrow", m("munder", m("mo", "∑"), mathList(tree.variables.map(mathArgument))), fence(child(tree.body)));
+      if (tree.type === "sum") {
+        const scope = new Map(aliases),
+          variables = tree.variables.map((variable) => {
+            const alias = dummyName(variable.variable, budget.used);
+            scope.set(variable.label, alias);
+            return mathName(alias);
+          });
+        return m("mrow", m("munder", m("mo", "∑"), mathList(variables)), fence(child(tree.body, scope)));
+      }
       if (tree.type === "extract") return m("mrow", m("msub", m("mi", "δ"), mathList(tree.nodes.map(mathName))), child(tree.body));
       if (tree.type === "ratio") return m("mfrac", child(tree.numerator), child(tree.denominator));
       if (tree.type === "add") return m("mrow", child(tree.left), m("mo", "+"), child(tree.right));
@@ -1309,14 +1335,14 @@
           : m("mn", 1);
       throw Error("Unknown formula node.");
     }
-    function showFormula(container, tree, raw = "") {
+    function showFormula(container, tree, raw = "", values = {}) {
       container.replaceChildren();
       if (!tree) {
         if (raw) container.textContent = "Formula source is in Details.";
         return;
       }
       try {
-        const math = m("math", formulaNode(tree));
+        const math = m("math", formulaNode(tree, undefined, 0, undefined, values));
         math.setAttribute("display", "block");
         container.append(math);
       } catch {
@@ -1670,25 +1696,41 @@
       details.append(summary, formula, pre);
       return details;
     }
-    function showAnalysis(result) {
-      $("id-status").replaceWith(Object.assign(verdict(result.identification.status), { id: "id-status" }));
+    function formulaSource(result) {
       const complete = (tree) => {
-          const pending = tree ? [tree] : [];
-          if (!tree) return false;
-          while (pending.length) {
-            const item = pending.pop();
-            if (["kernel", "extract"].includes(item.type)) return false;
-            pending.push(...(item.factors || []), ...[item.body, item.numerator, item.denominator, item.left, item.right].filter(Boolean));
-          }
-          return true;
-        },
-        source =
-          result.identification.status === "IDENTIFIABLE"
-            ? ["BD", "AC", "SBD", "FD", "Tian"].find(
-                (name) => result.criteria[name].status === "ACCEPT" && complete(result.criteria[name].formula_tree)
-              )
-            : null;
-      showFormula($("id-formula"), source ? result.criteria[source].formula_tree : result.identification.formula_tree, result.identification.formula);
+        const pending = tree ? [tree] : [];
+        if (!tree) return false;
+        while (pending.length) {
+          const item = pending.pop();
+          if (["kernel", "extract"].includes(item.type)) return false;
+          pending.push(...(item.factors || []), ...[item.body, item.numerator, item.denominator, item.left, item.right].filter(Boolean));
+        }
+        return true;
+      };
+      return result.identification.status === "IDENTIFIABLE"
+        ? ["BD", "AC", "SBD", "FD", "Tian"].find((name) => result.criteria[name]?.status === "ACCEPT" && complete(result.criteria[name].formula_tree))
+        : null;
+    }
+    function referenceDetails(result, reference) {
+      $("reference-id")?.remove();
+      if (reference && reference !== result && reference.query?.original_actions.length) {
+        const details = methodDetails("Reference ID", reference.identification);
+        details.id = "reference-id";
+        $("other-methods").append(details);
+      }
+      $("query-details").textContent = showText({
+        formula: result.identification.formula,
+        displayed_formula_source: formulaSource(result) || "ID",
+        reference: reference?.query,
+        reference_status: reference?.identification.status,
+        query: result.query,
+        budget: result.budget,
+        definitions: result.identification.definitions,
+        extraction: result.identification.extraction,
+        trace: result.identification.trace,
+      });
+    }
+    function showAnalysis(result) {
       showFormula($("generic-id-formula"), result.identification.formula_tree, result.identification.formula);
       $("criteria").replaceChildren();
       const titles = {
@@ -1731,17 +1773,8 @@
         math.setAttribute("display", "block");
         $("q-definitions").append(math);
       }
-      $("query-details").textContent = showText({
-        formula: result.identification.formula,
-        displayed_formula_source: source || "ID",
-        query: result.query,
-        budget: result.budget,
-        definitions: result.identification.definitions,
-        extraction: result.identification.extraction,
-        trace: result.identification.trace,
-      });
       $("identification-results").hidden = false;
-      analysisMessage("Checked. UNKNOWN means unfinished search.");
+      renderEstimand();
     }
     const queryNames = (id) => [
       ...new Set(
@@ -1768,8 +1801,131 @@
       const valueMath = (value) => (Array.isArray(value) ? fence(mathList(value.map((v) => m("mn", v))), "[", "]") : m("mn", value));
       return mathList(Object.entries(values).map(([name, value]) => m("mrow", mathName(name), m("mo", "="), valueMath(value))));
     }
+    const analysisKey = (actions) => JSON.stringify([[...actions].sort(), queryNames("query-y").sort()]);
+    function completedAnalysis(key) {
+      const result = identificationCache.get(key);
+      return result &&
+        ![result.identification, ...Object.values(result.criteria), result.indexed]
+          .filter(Boolean)
+          .some((row) => ["status", "mc_search_status", "indexing_status"].some((field) => ["UNKNOWN", "UNSUPPORTED"].includes(row[field])))
+        ? result
+        : null;
+    }
+    function checkedAssignments(id) {
+      const values = assignments(id);
+      for (const [name, value] of Object.entries(values)) {
+        const node = nodes.find((n) => n.name === name && n.observed),
+          valid = (v) => typeof v === "number" && Number.isFinite(v);
+        if (!node || (node.dimension > 1 ? !Array.isArray(value) || value.length !== node.dimension || !value.every(valid) : !valid(value)))
+          throw Error("Use observed node names and finite scalar or full-vector values.");
+      }
+      return values;
+    }
+    function actionValues() {
+      const values = checkedAssignments("query-values"),
+        names = queryNames("query-x");
+      if (names.length !== Object.keys(values).length || names.some((name) => !Object.hasOwn(values, name)))
+        throw Error("Treatment names must match Values keys.");
+      return values;
+    }
+    function eventMath(aliases = new Map()) {
+      const name = $("event-column").value,
+        value = Number($("event-value").value),
+        coordinate = /^(.*)(\[\d+\])$/.exec(name),
+        shown = aliases.get(name) || (coordinate && aliases.has(coordinate[1]) ? aliases.get(coordinate[1]) + coordinate[2] : name);
+      if (!queryColumns().includes(name) || !$("event-value").value.trim() || !Number.isFinite(value)) throw Error("Choose a finite outcome event.");
+      return m("mrow", mathName(shown), m("mo", { ">=": "≥", "<=": "≤", "==": "=" }[$("event-op").value]), m("mn", value));
+    }
+    function lawName(values) {
+      return Object.keys(values).length ? m("msub", m("mi", "I"), assignmentMath(values)) : m("mi", "I");
+    }
+    function summaryMath(result, values, summary) {
+      const names = queryNames("query-y"),
+        target = () => (summary === "probability" ? eventMath() : mathList(names.map(mathName))),
+        operator = summary === "probability" ? "P" : "E",
+        bracket = (body) => fence(body, operator === "P" ? "(" : "[", operator === "P" ? ")" : "]"),
+        row = ["BD", "AC"].map((name) => result.criteria[name]).find((r) => r?.status === "ACCEPT" && r.witness?.Z),
+        used = new Set(nodes.map((n) => n.name));
+      if (!Object.keys(values).length) return m("mrow", m("mi", operator), bracket(target()));
+      if (row) {
+        const Z = row.witness.Z,
+          aliases = Z.map((name) => dummyName(name, used)),
+          retained = Object.fromEntries((result.query?.actions || Object.keys(values)).map((name) => [name, values[name]])),
+          condition = [
+            ...(Object.keys(retained).length ? [assignmentMath(retained)] : []),
+            ...Z.map((name, i) => m("mrow", mathName(name), m("mo", "="), mathName(aliases[i]))),
+          ],
+          conditional = m("mrow", m("mi", operator), bracket(m("mrow", target(), ...(condition.length ? [m("mo", "|"), mathList(condition)] : []))));
+        return Z.length
+          ? m(
+              "mrow",
+              m("mo", "∫"),
+              conditional,
+              m("mi", "d"),
+              m("msub", m("mi", "P"), mathList(Z.map(mathName))),
+              fence(mathList(aliases.map(mathName)))
+            )
+          : conditional;
+      }
+      const aliases = new Map(names.map((name) => [name, dummyName(name, used)])),
+        weight =
+          summary === "probability" ? m("msub", m("mn", 1), fence(eventMath(aliases), "{", "}")) : mathList([...aliases.values()].map(mathName));
+      return m(
+        "mrow",
+        m("mo", "∫"),
+        weight,
+        lawName(values),
+        fence(mathList([...aliases.values()].map((name) => m("mrow", m("mi", "d"), mathName(name)))))
+      );
+    }
+    function renderEstimand() {
+      const result = identificationCache.get(analysisKey(queryNames("query-x")));
+      if (!result || $("query-type").value === "counterfactual") return;
+      $("id-formula").replaceChildren();
+      $("identified-law").replaceChildren();
+      let status = result.identification.status,
+        reason = "Checked. UNKNOWN means unfinished search.",
+        reference;
+      try {
+        const values = actionValues(),
+          summary = $("query-summary").value,
+          referenceValues = summary === "mean_difference" ? checkedAssignments("query-reference") : null;
+        reference = referenceValues
+          ? Object.keys(referenceValues).length
+            ? identificationCache.get(analysisKey(Object.keys(referenceValues)))
+            : { identification: { status: "IDENTIFIABLE" }, criteria: {} }
+          : null;
+        if (referenceValues && (status !== "IDENTIFIABLE" || reference?.identification.status !== "IDENTIFIABLE")) {
+          status = "UNKNOWN";
+          reason = reference ? "No certified observable formula for this contrast." : "Identify the reference world for this contrast.";
+        }
+        if (status === "IDENTIFIABLE") {
+          const expression = summaryMath(result, values, summary === "mean_difference" ? "mean" : summary),
+            math = m("math", referenceValues ? m("mrow", expression, m("mo", "−"), summaryMath(reference, referenceValues, "mean")) : expression);
+          math.setAttribute("display", "block");
+          $("id-formula").append(math);
+          for (const [world, assignment] of [
+            [result, values],
+            ...(referenceValues && referenceValues !== null && Object.keys(referenceValues).length ? [[reference, referenceValues]] : []),
+          ]) {
+            const source = formulaSource(world),
+              tree = source ? world.criteria[source].formula_tree : world.identification.formula_tree;
+            if (!tree) continue;
+            const definition = m("math", lawName(assignment), m("mo", "="), formulaNode(tree, undefined, 0, undefined, assignment));
+            definition.setAttribute("display", "block");
+            $("identified-law").append(definition);
+          }
+        }
+      } catch (error) {
+        status = "UNKNOWN";
+        reason = error.message;
+      }
+      referenceDetails(result, reference);
+      $("id-status").replaceWith(Object.assign(verdict(status), { id: "id-status" }));
+      analysisMessage(reason);
+    }
     function queryMath() {
-      const intervention = assignments("query-values"),
+      const intervention = actionValues(),
         evidence = assignments("query-evidence"),
         summary = $("query-summary").value,
         counterfactual = $("query-type").value === "counterfactual",
@@ -1820,6 +1976,7 @@
       try {
         $("query-formula").append(queryMath());
       } catch {}
+      renderEstimand();
       controls();
     }
     for (const id of ["query-x", "query-y", "query-z", "search-budget"])
@@ -1918,16 +2075,34 @@
       perform(async () => {
         $("identification-results").hidden = true;
         analysisMessage("Checking identification…");
-        const result = await request("identify", {
-          nodes,
-          edges,
-          X: queryNames("query-x"),
-          Y: queryNames("query-y"),
-          Z: queryNames("query-z"),
-          max_seconds: Number($("search-budget").value),
-          max_orders: 256,
-          max_mc_unions: 256,
-        });
+        actionValues();
+        const actions = queryNames("query-x"),
+          key = analysisKey(actions),
+          referenceNames = $("query-summary").value === "mean_difference" ? Object.keys(checkedAssignments("query-reference")) : [],
+          referenceKey = analysisKey(referenceNames),
+          payload = {
+            nodes,
+            edges,
+            X: actions,
+            Y: queryNames("query-y"),
+            Z: queryNames("query-z"),
+            max_seconds: Number($("search-budget").value),
+            max_orders: 256,
+            max_mc_unions: 256,
+          },
+          result = completedAnalysis(key) || (await request("identify", payload));
+        let reference = referenceKey === key ? result : completedAnalysis(referenceKey);
+        if (referenceNames.length && !reference) {
+          try {
+            reference = await request("identify", { ...payload, X: referenceNames, Z: [] });
+          } catch (error) {
+            reference = {
+              identification: { status: "UNSUPPORTED", reason: error.message },
+              query: { original_actions: referenceNames },
+              criteria: {},
+            };
+          }
+        }
         if (
           version !== analysisRevision ||
           signature !== graphSignature() ||
@@ -1936,6 +2111,7 @@
           analysisMessage("Changed. Identify.");
           return;
         }
+        identificationCache = new Map([[key, result], ...(reference ? [[referenceKey, reference]] : [])]);
         showAnalysis(result);
       }, analysisMessage);
     };

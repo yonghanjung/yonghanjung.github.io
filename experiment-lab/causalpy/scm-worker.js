@@ -1,15 +1,31 @@
 import { loadPyodide } from "https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide.mjs";
 
-let ready;
-async function initialize(id) {
-  postMessage({ id, message: "Loading Python 3.13 and scientific packages…" });
-  const py = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.29.4/full/" });
-  await py.loadPackage(["numpy", "scipy", "pandas", "networkx"]);
+const baseURL = "https://cdn.jsdelivr.net/pyodide/v0.29.4/full/";
+let ready, network, identification, scm, pandas;
+async function sources(py, names) {
   await Promise.all(
-    [
-      "SCM.py",
-      "scm_registry.py",
-      "editor_engine.py",
+    names.map(async (name) => {
+      const response = await fetch(new URL(name, import.meta.url), { cache: "no-cache" });
+      if (!response.ok) throw Error(`Could not load ${name}. Please retry.`);
+      py.FS.writeFile(name, await response.text());
+    })
+  );
+}
+async function initialize(id) {
+  postMessage({ id, message: "Loading Python 3.13…" });
+  const py = await loadPyodide({ indexURL: baseURL });
+  py.runPython("import json");
+  return py;
+}
+async function prepare(py, action, id) {
+  // The same pinned pure-Python wheel needs no optional plotting packages.
+  await (network ||= py.loadPackage(baseURL + "networkx-3.4.2-py3-none-any.whl").catch((error) => {
+    network = null;
+    throw error;
+  }));
+  if (action === "identify" || action === "examples") {
+    postMessage({ id, message: "Loading graph algorithms…" });
+    await (identification ||= sources(py, [
       "graph.py",
       "adjustment.py",
       "SBD.py",
@@ -19,14 +35,26 @@ async function initialize(id) {
       "indexed_identification.py",
       "examples.py",
       "identification_engine.py",
-    ].map(async (name) => {
-      const response = await fetch(new URL(name, import.meta.url), { cache: "no-cache" });
-      if (!response.ok) throw Error(`Could not load ${name}. Please retry.`);
-      py.FS.writeFile(name, await response.text());
-    })
-  );
-  py.runPython("import json\nfrom editor_engine import Editor\nfrom identification_engine import analyze, graph_examples\n_editor = Editor()");
-  return py;
+    ])
+      .then(() => py.runPython("from identification_engine import analyze, graph_examples"))
+      .catch((error) => {
+        identification = null;
+        throw error;
+      }));
+  } else {
+    postMessage({ id, message: "Loading SCM packages…" });
+    await (scm ||= Promise.all([py.loadPackage(["numpy", "scipy"]), sources(py, ["SCM.py", "scm_registry.py", "editor_engine.py"])])
+      .then(() => py.runPython("from editor_engine import Editor\n_editor = Editor()"))
+      .catch((error) => {
+        scm = null;
+        throw error;
+      }));
+    if (action === "sample" || action === "update")
+      await (pandas ||= py.loadPackage("pandas").catch((error) => {
+        pandas = null;
+        throw error;
+      }));
+  }
 }
 
 self.onmessage = async ({ data: { id, action, payload } }) => {
@@ -36,6 +64,7 @@ self.onmessage = async ({ data: { id, action, payload } }) => {
       throw error;
     });
     const py = await ready;
+    await prepare(py, action, id);
     postMessage({
       id,
       message:

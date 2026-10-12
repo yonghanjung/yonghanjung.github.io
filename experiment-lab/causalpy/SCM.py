@@ -15,7 +15,6 @@ from time import perf_counter
 
 import networkx as nx
 import numpy as np
-import pandas as pd
 from scipy import stats
 from scipy.special import log_expit, logit, logsumexp
 
@@ -402,6 +401,7 @@ class StructuralCausalModel:
         return samples
 
     def _sample_frame(self, n, seed, observed_only):
+        import pandas as pd
         samples = self._sample_arrays(n, seed)
         columns = {}
         # Registration order keeps output columns stable when parents change.
@@ -855,6 +855,7 @@ class StructuralCausalModel:
         return self.build_from_graph(graph_dict, discrete=discrete, seed=seed)
 
     def get_adjacency_matrix(self):
+        import pandas as pd
         nodes = sorted(self.graph)
         return pd.DataFrame(nx.to_numpy_array(self.graph, nodelist=nodes, dtype=int),
                             index=nodes, columns=nodes)
