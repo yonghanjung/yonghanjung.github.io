@@ -127,7 +127,7 @@
     }
     .layout {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 230px;
+      grid-template-columns: minmax(0, 1fr) 320px;
       gap: 16px;
     }
     .canvas,
@@ -278,6 +278,37 @@
     #parameters details {
       margin: 8px 0;
     }
+    .specification {
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: var(--soft);
+      margin: 12px 0;
+    }
+    .specification strong,
+    #parameter-state {
+      font-size: 12px;
+    }
+    #applied-equation,
+    #noise-law {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      margin: 8px 0 0;
+    }
+    #parameters fieldset {
+      border: 0;
+      padding: 0;
+      margin: 12px 0;
+    }
+    #parameters legend {
+      font-size: 13px;
+      font-weight: 650;
+    }
+    #parameters .input-order {
+      font: 12px/1.5 monospace;
+      overflow-wrap: anywhere;
+      color: var(--muted);
+    }
     .query {
       display: flex;
       flex-wrap: wrap;
@@ -395,20 +426,29 @@
               <option>quadratic</option>
               <option>bounded</option>
               <option>binary</option>
-              <option>neural_network</option>
-              <option>decision_tree</option>
+              <option value="neural_network">Neural network</option>
+              <option value="decision_tree">Decision tree</option>
             </select></label
           >
         </div>
         <form id="mechanism" hidden>
+          <div class="specification">
+            <strong>Applied equation</strong>
+            <pre id="applied-equation"></pre>
+          </div>
+          <strong id="parameter-state">Parameters</strong>
           <div id="parameters"></div>
           <button id="apply" type="submit">Apply</button>
+          <div class="specification">
+            <strong>Noise law</strong>
+            <pre id="noise-law"></pre>
+          </div>
           <details>
-            <summary>Function</summary>
+            <summary>Python source</summary>
             <pre id="function-source"></pre>
           </details>
           <details>
-            <summary>Noise</summary>
+            <summary>Noise details</summary>
             <pre id="noise-source"></pre>
           </details>
         </form>
@@ -641,6 +681,7 @@
       }
       $("observed").closest("label").hidden = scmMode;
       $("dimension").closest("label").hidden = scmMode;
+      $("family").closest("label").hidden = scmMode && !node?.observed;
       if (!node || !scmMode || !model) $("mechanism").hidden = true;
       else inspectNode(node.name);
       render();
@@ -915,18 +956,96 @@
         if (scmMode && model && selected?.name) inspectNode(selected.name);
       }
     }
+    function outputName(variable, index) {
+      return variable.columns?.[index] || (variable.shape?.length ? selected.name + "[" + index + "]" : selected.name);
+    }
+    function equationText(variable, name) {
+      if (!variable.observed) return name + " = ε_" + name;
+      const parameters = variable.equation.parameters || {},
+        parts = parameters.coordinates || [parameters];
+      const text = parts
+        .map((p, i) => {
+          const output = outputName(variable, i),
+            noise = "ε_" + output,
+            inputs = "[" + (p.parents || Object.keys(p.coefficients || {})).join(", ") + "]";
+          if (p.kind === "neural_network")
+            return (
+              output +
+              ":\nh0 = " +
+              inputs +
+              "\nhℓ = " +
+              p.activation +
+              "(hℓ−1 @ Wℓ + bℓ), ℓ = 1…" +
+              p.depth +
+              "\n" +
+              output +
+              " = h" +
+              p.depth +
+              " @ v + " +
+              p.intercept +
+              " + " +
+              noise
+            );
+          if (p.kind === "decision_tree")
+            return p.depth === 0
+              ? output + " = " + p.leaves[0] + " + " + noise
+              : output +
+                  ":\ninputs = " +
+                  inputs +
+                  "\nk = 0\nfor " +
+                  p.depth +
+                  " levels:\n  k = 2*k + 1 + (inputs[features[k]] > thresholds[k])\n" +
+                  output +
+                  " = leaves[k − " +
+                  (2 ** p.depth - 1) +
+                  "] + " +
+                  noise;
+          const signal =
+            String(p.intercept) +
+            Object.entries(p.coefficients || {})
+              .map(([input, c]) => "\n " + (c < 0 ? "− " : "+ ") + Math.abs(c) + " × " + input + (p.kind === "quadratic" ? "²" : ""))
+              .join("") +
+            "\n + " +
+            noise;
+          if (p.kind === "bounded") return output + " = sigmoid(\n " + signal + "\n)";
+          if (p.kind === "binary") return "p_" + output + " = sigmoid(\n " + signal + "\n)\n" + output + " ~ Bernoulli(p_" + output + ")";
+          return output + " = " + signal;
+        })
+        .join("\n\n");
+      return text + (parts.some((p) => ["bounded", "binary"].includes(p.kind)) ? "\n\nsigmoid(t) = 1 / (1 + exp(−t))" : "");
+    }
+    function noiseText(variable, name) {
+      const noise = variable.noise,
+        source = noise.parameters?.source || noise,
+        { loc = 0, scale = 1 } = source.keywords || {},
+        law =
+          source.distribution === "norm"
+            ? "Normal(mean=" + loc + ", std=" + scale + ")"
+            : source.distribution === "uniform"
+              ? "Uniform[" + loc + ", " + (loc + scale) + "]"
+              : source.distribution || source.kind;
+      return noise.parameters?.mixing
+        ? "ε_" + name + " = e @ M\nIndependent e coordinates ~ " + law + "\nM: Noise details"
+        : "ε_" + name + " ~ " + law;
+    }
     function parameterFields(value, container, path = []) {
+      let advanced = null;
+      if (value.parents) {
+        const order = document.createElement("p");
+        order.className = "input-order";
+        order.textContent = "Inputs: " + (value.parents.map((name, i) => i + " = " + name).join(" · ") || "none");
+        container.append(order);
+      }
       for (const [key, item] of Object.entries(value)) {
         if (["kind", "parents", "parent_shapes", "used_parents", "weight_scale"].includes(key)) continue;
         if (key === "coordinates") {
           item.forEach((coordinate, i) => {
-            const detail = document.createElement("details"),
-              summary = document.createElement("summary");
-            summary.textContent = `${selected.name}[${i}]`;
-            detail.open = i === 0;
-            detail.append(summary);
-            container.append(detail);
-            parameterFields(coordinate, detail, [...path, key, i]);
+            const group = document.createElement("fieldset"),
+              legend = document.createElement("legend");
+            legend.textContent = outputName(model.variables[selected.name], i);
+            group.append(legend);
+            container.append(group);
+            parameterFields(coordinate, group, [...path, key, i]);
           });
           continue;
         }
@@ -936,7 +1055,21 @@
         }
         const label = document.createElement("label"),
           input = document.createElement(Array.isArray(item) ? "textarea" : key === "activation" ? "select" : "input");
-        label.append(document.createTextNode(key));
+        const names = {
+          intercept: value.kind === "neural_network" ? "Output bias" : "Intercept",
+          depth: value.kind === "neural_network" ? "Hidden layers" : "Depth",
+          width: "Hidden width",
+          activation: "Activation",
+          input_weights: "Input weights W1",
+          bias: "Hidden bias b1",
+          hidden_weights: "Additional hidden weights W2…Wd",
+          hidden_biases: "Additional hidden biases b2…bd",
+          output_weights: "Output weights v",
+          features: "Split variables (input indices)",
+          thresholds: "Split thresholds",
+          leaves: "Leaf values",
+        };
+        label.append(document.createTextNode(path.at(-1) === "coefficients" ? key + " coefficient" : names[key] || key));
         if (key === "activation") for (const name of ["tanh", "relu"]) input.add(new Option(name, name));
         else if (!Array.isArray(item)) {
           input.type = "number";
@@ -947,11 +1080,21 @@
         input.oninput = () => {
           dirty = true;
           invalidate(false);
+          $("parameter-state").textContent = "Pending parameters · Apply";
           message("Apply changes.");
         };
         label.append(input);
-        container.append(label);
+        if (Array.isArray(item)) {
+          if (!advanced) {
+            advanced = document.createElement("details");
+            const summary = document.createElement("summary");
+            summary.textContent = "Advanced arrays";
+            advanced.append(summary);
+          }
+          advanced.append(label);
+        } else container.append(label);
       }
+      if (advanced) container.append(advanced);
     }
     function showFunction(result) {
       const name = result.node,
@@ -959,12 +1102,16 @@
       shown = `${token}:${name}`;
       dirty = false;
       draft = structuredClone(variable.equation.parameters || {});
+      $("applied-equation").textContent = equationText(variable, name);
+      $("parameter-state").textContent = "Parameters";
+      $("parameter-state").hidden = !variable.observed;
       $("parameters").replaceChildren();
       if (variable.observed) parameterFields(draft, $("parameters"));
       $("apply").hidden = !variable.observed;
       $("family").value = variable.parameters.family || "";
       $("function-source").textContent = result.function.source + "\n\n" + JSON.stringify(result.function.bindings, null, 2);
       $("noise-source").textContent = JSON.stringify(variable.noise, null, 2);
+      $("noise-law").textContent = noiseText(variable, name);
       $("mechanism").hidden = false;
       controls();
     }
