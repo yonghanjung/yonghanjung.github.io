@@ -1267,8 +1267,8 @@
         if (scmMode && model && selected?.name) inspectNode(selected.name);
       }
     }
-    function outputName(variable, index) {
-      return variable.columns?.[index] || (variable.shape?.length ? selected.name + "[" + index + "]" : selected.name);
+    function outputName(variable, index, name = selected?.name) {
+      return variable.columns?.[index] || (variable.shape?.length ? name + "[" + index + "]" : name);
     }
     function m(tag, ...children) {
       const node = document.createElementNS("http://www.w3.org/1998/Math/MathML", tag);
@@ -1365,7 +1365,7 @@
       if (!variable.observed) line(mathName(name), "=", epsilon(name));
       else
         for (const [i, p] of (variable.equation.parameters.coordinates || [variable.equation.parameters]).entries()) {
-          const output = outputName(variable, i),
+          const output = outputName(variable, i, name),
             inputs = p.parents || Object.keys(p.coefficients || {}),
             noise = epsilon(output);
           if (p.kind === "neural_network") {
@@ -1507,10 +1507,24 @@
       return math;
     }
     function showEquation() {
-      const node = nodes?.find((n) => n.name === selected?.name),
+      const edge = scmMode && selected?.edge,
+        node = nodes?.find((n) => n.name === (selected?.name || edge?.[1])),
         variable = model?.variables[node?.name];
       $("equation-view").hidden = !node;
       if (!node) return;
+      if (edge) {
+        const parameters = variable?.equation?.parameters,
+          known =
+            variable &&
+            (!variable.observed ||
+              (parameters?.coordinates || [parameters]).every((p) =>
+                ["linear", "quadratic", "bounded", "binary", "neural_network", "decision_tree"].includes(p?.kind)
+              ));
+        $("equation-title").textContent = "Target equation · " + node.name;
+        $("applied-equation").replaceChildren(known ? equationMath(variable, node.name) : document.createTextNode("UNKNOWN"));
+        $("equation-state").textContent = known ? "" : "SCM mechanism unavailable.";
+        return;
+      }
       $("equation-title").textContent = variable ? "Applied equation" : "Function template";
       $("applied-equation").replaceChildren(variable ? equationMath(variable, node.name) : equationTemplate(node));
       $("equation-state").textContent = variable ? "" : node.observed ? "Parameters are drawn in SCM mode." : "Noise only.";
@@ -1665,7 +1679,7 @@
           }
           install(result);
         }
-        select(selected?.name ? selected : { name: nodes[0]?.name });
+        select(selected?.name || selected?.edge ? selected : { name: nodes[0]?.name });
         message(dirty ? "Apply changes." : "Generate Sample.");
       });
     };
@@ -2131,6 +2145,8 @@
       }
       const reference = result.scm_reference || result,
         estimate = result.data_estimate,
+        exact = reference.status === "OK" && reference.approximate === false && reference.diagnostics?.method === "analytic linear expectation",
+        referenceLabel = exact ? "SCM ground truth (exact)" : "SCM reference (Monte Carlo)",
         values = reference.status === "OK" ? reference.values || { Probability: reference.value } : {},
         names = [...new Set([...Object.keys(values), ...Object.keys(estimate?.values || {})])],
         tableRow = (items, header = false) => {
@@ -2144,8 +2160,14 @@
         };
       $("query-estimates").replaceChildren();
       $("query-estimates").hidden = !names.length;
-      $("query-result-label").textContent = estimate ? "Sample comparison · approximate" : "SCM Monte Carlo · approximate";
-      if (estimate) $("query-estimates").append(tableRow(["Outcome", "Data estimate", "SCM reference (Monte Carlo)", "Difference"], true));
+      $("query-result-label").textContent = estimate
+        ? exact
+          ? "Sample comparison · " + referenceLabel
+          : "Sample comparison · approximate"
+        : exact
+          ? referenceLabel
+          : "SCM Monte Carlo · approximate";
+      if (estimate) $("query-estimates").append(tableRow(["Outcome", "Data estimate", referenceLabel, "Difference"], true));
       for (const name of names)
         $("query-estimates").append(
           tableRow(

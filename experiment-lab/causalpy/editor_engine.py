@@ -6,13 +6,14 @@ import json
 import re
 import textwrap
 from time import perf_counter
-from types import FunctionType
+from types import CodeType, FunctionType
 
 import networkx as nx
 import numpy as np
+from scipy.stats._distn_infrastructure import rv_frozen
 
-from SCM import SCM
-from scm_registry import EQUATION_FAMILIES, NOISE_FAMILIES, _cluster_equation
+from SCM import SCM, U, _noise_value
+from scm_registry import EQUATION_FAMILIES, NOISE_FAMILIES, _cluster_equation, _make_equation
 
 
 
@@ -277,6 +278,65 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
     return dict(result, status="OK", values=dict(zip(outcomes, values.tolist())))
 
 
+def _reference(model, payload, n, seed, seconds):
+    """Analytic scalar linear Mean when verified; otherwise use existing simulation."""
+    started = perf_counter()
+    options = dict(query_type=payload.get("type", "interventional"),
+                   intervention=payload.get("intervention", {}), evidence=payload.get("evidence", {}),
+                   reference=payload.get("reference"), summary=payload.get("summary", "mean"),
+                   event=payload.get("event"), n=n, seed=seed)
+    if seconds > 0 and options["query_type"] == "interventional" and options["summary"] == "mean" and not options["evidence"]:
+        # The first deadline check precedes every draw: reuse validation, not MC.
+        template = model.query(payload.get("targets"), **options, max_seconds=0)
+        query = template["query"]
+        actions, needed = query["intervention"], set(query["targets"])
+        order = list(nx.topological_sort(model.graph))
+        for v in reversed(order):
+            if v in needed and v not in actions:
+                needed.update(model.graph.predecessors(v))
+        linear_code = next(c for c in _make_equation.__code__.co_consts
+                           if isinstance(c, CodeType) and c.co_name == "equation")
+        means = {}
+        for v in (v for v in order if v in needed):
+            if perf_counter() - started >= seconds or model._variables[v]["shape"] != ():
+                break
+            if v in actions:
+                means[v] = float(actions[v])
+                continue
+            function = model.equations[v]
+            if model._uses_legacy_rng(v):
+                break
+            noise = model.noise_distributions.get(v)
+            noise = noise.distribution if isinstance(noise, U) else noise
+            if noise is not None and (not isinstance(noise, rv_frozen) or noise.dist.name not in {"norm", "uniform"}
+                    or getattr(noise.rvs, "__func__", None) is not rv_frozen.rvs
+                    or getattr(noise.mean, "__func__", None) is not rv_frozen.mean):
+                break
+            mean_noise = np.asarray(0 if noise is None else noise.mean())
+            if mean_noise.shape or not np.isfinite(mean_noise):
+                break
+            if function is _noise_value and not model._variables[v]["observed"] and not model.graph.in_degree(v):
+                means[v] = float(mean_noise)
+            elif getattr(function, "__code__", None) is linear_code:
+                bindings = dict(zip(function.__code__.co_freevars, (c.cell_contents for c in function.__closure__)))
+                coefficients, intercept = bindings["coefficients"], bindings["intercept"]
+                if (bindings["kind"] != "linear" or set(coefficients) != set(model.graph.predecessors(v))
+                        or not np.isfinite([intercept, *coefficients.values()]).all()):
+                    break
+                means[v] = float(intercept + sum(c * means[p] for p, c in coefficients.items()) + mean_noise)
+            else:
+                break
+            if not np.isfinite(means[v]):
+                break
+        else:
+            if perf_counter() - started < seconds:
+                return dict(status="OK", approximate=False, query=query,
+                            values={model._variables[v].get("columns", [v])[0]: means[v] for v in query["targets"]},
+                            diagnostics={"method": "analytic linear expectation", "n": 0,
+                                         "conditioning": "none", "elapsed_seconds": perf_counter() - started})
+    return model.query(payload.get("targets"), **options, max_seconds=max(0, seconds - (perf_counter() - started)))
+
+
 class Editor:
     """One browser session owns one fixed SCM; sampling never rebuilds it."""
 
@@ -313,10 +373,7 @@ class Editor:
                               "type": d["variable_type"]} for v, d in self.model._variables.items() if d["observed"]}
                 estimate = _estimate_mean(self._sample, self.model.graph, schema, payload, self._sample_seed ^ 0x5A5A5A5A, started + seconds)
                 seconds = max(0, seconds - (perf_counter() - started))
-            result = self.model.query(payload.get("targets"), query_type=payload.get("type", "interventional"),
-                intervention=payload.get("intervention", {}), evidence=payload.get("evidence", {}),
-                reference=payload.get("reference"), summary=payload.get("summary", "mean"), event=payload.get("event"),
-                n=n, seed=seed, max_seconds=seconds)
+            result = _reference(self.model, payload, n, seed, seconds)
             if action == "compare":
                 response = dict(token=self.token, sample_id=self.sample_id, query=result["query"],
                                 data_estimate=estimate, scm_reference=result)
