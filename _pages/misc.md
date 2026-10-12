@@ -1,7 +1,7 @@
 ---
 layout: page
-title: Misc
-permalink: /misc/
+title: children-math
+permalink: /children-math/
 nav: true
 nav_order: 7
 ---
