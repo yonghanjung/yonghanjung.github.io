@@ -10,9 +10,10 @@
     notice = "",
     customDraft = null,
     soundEnabled = true,
-    audio = null;
+    audio = null,
+    toneToken = 0,
+    sessionType = null;
   const soundKey = `${D.KEY}.sound`,
-    toneGains = new Set(),
     celebrations = ["🌟", "🎉", "🚀", "🏅"];
   try {
     soundEnabled = localStorage.getItem(soundKey) !== "off";
@@ -21,52 +22,99 @@
     state = D.hydrate(JSON.parse(localStorage.getItem(D.KEY)));
   } catch (_) {}
   const now = () => performance.now();
-  function unlockAudio() {
-    if (!soundEnabled) return;
-    try {
-      const Audio = window.AudioContext || window.webkitAudioContext;
-      if (!Audio) return;
-      if (!audio || audio.state === "closed") audio = new Audio();
-      if (audio.state !== "running") audio.resume().catch(() => {});
-    } catch (_) {}
+  function audioStatus(text = "") {
+    const status = document.getElementById("audioStatus");
+    status.textContent = text;
+    status.hidden = !text;
   }
-  function ding() {
-    if (!soundEnabled || !audio) return;
-    const id = state.active.id,
-      index = state.active.index;
-    const playTone = () => {
-      if (!soundEnabled || document.hidden || audio.state !== "running" || state.active?.id !== id || state.active.index !== index) return;
+  function toneURL() {
+    const rate = 44100,
+      samples = Math.ceil(rate * 0.25),
+      wave = new Float32Array(samples);
+    let peak = 0;
+    for (let i = 0; i < samples; i++) {
+      const time = i / rate;
+      [880, 1174.66].forEach((frequency, note) => {
+        const t = time - note * 0.07;
+        if (t >= 0 && t < 0.18) {
+          const envelope = t < 0.01 ? t / 0.01 : Math.exp((-7 * (t - 0.01)) / 0.17);
+          wave[i] += Math.sin(2 * Math.PI * frequency * t) * envelope;
+        }
+      });
+      peak = Math.max(peak, Math.abs(wave[i]));
+    }
+    const bytes = new Uint8Array(44 + samples * 2),
+      view = new DataView(bytes.buffer);
+    const text = (offset, value) => [...value].forEach((char, i) => view.setUint8(offset + i, char.charCodeAt(0)));
+    text(0, "RIFF");
+    view.setUint32(4, bytes.length - 8, true);
+    text(8, "WAVE");
+    text(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, rate, true);
+    view.setUint32(28, rate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    text(36, "data");
+    view.setUint32(40, samples * 2, true);
+    for (let i = 0; i < samples; i++) view.setInt16(44 + i * 2, Math.round((wave[i] / peak) * 0.12 * 32767), true);
+    return `data:audio/wav;base64,${btoa(String.fromCharCode(...bytes))}`;
+  }
+  function restoreSession() {
+    if (sessionType !== null) {
       try {
-        [880, 1174.66].forEach((frequency, i) => {
-          const oscillator = audio.createOscillator(),
-            gain = audio.createGain(),
-            start = audio.currentTime + i * 0.07;
-          oscillator.type = "sine";
-          oscillator.frequency.setValueAtTime(frequency, start);
-          gain.gain.setValueAtTime(0, start);
-          gain.gain.linearRampToValueAtTime(0.018, start + 0.01);
-          gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.17);
-          oscillator.connect(gain);
-          gain.connect(audio.destination);
-          toneGains.add(gain);
-          oscillator.onended = () => {
-            oscillator.disconnect();
-            gain.disconnect();
-            toneGains.delete(gain);
-          };
-          oscillator.start(start);
-          oscillator.stop(start + 0.18);
-        });
+        if (navigator.audioSession?.type === "playback") navigator.audioSession.type = sessionType;
       } catch (_) {}
+      sessionType = null;
+    }
+  }
+  function stopTone() {
+    toneToken++;
+    if (audio) {
+      audio.pause();
+      try {
+        audio.currentTime = 0;
+      } catch (_) {}
+    }
+    restoreSession();
+  }
+  function ding(test = false) {
+    if (!soundEnabled || document.hidden) return;
+    stopTone();
+    const token = toneToken;
+    const failed = () => {
+      if (token !== toneToken) return;
+      restoreSession();
+      audioStatus("Sound blocked. Tap Test sound.");
     };
-    if (audio.state === "running") playTone();
-    else {
+    try {
+      if (!audio) {
+        audio = new Audio(toneURL());
+        audio.preload = "auto";
+      }
       try {
-        audio
-          .resume()
-          .then(playTone)
-          .catch(() => {});
+        if (navigator.audioSession && navigator.audioSession.type !== "playback") {
+          sessionType = navigator.audioSession.type;
+          navigator.audioSession.type = "playback";
+        }
       } catch (_) {}
+      audio.onended = () => {
+        if (token === toneToken) restoreSession();
+      };
+      audio.onerror = failed;
+      const playing = audio.play();
+      if (playing?.then) {
+        playing
+          .then(() => {
+            if (token !== toneToken) return;
+            audioStatus(test ? "If silent, raise media volume." : "");
+          })
+          .catch(failed);
+      }
+    } catch (_) {
+      failed();
     }
   }
   function updateSound() {
@@ -75,19 +123,20 @@
     button.setAttribute("aria-label", soundEnabled ? "Mute sound" : "Enable sound");
     button.setAttribute("aria-pressed", String(soundEnabled));
   }
-  document.getElementById("sound").onclick = () => {
-    soundEnabled = !soundEnabled;
+  function saveSound() {
     try {
       localStorage.setItem(soundKey, soundEnabled ? "on" : "off");
     } catch (_) {}
-    if (soundEnabled) unlockAudio();
-    else if (audio) {
-      toneGains.forEach((gain) => {
-        gain.gain.cancelScheduledValues(audio.currentTime);
-        gain.gain.setValueAtTime(0, audio.currentTime);
-      });
-    }
     updateSound();
+  }
+  document.getElementById("sound").onclick = () => {
+    soundEnabled = !soundEnabled;
+    saveSound();
+    if (soundEnabled) ding(true);
+    else {
+      stopTone();
+      audioStatus();
+    }
   };
   function save() {
     try {
@@ -188,7 +237,9 @@
         : ""
     }</div><div class="start-buttons">${
       canResume ? button("Resume", "continue", "soft") : r?.phase === "complete" ? button("Results", "continue", "soft") : ""
-    }${button("Start", "start", "primary")}</div>${notice ? `<div class="small-info" role="alert">${notice}</div>` : ""}</section>`;
+    }${button("Start", "start", "primary")}</div>${button("Test sound", "testSound", "soft")}${
+      notice ? `<div class="small-info" role="alert">${notice}</div>` : ""
+    }</section>`;
     if (custom) {
       const input = document.getElementById("customCount");
       input.value = customDraft ?? String(s.customCount);
@@ -349,7 +400,6 @@
     const b = e.target.closest("[data-action]");
     if (!b || b.disabled) return;
     const a = b.dataset.action;
-    unlockAudio();
     if (a.startsWith("op:")) {
       state.settings.op = a.slice(3);
       save();
@@ -369,6 +419,10 @@
       notice = "";
       save();
       render();
+    } else if (a === "testSound") {
+      soundEnabled = true;
+      saveSound();
+      ding(true);
     } else if (a === "start") {
       if (state.settings.count === "custom") {
         const value = D.customCount(customDraft ?? state.settings.customCount);
@@ -443,7 +497,6 @@
   };
   document.addEventListener("keydown", (e) => {
     if (screen !== "play" || state.active?.phase !== "running") return;
-    unlockAudio();
     if (/^\d$/.test(e.key)) {
       e.preventDefault();
       app.querySelector(`[data-action="key:${e.key}"]`)?.click();
@@ -462,6 +515,7 @@
     } else render();
   });
   window.addEventListener("pagehide", () => {
+    stopTone();
     pause();
     save();
     stop();
