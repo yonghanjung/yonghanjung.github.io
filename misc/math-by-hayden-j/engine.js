@@ -1,21 +1,46 @@
 (function (root) {
   "use strict";
   const KEY = "haydenTouchDrill.v1",
-    OPS = ["+", "−", "×", "÷"],
+    OPS = ["+", "−", "×", "÷", "+−"],
     DURATIONS = [3, 6, 9],
     LEVELS = ["easy", "medium", "difficult"];
   const integer = (low, high, rng = Math.random) => low + Math.floor(Math.min(0.999999, Math.max(0, rng())) * (high - low + 1));
-  function problem(op, rng = Math.random, sumLimit = 10) {
+  const regroupPools = new Map();
+  function regroupPair(op, sumLimit, regroup, rng) {
+    const key = `${op}:${sumLimit}`;
+    if (!regroupPools.has(key)) {
+      const pools = [[], []];
+      for (let a = 1; a <= sumLimit; a++) {
+        for (let b = op === "+" ? 1 : 0; b <= (op === "+" ? sumLimit - a : a - 1); b++) {
+          const crosses = op === "+" ? (a % 10) + (b % 10) >= 10 : a % 10 < b % 10;
+          pools[Number(crosses)].push([a, b]);
+        }
+      }
+      regroupPools.set(key, pools);
+    }
+    const pool = regroupPools.get(key)[Number(regroup)];
+    const [a, b] = pool[integer(0, pool.length - 1, rng)];
+    return { a, b, op, answer: op === "+" ? a + b : a - b };
+  }
+  function problem(op, rng = Math.random, sumLimit = 10, difficulty = "easy") {
     if (!OPS.includes(op)) throw new Error("Invalid operation");
+    if (op === "+−") op = rng() < 0.5 ? "+" : "−";
+    if (op === "+" && ["medium", "difficult"].includes(difficulty)) {
+      return regroupPair(op, sumLimit, rng() < 0.8, rng);
+    }
     if (op === "+") {
       const sum = integer(2, sumLimit, rng),
         a = integer(1, sum - 1, rng);
       return { a, b: sum - a, op, answer: sum };
     }
     if (op === "−") {
-      if (rng() < 0.05) {
+      const roll = rng();
+      if (roll < 0.05) {
         const a = integer(1, sumLimit, rng);
         return { a, b: a, op, answer: 0 };
+      }
+      if (["medium", "difficult"].includes(difficulty)) {
+        return regroupPair(op, sumLimit, roll < 0.85, rng);
       }
       let index = integer(0, (sumLimit * (sumLimit + 1)) / 2 - 1, rng),
         a = 1;
@@ -70,8 +95,12 @@
     state.active = makeRound(
       s.op,
       s.seconds,
-      Array.from({ length: unlimited ? 1 : count }, () => problem(s.op, rng, limit)),
-      { unlimited, difficulty: ["+", "−"].includes(s.op) ? s.difficulty : "none", sumLimit: ["+", "−"].includes(s.op) ? limit : null }
+      Array.from({ length: unlimited ? 1 : count }, () => problem(s.op, rng, limit, s.difficulty)),
+      {
+        unlimited,
+        difficulty: ["+", "−", "+−"].includes(s.op) ? s.difficulty : "none",
+        sumLimit: ["+", "−", "+−"].includes(s.op) ? limit : null,
+      }
     );
     return state.active;
   }
@@ -136,7 +165,7 @@
     const r = state.active;
     if (!r || r.phase !== "feedback") return false;
     if (!r.unlimited && r.index === r.records.length - 1) return close(state);
-    if (r.unlimited) r.records.push({ problem: problem(r.op, rng, r.sumLimit || 10), result: null });
+    if (r.unlimited) r.records.push({ problem: problem(r.op, rng, r.sumLimit || 10, r.difficulty), result: null });
     r.index++;
     r.phase = "ready";
     r.remaining = r.seconds * 1000;
@@ -166,7 +195,7 @@
     return { correct, wrong, timeout, total: graded.length, master: graded.length > 0 && correct === graded.length && wrong === 0 && timeout === 0 };
   }
   function validProblem(p) {
-    if (!p || !OPS.includes(p.op) || !Number.isInteger(p.a) || !Number.isInteger(p.b) || !Number.isInteger(p.answer)) return false;
+    if (!p || !["+", "−", "×", "÷"].includes(p.op) || !Number.isInteger(p.a) || !Number.isInteger(p.b) || !Number.isInteger(p.answer)) return false;
     if (p.op === "−") return p.a >= p.b && p.b >= 0 && p.answer === p.a - p.b;
     return (
       p.a > 0 && p.b > 0 && p.answer > 0 && (p.op === "+" ? p.a + p.b === p.answer : p.op === "×" ? p.a * p.b === p.answer : p.a === p.b * p.answer)
@@ -187,7 +216,7 @@
         (x) =>
           x &&
           validProblem(x.problem) &&
-          x.problem.op === r.op &&
+          (r.op === "+−" ? ["+", "−"].includes(x.problem.op) : x.problem.op === r.op) &&
           (x.result === null || (x.result && ["correct", "wrong", "timeout"].includes(x.result.status) && x.result.expected === x.problem.answer))
       ) &&
       r.records.slice(0, r.index).every((x) => x.result !== null) &&
@@ -201,8 +230,8 @@
   function normalizeRound(raw) {
     const r = JSON.parse(JSON.stringify(raw));
     r.unlimited = Boolean(r.unlimited);
-    if (!r.difficulty) r.difficulty = ["+", "−"].includes(r.op) ? "legacy" : "none";
-    if (!Number.isInteger(r.sumLimit)) r.sumLimit = ["+", "−"].includes(r.op) ? 40 : null;
+    if (!r.difficulty) r.difficulty = ["+", "−", "+−"].includes(r.op) ? "legacy" : "none";
+    if (!Number.isInteger(r.sumLimit)) r.sumLimit = ["+", "−", "+−"].includes(r.op) ? 40 : null;
     r.length = r.unlimited && r.phase !== "complete" ? null : r.records.length;
     return r;
   }

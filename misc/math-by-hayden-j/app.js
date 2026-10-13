@@ -53,18 +53,26 @@
           op,
           `op:${op}`,
           s.op === op ? "selected" : "",
-          `aria-label="${op === "+" ? "Addition" : op === "−" ? "Subtraction" : op === "×" ? "Multiplication" : "Division"}" aria-pressed="${
-            s.op === op
-          }"`
+          `aria-label="${
+            op === "+"
+              ? "Addition"
+              : op === "−"
+                ? "Subtraction"
+                : op === "×"
+                  ? "Multiplication"
+                  : op === "+−"
+                    ? "Addition and subtraction"
+                    : "Division"
+          }" aria-pressed="${s.op === op}"`
         )
     ).join(
       ""
     )}</div></div><div><span class="label">Time</span><div class="choices time" role="group" aria-label="Seconds per question">${D.DURATIONS.map(
       (sec) => button(`${sec}s`, `seconds:${sec}`, s.seconds === sec ? "selected" : "", `aria-pressed="${s.seconds === sec}"`)
     ).join("")}</div></div>${
-      ["+", "−"].includes(s.op)
+      ["+", "−", "+−"].includes(s.op)
         ? `<div class="difficulty"><span class="label">Level</span><div class="choices levels" role="group" aria-label="${
-            s.op === "+" ? "Addition" : "Subtraction"
+            s.op === "+" ? "Addition" : s.op === "−" ? "Subtraction" : "Addition and subtraction"
           } difficulty">${D.LEVELS.map((level) =>
             button(
               `${level[0].toUpperCase() + level.slice(1)}<small>≤ ${level === "easy" ? 10 : level === "medium" ? 20 : s.difficultLimit}</small>`,
@@ -211,7 +219,7 @@
       m = D.summary(r),
       wrong = r.records.filter((x) => x.result && x.result.status !== "correct");
     app.innerHTML = `<section class="summary"><span class="label">${r.op} · ${r.seconds}s${
-      ["+", "−"].includes(r.op) ? ` · ≤ ${r.sumLimit}` : ""
+      ["+", "−", "+−"].includes(r.op) ? ` · ≤ ${r.sumLimit}` : ""
     }</span>${m.master ? '<div class="master">Master! ✦</div>' : ""}<div class="summary-score">${m.correct}<small> / ${
       m.total
     }</small></div><div class="summary-actions">${wrong.length ? button("Practice mistakes", "retry", "soft") : ""}${button(
