@@ -698,7 +698,13 @@
       analysisMessage("Changed. Identify.");
     }
     function controls() {
-      $("analyze").disabled = busy || $("query-type").value === "counterfactual";
+      let identify = true;
+      try {
+        queryEvidence(true);
+      } catch {
+        identify = false;
+      }
+      $("analyze").disabled = busy || !identify;
       $("compute-query").disabled = busy || dirty || !model;
       $("load-graph").disabled = busy;
       $("examples").disabled = busy;
@@ -1922,6 +1928,14 @@
         throw Error("Treatment names must match Values keys.");
       return values;
     }
+    function queryEvidence(identification = false) {
+      const evidence = checkedAssignments("query-evidence");
+      if ($("query-type").value !== "counterfactual" && Object.keys(evidence).length)
+        throw Error("Factual evidence is for Counterfactual. Clear it to {}.");
+      if (identification && Object.keys(evidence).length)
+        throw Error("UNSUPPORTED: graph Identification with factual evidence. Compute uses the SCM.");
+      return evidence;
+    }
     function eventMath(aliases = new Map()) {
       const name = $("event-column").value,
         value = Number($("event-value").value),
@@ -2006,8 +2020,15 @@
       );
     }
     function renderEstimand() {
+      try {
+        queryEvidence(true);
+      } catch (error) {
+        $("identification-results").hidden = true;
+        analysisMessage(error.message, true);
+        return;
+      }
       const result = identificationCache.get(analysisKey(queryNames("query-x")));
-      if (!result || $("query-type").value === "counterfactual") return;
+      if (!result) return;
       $("id-formula").replaceChildren();
       $("identified-law").replaceChildren();
       $("q-definitions").replaceChildren();
@@ -2093,7 +2114,7 @@
     }
     function queryMath() {
       const intervention = actionValues(),
-        evidence = assignments("query-evidence"),
+        evidence = queryEvidence(),
         summary = $("query-summary").value,
         counterfactual = $("query-type").value === "counterfactual",
         targets = () => mathList(queryNames("query-y").map(mathName)),
@@ -2172,19 +2193,14 @@
               clearAnalysis();
             }
           } catch {}
-        if (id === "query-type") clearAnalysis();
+        if (["query-type", "query-evidence"].includes(id)) clearAnalysis();
         clearComputation();
         updateQuery();
       };
     async function computeQuery() {
-      const intervention = assignments("query-values"),
-        evidence = assignments("query-evidence"),
-        actions = queryNames("query-x"),
+      const intervention = actionValues(),
+        evidence = queryEvidence(),
         summary = $("query-summary").value;
-      if (actions.length !== Object.keys(intervention).length || actions.some((name) => !Object.hasOwn(intervention, name)))
-        throw Error("Treatment names must match Values keys.");
-      if ($("query-type").value !== "counterfactual" && Object.keys(evidence).length)
-        throw Error("Factual evidence is for Counterfactual. Clear it to {}.");
       if (
         summary === "probability" &&
         (!$("event-column").value || !$("event-value").value.trim() || !Number.isFinite(Number($("event-value").value)))
@@ -2267,10 +2283,6 @@
     $("compute-query").onclick = () => perform(computeQuery, queryMessage);
     $("identification-query").onsubmit = (event) => {
       event.preventDefault();
-      if ($("query-type").value === "counterfactual") {
-        analysisMessage("Identification checks interventional distributions.");
-        return;
-      }
       const version = analysisRevision,
         signature = graphSignature(),
         fields = ["query-x", "query-y", "query-z", "search-budget"].map((id) => $(id).value);
@@ -2278,6 +2290,7 @@
         $("identification-results").hidden = true;
         analysisMessage("Checking identification…");
         actionValues();
+        queryEvidence(true);
         const actions = queryNames("query-x"),
           key = analysisKey(actions),
           referenceNames = $("query-summary").value === "mean_difference" ? Object.keys(checkedAssignments("query-reference")) : [],
@@ -2311,6 +2324,7 @@
           fields.some((value, i) => value !== $(["query-x", "query-y", "query-z", "search-budget"][i]).value)
         ) {
           analysisMessage("Changed. Identify.");
+          renderEstimand();
           return;
         }
         identificationCache = new Map([[key, result], ...(reference ? [[referenceKey, reference]] : [])]);
