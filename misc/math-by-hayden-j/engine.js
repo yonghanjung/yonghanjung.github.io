@@ -26,7 +26,7 @@
     if (!OPS.includes(op)) throw new Error("Invalid operation");
     if (op === "+−") op = rng() < 0.5 ? "+" : "−";
     if (op === "+" && ["medium", "difficult"].includes(difficulty)) {
-      return regroupPair(op, sumLimit, rng() < 0.8, rng);
+      return regroupPair(op, sumLimit, rng() < 0.95, rng);
     }
     if (op === "+") {
       const sum = integer(2, sumLimit, rng),
@@ -40,7 +40,7 @@
         return { a, b: a, op, answer: 0 };
       }
       if (["medium", "difficult"].includes(difficulty)) {
-        return regroupPair(op, sumLimit, roll < 0.85, rng);
+        return regroupPair(op, sumLimit, true, rng);
       }
       let index = integer(0, (sumLimit * (sumLimit + 1)) / 2 - 1, rng),
         a = 1;

@@ -8,11 +8,136 @@
     frame = null,
     advance = null,
     notice = "",
-    customDraft = null;
+    customDraft = null,
+    soundEnabled = true,
+    audio = null,
+    toneToken = 0,
+    sessionType = null;
+  const soundKey = `${D.KEY}.sound`,
+    celebrations = ["🌟", "🎉", "🚀", "🏅"];
+  try {
+    soundEnabled = localStorage.getItem(soundKey) !== "off";
+  } catch (_) {}
   try {
     state = D.hydrate(JSON.parse(localStorage.getItem(D.KEY)));
   } catch (_) {}
   const now = () => performance.now();
+  function audioStatus(text = "") {
+    const status = document.getElementById("audioStatus");
+    status.textContent = text;
+    status.hidden = !text;
+  }
+  function toneURL() {
+    const rate = 44100,
+      samples = Math.ceil(rate * 0.25),
+      wave = new Float32Array(samples);
+    let peak = 0;
+    for (let i = 0; i < samples; i++) {
+      const time = i / rate;
+      [880, 1174.66].forEach((frequency, note) => {
+        const t = time - note * 0.07;
+        if (t >= 0 && t < 0.18) {
+          const envelope = t < 0.01 ? t / 0.01 : Math.exp((-7 * (t - 0.01)) / 0.17);
+          wave[i] += Math.sin(2 * Math.PI * frequency * t) * envelope;
+        }
+      });
+      peak = Math.max(peak, Math.abs(wave[i]));
+    }
+    const bytes = new Uint8Array(44 + samples * 2),
+      view = new DataView(bytes.buffer);
+    const text = (offset, value) => [...value].forEach((char, i) => view.setUint8(offset + i, char.charCodeAt(0)));
+    text(0, "RIFF");
+    view.setUint32(4, bytes.length - 8, true);
+    text(8, "WAVE");
+    text(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, rate, true);
+    view.setUint32(28, rate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    text(36, "data");
+    view.setUint32(40, samples * 2, true);
+    for (let i = 0; i < samples; i++) view.setInt16(44 + i * 2, Math.round((wave[i] / peak) * 0.12 * 32767), true);
+    return `data:audio/wav;base64,${btoa(String.fromCharCode(...bytes))}`;
+  }
+  function restoreSession() {
+    if (sessionType !== null) {
+      try {
+        if (navigator.audioSession?.type === "playback") navigator.audioSession.type = sessionType;
+      } catch (_) {}
+      sessionType = null;
+    }
+  }
+  function stopTone() {
+    toneToken++;
+    if (audio) {
+      audio.pause();
+      try {
+        audio.currentTime = 0;
+      } catch (_) {}
+    }
+    restoreSession();
+  }
+  function ding(test = false) {
+    if (!soundEnabled || document.hidden) return;
+    stopTone();
+    const token = toneToken;
+    const failed = () => {
+      if (token !== toneToken) return;
+      restoreSession();
+      audioStatus("Sound blocked. Tap Test sound.");
+    };
+    try {
+      if (!audio) {
+        audio = new Audio(toneURL());
+        audio.preload = "auto";
+      }
+      try {
+        if (navigator.audioSession && navigator.audioSession.type !== "playback") {
+          sessionType = navigator.audioSession.type;
+          navigator.audioSession.type = "playback";
+        }
+      } catch (_) {}
+      audio.onended = () => {
+        if (token === toneToken) restoreSession();
+      };
+      audio.onerror = failed;
+      const playing = audio.play();
+      if (playing?.then) {
+        playing
+          .then(() => {
+            if (token !== toneToken) return;
+            audioStatus(test ? "If silent, raise media volume." : "");
+          })
+          .catch(failed);
+      }
+    } catch (_) {
+      failed();
+    }
+  }
+  function updateSound() {
+    const button = document.getElementById("sound");
+    button.textContent = soundEnabled ? "🔊" : "🔇";
+    button.setAttribute("aria-label", soundEnabled ? "Mute sound" : "Enable sound");
+    button.setAttribute("aria-pressed", String(soundEnabled));
+  }
+  function saveSound() {
+    try {
+      localStorage.setItem(soundKey, soundEnabled ? "on" : "off");
+    } catch (_) {}
+    updateSound();
+  }
+  document.getElementById("sound").onclick = () => {
+    soundEnabled = !soundEnabled;
+    saveSound();
+    if (soundEnabled) ding(true);
+    else {
+      stopTone();
+      audioStatus();
+    }
+  };
   function save() {
     try {
       const snap = JSON.parse(JSON.stringify(state));
@@ -33,6 +158,7 @@
   }
   function render() {
     stop();
+    updateSound();
     document.getElementById("home").hidden = screen === "home";
     if (screen === "home") home();
     else if (state.active?.phase === "complete") complete();
@@ -111,7 +237,9 @@
         : ""
     }</div><div class="start-buttons">${
       canResume ? button("Resume", "continue", "soft") : r?.phase === "complete" ? button("Results", "continue", "soft") : ""
-    }${button("Start", "start", "primary")}</div>${notice ? `<div class="small-info" role="alert">${notice}</div>` : ""}</section>`;
+    }${button("Start", "start", "primary")}</div>${button("Test sound", "testSound", "soft")}${
+      notice ? `<div class="small-info" role="alert">${notice}</div>` : ""
+    }</section>`;
     if (custom) {
       const input = document.getElementById("customCount");
       input.value = customDraft ?? String(s.customCount);
@@ -146,7 +274,11 @@
         ? `<div class="paused-label">Paused</div>${button("Resume", "resume", "primary")}`
         : feedback
           ? `<div class="result ${result.status === "correct" ? "" : "wrong"}">${
-              result.status === "correct" ? "✓" : result.status === "timeout" ? "Time" : "Try again"
+              result.status === "correct"
+                ? `<span aria-hidden="true">${celebrations[r.index % celebrations.length]}</span><span class="sr-only">Correct</span>`
+                : result.status === "timeout"
+                  ? "Time"
+                  : "Try again"
             }</div><div class="answer-line">${p.a} ${p.op} ${p.b} = ${p.answer}</div>`
           : `<div class="timer-track" role="progressbar" aria-label="Time remaining" aria-valuemin="0" aria-valuemax="${
               r.seconds
@@ -259,6 +391,7 @@
       return;
     }
     if (out.ignored) return;
+    if (out.status === "correct") ding();
     save();
     notice = "";
     render();
@@ -286,6 +419,10 @@
       notice = "";
       save();
       render();
+    } else if (a === "testSound") {
+      soundEnabled = true;
+      saveSound();
+      ding(true);
     } else if (a === "start") {
       if (state.settings.count === "custom") {
         const value = D.customCount(customDraft ?? state.settings.customCount);
@@ -378,6 +515,7 @@
     } else render();
   });
   window.addEventListener("pagehide", () => {
+    stopTone();
     pause();
     save();
     stop();
