@@ -575,7 +575,8 @@ class Editor:
                 started = perf_counter()
                 schema = {v: {"shape": d["shape"], "columns": list(d.get("columns", [v] if not d["shape"] else [f"{v}{i+1}" for i in range(d["shape"][0])])),
                               "type": d["variable_type"]} for v, d in self.model._variables.items() if d["observed"]}
-                estimate = _estimate_mean(self._sample, self.model.graph, schema, payload, self._sample_seed ^ 0x5A5A5A5A, started + seconds)
+                reserve = min(2, seconds / 2)
+                estimate = _estimate_mean(self._sample, self.model.graph, schema, payload, self._sample_seed ^ 0x5A5A5A5A, started + seconds - reserve)
                 seconds = max(0, seconds - (perf_counter() - started))
             result = _reference(self.model, payload, n, seed, seconds)
             if action == "compare":
@@ -586,7 +587,7 @@ class Editor:
                 return response
             return dict(result, token=self.token)
         if action == "sample":
-            n = _integer(payload.get("n", 10), "rows", 1000)
+            n = _integer(payload.get("n", 10), "rows", 3000)
             seed = _integer(payload.get("data_seed", 5), "data seed", 2**32 - 1)
             data = self.model.sample_observational(n, seed=seed)
             if not np.isfinite(data.to_numpy(dtype=float)).all():

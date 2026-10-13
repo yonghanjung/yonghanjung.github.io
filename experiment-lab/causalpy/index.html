@@ -443,7 +443,7 @@
     <header>
       <h1>CausalPy</h1>
       <div class="actions">
-        <label>Rows <input id="rows" type="number" min="0" max="1000" value="512" /></label>
+        <label>Rows <input id="rows" type="number" min="0" max="3000" value="512" /></label>
         <button id="scm-mode" aria-pressed="false">SCM mode</button><button id="generate" class="primary" disabled>Generate Sample</button>
       </div>
     </header>
@@ -2281,9 +2281,15 @@
       const reference = result.scm_reference || result,
         estimate = result.data_estimate,
         exact = reference.status === "OK" && reference.approximate === false && reference.diagnostics?.method === "analytic linear expectation",
-        referenceLabel = exact ? "SCM ground truth (exact)" : "SCM reference (Monte Carlo)",
+        referenceLabel = exact ? "SCM ground truth (exact)" : "SCM reference (Monte Carlo, approximate)",
         values = reference.status === "OK" ? reference.values || { Probability: reference.value } : {},
-        names = [...new Set([...Object.keys(values), ...Object.keys(estimate?.values || {})])],
+        names = [
+          ...new Set([
+            ...(summary === "probability" ? ["Probability"] : payload.targets.flatMap((v) => model.variables[v].columns)),
+            ...Object.keys(values),
+            ...Object.keys(estimate?.values || {}),
+          ]),
+        ],
         tableRow = (items, header = false) => {
           const row = document.createElement("tr");
           items.forEach((item, i) => {
@@ -2295,22 +2301,28 @@
         };
       $("query-estimates").replaceChildren();
       $("query-estimates").hidden = !names.length;
-      $("query-result-label").textContent = estimate
-        ? exact
-          ? "Sample comparison · " + referenceLabel
-          : "Sample comparison · approximate"
-        : exact
-          ? referenceLabel
-          : "SCM Monte Carlo · approximate";
-      if (estimate) $("query-estimates").append(tableRow(["Outcome", "Data estimate", referenceLabel, "Difference"], true));
-      for (const name of names)
-        $("query-estimates").append(
-          tableRow(
-            estimate
-              ? [name, estimate.values?.[name] ?? estimate.status, values[name] ?? reference.status, result.difference?.[name] ?? "—"]
-              : [name, values[name]]
-          )
-        );
+      $("query-result-label").textContent = estimate ? "Sample comparison" : referenceLabel;
+      $("query-estimates").append(tableRow(["Outcome", "Data estimate", referenceLabel, exact ? "Absolute error" : "Absolute difference"], true));
+      for (const name of names) {
+        const comparable =
+            estimate?.status === "OK" &&
+            reference.status === "OK" &&
+            [estimate.values?.[name], values[name], result.difference?.[name]].every(Number.isFinite),
+          row = tableRow([
+            name,
+            estimate?.status === "OK" ? estimate.values?.[name] ?? "—" : estimate?.status || "—",
+            values[name] ?? reference.status,
+            comparable ? Math.abs(result.difference[name]) : "—",
+          ]),
+          error = reference.standard_errors?.[name] ?? (name === "Probability" ? reference.standard_error : undefined);
+        if (!exact && reference.status === "OK" && Number.isFinite(error)) {
+          const note = document.createElement("small");
+          note.textContent = "MC SE: " + Number(error.toPrecision(3));
+          note.title = "Monte Carlo standard error of the SCM reference.";
+          row.children[2].append(document.createElement("br"), note);
+        }
+        $("query-estimates").append(row);
+      }
       $("query-diagnostics").textContent = showText(result);
       $("query-results").hidden = false;
       const issues = (
@@ -2323,7 +2335,11 @@
       )
         .filter(([, value]) => value.status !== "OK")
         .map(([label, value]) => label + " " + value.status + (value.reason ? ": " + value.reason : ""));
-      queryMessage(issues.join(" · ") || "Computed.", !!issues.length);
+      const noSample = !currentSample && payload.type === "interventional" && summary === "mean" && !Object.keys(evidence).length;
+      queryMessage(
+        issues.join(" · ") || (noSample ? "SCM computed. Generate Sample for a data estimate and comparison." : "Computed."),
+        !!issues.length
+      );
     }
     $("compute-query").onclick = () => perform(computeQuery, queryMessage);
     $("identification-query").onsubmit = (event) => {
