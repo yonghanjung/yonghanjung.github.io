@@ -63,9 +63,7 @@
                   : op === "+−"
                     ? "Addition and subtraction"
                     : "Division"
-          }" aria-pressed="${
-            s.op === op
-          }"`
+          }" aria-pressed="${s.op === op}"`
         )
     ).join(
       ""
