@@ -777,3 +777,10 @@ select:focus-visible {
   padding-left: 8px;
   padding-right: 8px;
 }
+
+.choices.operations button[data-action="op:+−"] {
+  grid-column: 1 / -1;
+  min-height: 48px;
+  font-size: 27px;
+  padding: 7px;
+}
