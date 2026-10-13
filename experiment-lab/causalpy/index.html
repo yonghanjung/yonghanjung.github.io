@@ -341,6 +341,13 @@
     .query input {
       width: 130px;
     }
+    #extrapolation-field {
+      display: flex;
+      align-items: center;
+    }
+    #allow-continuous-extrapolation {
+      width: auto;
+    }
     .query select {
       width: 90px;
     }
@@ -578,6 +585,11 @@
               </select></label
             >
           </div>
+          <label
+            id="extrapolation-field"
+            title="Only for the UCA Sample estimate: continue beyond observed continuous training ranges. Results may be unreliable."
+            ><input id="allow-continuous-extrapolation" type="checkbox" /> Allow continuous extrapolation (UCA Sample)</label
+          >
         </details>
       </form>
       <div id="query-formula" class="formula"></div>
@@ -2228,6 +2240,7 @@
       "event-op",
       "event-value",
       "query-draws",
+      "allow-continuous-extrapolation",
     ])
       $(id).oninput = () => {
         if (id === "query-values")
@@ -2265,6 +2278,7 @@
           n: Number($("query-draws").value),
           data_seed: Number($("data-seed").value),
           max_seconds: 10,
+          allow_continuous_extrapolation: $("allow-continuous-extrapolation").checked,
         };
       if (summary === "mean_difference") payload.reference = assignments("query-reference");
       $("query-results").hidden = true;

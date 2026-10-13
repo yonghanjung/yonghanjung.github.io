@@ -231,10 +231,14 @@ def _uca_schedule(tree, schema, actions, targets, deadline):
 
 def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
     """Approximate a certified UCA functional with normalized, observed-only kNN kernels."""
+    extrapolate = payload.get("allow_continuous_extrapolation", False)
+    if type(extrapolate) is not bool:
+        raise ValueError("Allow continuous extrapolation must be true or false.")
     result = dict(status="UNSUPPORTED", method="UCA plug-in (normalized kNN kernels)", n=len(data), approximate=True,
                   diagnostics={"folds": 2, "data_uncertainty": "not estimated",
                                "limitations": "finite-sample kernel smoothing and integration error; sparse support",
-                               "support_checks": "per-kernel/fold engineering checks, not a positivity certificate"})
+                                "support_checks": "per-kernel/fold engineering checks, not a positivity certificate",
+                                "allow_continuous_extrapolation": extrapolate})
 
     def fail(status, reason):
         return dict(result, status=status, reason=reason)
@@ -318,8 +322,21 @@ def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
                     if np.any(query[:, constant] != observed[0, constant]):
                         return fail("UNKNOWN", "INSUFFICIENT_DATA: a constant UCA context does not match the query.")
                     outside = (query < observed.min(axis=0)) | (query > observed.max(axis=0))
-                    if np.any(outside[:, fixed[~discrete]]):
-                        return fail("UNKNOWN", "INSUFFICIENT_DATA: a fixed UCA policy lies outside training support.")
+                    violated = np.flatnonzero(fixed[~discrete] & outside.any(axis=0))
+                    if len(violated):
+                        context_columns = [c for v, _, _ in context for c in schema[v]["columns"]]
+                        continuous_columns = np.asarray(context_columns)[~discrete]
+                        result["diagnostics"].setdefault("fixed_range_violations", []).extend(
+                            dict(fold=heldout, stage=stage, head=[v for v, _, _ in head],
+                                 context=[v for v, _, _ in context], column=str(continuous_columns[i]),
+                                 value=float(query[0, i]), observed_min=float(observed[:, i].min()),
+                                 observed_max=float(observed[:, i].max()), discrete_group=group.tolist(), source_rows=len(source))
+                            for i in violated)
+                        if not extrapolate:
+                            first = result["diagnostics"]["fixed_range_violations"][0]
+                            return fail("UNKNOWN", f"INSUFFICIENT_DATA: {first['column']}={first['value']:.8g} is outside the observed training range "
+                                        f"[{first['observed_min']:.8g}, {first['observed_max']:.8g}]. "
+                                        "Select UCA extrapolation in Query options to compute an approximation.")
                     if not np.any(~constant):
                         output[test] = source.mean(axis=0) if terminal else source[rng.integers(len(source), size=len(test))]
                         diagnostic["k"].append(len(source))
@@ -358,7 +375,10 @@ def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
     mean = np.concatenate(predictions).mean(axis=0)
     if not np.isfinite(mean).all():
         return fail("UNKNOWN", "UCA kernels produced nonfinite values.")
-    if result["diagnostics"]["worst_weak_fraction"] > .05:
+    if result["diagnostics"].get("fixed_range_violations"):
+        result["extrapolated"] = True
+        result["warning"] = "Extrapolated approximation; policy is outside the observed training range. Reliability is not established."
+    elif result["diagnostics"]["worst_weak_fraction"] > .05:
         result["warning"] = "Approximate estimate; weak empirical coverage may make it unreliable."
     outcomes = [c for v in targets for c in schema[v]["columns"]]
     return dict(result, status="OK", values=dict(zip(outcomes, mean.tolist())))
