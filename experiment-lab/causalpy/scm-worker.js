@@ -1,7 +1,7 @@
 import { loadPyodide } from "https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide.mjs";
 
 const baseURL = "https://cdn.jsdelivr.net/pyodide/v0.29.4/full/";
-let ready, network, identification, scm, pandas, comparison;
+let ready, network, identification, scm, pandas;
 async function sources(py, names) {
   await Promise.all(
     names.map(async (name) => {
@@ -23,7 +23,7 @@ async function prepare(py, action, id) {
     network = null;
     throw error;
   }));
-  if (action === "identify" || action === "examples") {
+  if (action === "identify" || action === "examples" || action === "compare") {
     postMessage({ id, message: "Loading graph algorithms…" });
     await (identification ||= sources(py, [
       "graph.py",
@@ -41,17 +41,13 @@ async function prepare(py, action, id) {
         identification = null;
         throw error;
       }));
-  } else {
+  }
+  if (action !== "identify" && action !== "examples") {
     postMessage({ id, message: "Loading SCM packages…" });
     await (scm ||= Promise.all([py.loadPackage(["numpy", "scipy"]), sources(py, ["SCM.py", "scm_registry.py", "editor_engine.py"])])
       .then(() => py.runPython("from editor_engine import Editor\n_editor = Editor()"))
       .catch((error) => {
         scm = null;
-        throw error;
-      }));
-    if (action === "compare")
-      await (comparison ||= sources(py, ["graph.py", "adjustment.py"]).catch((error) => {
-        comparison = null;
         throw error;
       }));
     if (action === "sample" || action === "update" || action === "compare")

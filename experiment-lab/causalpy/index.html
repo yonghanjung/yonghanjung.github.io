@@ -186,7 +186,7 @@
       stroke: transparent;
       stroke-width: 16;
       fill: none;
-      cursor: pointer;
+      cursor: grab;
     }
     .node circle {
       fill: var(--surface);
@@ -651,6 +651,7 @@
       NS = "http://www.w3.org/2000/svg";
     let nodes,
       edges,
+      bends = new Map(),
       selected,
       mode = "move",
       source = null,
@@ -747,6 +748,8 @@
       const next = graphSignature();
       if (next !== graphKey) {
         graphKey = next;
+        const keys = new Set(edges.map((edge) => JSON.stringify(edge)));
+        for (const key of bends.keys()) if (!keys.has(key)) bends.delete(key);
         clearAnalysis();
         $("graph-provenance").hidden = true;
         $("graph-library").value = "";
@@ -767,12 +770,19 @@
       svg.append(defs);
       for (const [a, b] of edges) {
         const from = nodes.find((n) => n.name === a),
-          to = nodes.find((n) => n.name === b);
-        const dx = to.x - from.x,
-          dy = to.y - from.y,
-          length = Math.hypot(dx, dy) || 1;
-        const gap = RADIUS,
-          d = `M ${from.x + (dx / length) * gap} ${from.y + (dy / length) * gap} L ${to.x - (dx / length) * gap} ${to.y - (dy / length) * gap}`;
+          to = nodes.find((n) => n.name === b),
+          bend = bends.get(JSON.stringify([a, b])),
+          control = { x: (from.x + to.x) / 2 + (bend?.x || 0), y: (from.y + to.y) / 2 + (bend?.y || 0) },
+          endpoint = (node, target, fallback) => {
+            const direction = Math.hypot(target.x - node.x, target.y - node.y) ? target : fallback,
+              dx = direction.x - node.x,
+              dy = direction.y - node.y,
+              length = Math.hypot(dx, dy) || 1;
+            return `${node.x + (dx / length) * RADIUS} ${node.y + (dy / length) * RADIUS}`;
+          },
+          d = bend
+            ? `M ${endpoint(from, control, to)} Q ${control.x} ${control.y} ${endpoint(to, control, from)}`
+            : `M ${endpoint(from, to, to)} L ${endpoint(to, from, from)}`;
         const group = element("g", { "data-edge": JSON.stringify([a, b]), role: "button", tabindex: 0, "aria-label": `${a} → ${b}` });
         group.append(
           element("path", { d, class: `edge ${selected?.edge?.[0] === a && selected.edge[1] === b ? "selected" : ""}`, "marker-end": "url(#arrow)" }),
@@ -915,6 +925,7 @@
       }
       node.name = name;
       edges = edges.map((edge) => edge.map((n) => (n === old ? name : n)));
+      bends = new Map([...bends].map(([key, value]) => [JSON.stringify(JSON.parse(key).map((n) => (n === old ? name : n))), value]));
       if (source === old) source = name;
       $("node-menu").hidden = true;
       invalidate();
@@ -945,19 +956,34 @@
           p = point(event);
         drag = { node, x: node.x, y: node.y, dx: p.x - node.x, dy: p.y - node.y, startX: event.clientX, startY: event.clientY, moved: false };
         svg.setPointerCapture(event.pointerId);
-      } else if (edgeElement) select({ edge: JSON.parse(edgeElement.dataset.edge) });
+      } else if (edgeElement) {
+        const edge = JSON.parse(edgeElement.dataset.edge),
+          p = point(event),
+          key = JSON.stringify(edge);
+        select({ edge });
+        drag = { edge, key, offset: bends.get(key) || { x: 0, y: 0 }, dx: p.x, dy: p.y, startX: event.clientX, startY: event.clientY, moved: false };
+        svg.setPointerCapture(event.pointerId);
+      }
     };
     svg.onpointermove = (event) => {
       if (!drag) return;
       const p = point(event);
       drag.moved ||= Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4;
       if (!drag.moved) return;
-      drag.node.x = Math.max(60, Math.min(840, p.x - drag.dx));
-      drag.node.y = Math.max(40, Math.min(370, p.y - drag.dy));
+      if (drag.edge) bends.set(drag.key, { x: drag.offset.x + 2 * (p.x - drag.dx), y: drag.offset.y + 2 * (p.y - drag.dy) });
+      else {
+        drag.node.x = Math.max(60, Math.min(840, p.x - drag.dx));
+        drag.node.y = Math.max(40, Math.min(370, p.y - drag.dy));
+      }
       render();
     };
     svg.onpointerup = (event) => {
       if (!drag) return;
+      if (drag.edge) {
+        drag = null;
+        if ($("graph-input").open) graphText();
+        return;
+      }
       const { node, x, y, moved } = drag;
       drag = null;
       if (!moved) {
@@ -1057,6 +1083,7 @@
       if (new Set(declared.map((n) => n.name)).size !== declared.length) throw Error("Node names must be unique.");
       if (json) {
         if (Array.isArray(json)) return { nodes: declared, edges: json };
+        if ("edges" in json && "bends" in json) return { nodes: declared, ...json };
         const pairs = Object.entries(json).flatMap(([from, children]) => {
           if (!Array.isArray(children)) throw Error("Each graph_dict value must be a child list.");
           return children.map((to) => [from, to]);
@@ -1137,21 +1164,39 @@
           }
       }
       if (visited !== next.length) throw Error("Directed cycles are not allowed.");
+      const curves = graph.bends === undefined ? [] : graph.bends,
+        curveKeys = new Set();
+      if (!Array.isArray(curves)) throw Error("Bends must be an array of [source, target, x, y].");
+      for (const curve of curves) {
+        const key = Array.isArray(curve) && JSON.stringify(curve.slice(0, 2));
+        if (
+          !Array.isArray(curve) ||
+          curve.length !== 4 ||
+          !seen.has(key) ||
+          curveKeys.has(key) ||
+          !curve.slice(2).every((v) => typeof v === "number" && Number.isFinite(v))
+        )
+          throw Error("Each bend needs one existing edge and finite x/y offsets.");
+        curveKeys.add(key);
+      }
       for (const key of ["X", "Y", "Z"])
         if (key in graph && (!Array.isArray(graph[key]) || graph[key].some((name) => !next.some((n) => n.name === name && n.observed))))
           throw Error("Query roles must contain observed node names.");
-      return { ...graph, nodes: next, edges: pairs };
+      return { ...graph, nodes: next, edges: pairs, bends: curves.map((curve) => [...curve]) };
     }
     function graphText() {
       $("graph-nodes").value = nodes
         .map((n) => (n.observed ? "" : "~") + n.name + (n.dimension > 1 ? "[" + n.dimension + "]" : "") + "@" + n.x + ":" + n.y)
         .join(", ");
-      $("graph-edges").value = edges.map(([a, b]) => a + " -> " + b).join("\n");
+      $("graph-edges").value = bends.size
+        ? JSON.stringify({ edges, bends: [...bends].map(([key, value]) => [...JSON.parse(key), value.x, value.y]) }, null, 2)
+        : edges.map(([a, b]) => a + " -> " + b).join("\n");
     }
     function loadGraph(input) {
       const graph = validateGraph(input);
       nodes = graph.nodes;
       edges = graph.edges;
+      bends = new Map(graph.bends.map(([a, b, x, y]) => [JSON.stringify([a, b]), { x, y }]));
       for (const [key, id] of [
         ["X", "query-x"],
         ["Y", "query-y"],
