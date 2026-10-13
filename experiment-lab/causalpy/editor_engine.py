@@ -348,9 +348,7 @@ def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
             diagnostic["weak_fraction"] = diagnostic["weak_rows"]/len(evaluation)
             diagnostics.append(diagnostic)
             result["diagnostics"].update(kernels=diagnostics, worst_weak_fraction=max(d["weak_fraction"] for d in diagnostics),
-                integration_rows=len(data), coverage_rule="UNKNOWN if any kernel/fold has >5% off-range or >3x factual-radius queries")
-            if diagnostic["weak_fraction"] > .05:
-                return fail("UNKNOWN", "INSUFFICIENT_DATA: weak observed coverage in a UCA kernel; generate more rows or change its value.")
+                integration_rows=len(data), coverage_rule="warning if any kernel/fold has >5% off-range or >3x factual-radius queries")
             offset = 0
             for v, key, _ in head:
                 width = len(schema[v]["columns"])
@@ -360,6 +358,8 @@ def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
     mean = np.concatenate(predictions).mean(axis=0)
     if not np.isfinite(mean).all():
         return fail("UNKNOWN", "UCA kernels produced nonfinite values.")
+    if result["diagnostics"]["worst_weak_fraction"] > .05:
+        result["warning"] = "Approximate estimate; weak empirical coverage may make it unreliable."
     outcomes = [c for v in targets for c in schema[v]["columns"]]
     return dict(result, status="OK", values=dict(zip(outcomes, mean.tolist())))
 

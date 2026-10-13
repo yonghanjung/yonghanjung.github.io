@@ -2335,9 +2335,11 @@
       )
         .filter(([, value]) => value.status !== "OK")
         .map(([label, value]) => label + " " + value.status + (value.reason ? ": " + value.reason : ""));
-      const noSample = !currentSample && payload.type === "interventional" && summary === "mean" && !Object.keys(evidence).length;
+      const noSample = !currentSample && payload.type === "interventional" && summary === "mean" && !Object.keys(evidence).length,
+        warning = estimate?.status === "OK" ? estimate.warning : "";
       queryMessage(
-        issues.join(" · ") || (noSample ? "SCM computed. Generate Sample for a data estimate and comparison." : "Computed."),
+        [...issues, warning].filter(Boolean).join(" · ") ||
+          (noSample ? "SCM computed. Generate Sample for a data estimate and comparison." : "Computed."),
         !!issues.length
       );
     }
