@@ -62,7 +62,10 @@
     if (audio.state === "running") playTone();
     else {
       try {
-        audio.resume().then(playTone).catch(() => {});
+        audio
+          .resume()
+          .then(playTone)
+          .catch(() => {});
       } catch (_) {}
     }
   }
