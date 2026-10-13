@@ -8,11 +8,84 @@
     frame = null,
     advance = null,
     notice = "",
-    customDraft = null;
+    customDraft = null,
+    soundEnabled = true,
+    audio = null;
+  const soundKey = `${D.KEY}.sound`,
+    toneGains = new Set(),
+    celebrations = ["🌟", "🎉", "🚀", "🏅"];
+  try {
+    soundEnabled = localStorage.getItem(soundKey) !== "off";
+  } catch (_) {}
   try {
     state = D.hydrate(JSON.parse(localStorage.getItem(D.KEY)));
   } catch (_) {}
   const now = () => performance.now();
+  function unlockAudio() {
+    if (!soundEnabled) return;
+    try {
+      const Audio = window.AudioContext || window.webkitAudioContext;
+      if (!Audio) return;
+      if (!audio || audio.state === "closed") audio = new Audio();
+      if (audio.state !== "running") audio.resume().catch(() => {});
+    } catch (_) {}
+  }
+  function ding() {
+    if (!soundEnabled || !audio) return;
+    const id = state.active.id,
+      index = state.active.index;
+    const playTone = () => {
+      if (!soundEnabled || document.hidden || audio.state !== "running" || state.active?.id !== id || state.active.index !== index) return;
+      try {
+        [880, 1174.66].forEach((frequency, i) => {
+          const oscillator = audio.createOscillator(),
+            gain = audio.createGain(),
+            start = audio.currentTime + i * 0.07;
+          oscillator.type = "sine";
+          oscillator.frequency.setValueAtTime(frequency, start);
+          gain.gain.setValueAtTime(0, start);
+          gain.gain.linearRampToValueAtTime(0.018, start + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.17);
+          oscillator.connect(gain);
+          gain.connect(audio.destination);
+          toneGains.add(gain);
+          oscillator.onended = () => {
+            oscillator.disconnect();
+            gain.disconnect();
+            toneGains.delete(gain);
+          };
+          oscillator.start(start);
+          oscillator.stop(start + 0.18);
+        });
+      } catch (_) {}
+    };
+    if (audio.state === "running") playTone();
+    else {
+      try {
+        audio.resume().then(playTone).catch(() => {});
+      } catch (_) {}
+    }
+  }
+  function updateSound() {
+    const button = document.getElementById("sound");
+    button.textContent = soundEnabled ? "🔊" : "🔇";
+    button.setAttribute("aria-label", soundEnabled ? "Mute sound" : "Enable sound");
+    button.setAttribute("aria-pressed", String(soundEnabled));
+  }
+  document.getElementById("sound").onclick = () => {
+    soundEnabled = !soundEnabled;
+    try {
+      localStorage.setItem(soundKey, soundEnabled ? "on" : "off");
+    } catch (_) {}
+    if (soundEnabled) unlockAudio();
+    else if (audio) {
+      toneGains.forEach((gain) => {
+        gain.gain.cancelScheduledValues(audio.currentTime);
+        gain.gain.setValueAtTime(0, audio.currentTime);
+      });
+    }
+    updateSound();
+  };
   function save() {
     try {
       const snap = JSON.parse(JSON.stringify(state));
@@ -33,6 +106,7 @@
   }
   function render() {
     stop();
+    updateSound();
     document.getElementById("home").hidden = screen === "home";
     if (screen === "home") home();
     else if (state.active?.phase === "complete") complete();
@@ -146,7 +220,11 @@
         ? `<div class="paused-label">Paused</div>${button("Resume", "resume", "primary")}`
         : feedback
           ? `<div class="result ${result.status === "correct" ? "" : "wrong"}">${
-              result.status === "correct" ? "✓" : result.status === "timeout" ? "Time" : "Try again"
+              result.status === "correct"
+                ? `<span aria-hidden="true">${celebrations[r.index % celebrations.length]}</span><span class="sr-only">Correct</span>`
+                : result.status === "timeout"
+                  ? "Time"
+                  : "Try again"
             }</div><div class="answer-line">${p.a} ${p.op} ${p.b} = ${p.answer}</div>`
           : `<div class="timer-track" role="progressbar" aria-label="Time remaining" aria-valuemin="0" aria-valuemax="${
               r.seconds
@@ -259,6 +337,7 @@
       return;
     }
     if (out.ignored) return;
+    if (out.status === "correct") ding();
     save();
     notice = "";
     render();
@@ -267,6 +346,7 @@
     const b = e.target.closest("[data-action]");
     if (!b || b.disabled) return;
     const a = b.dataset.action;
+    unlockAudio();
     if (a.startsWith("op:")) {
       state.settings.op = a.slice(3);
       save();
@@ -360,6 +440,7 @@
   };
   document.addEventListener("keydown", (e) => {
     if (screen !== "play" || state.active?.phase !== "running") return;
+    unlockAudio();
     if (/^\d$/.test(e.key)) {
       e.preventDefault();
       app.querySelector(`[data-action="key:${e.key}"]`)?.click();
