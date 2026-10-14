@@ -36,6 +36,12 @@ nav_order: 7
 </style>
 
 <section class="misc-portfolio" aria-label="Games and music">
+  <article class="misc-project misc-project--workshop">
+    <div class="misc-category">Explore</div>
+    <h2>Groups Lab</h2>
+    <p>Turn arrays. Explore equal groups.</p>
+    <a class="misc-play" href="{{ '/children-math/groups-lab/' | relative_url }}" aria-label="Explore Groups Lab">Explore</a>
+  </article>
   <article class="misc-project">
     <div class="misc-category">Game</div>
     <h2>Multiplication</h2>
