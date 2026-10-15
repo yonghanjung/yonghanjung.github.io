@@ -578,7 +578,7 @@ class Editor:
             self._sample, self._sample_seed = None, None
             return {"token": self.token, "model": self.model.describe()}
         if self.model is None or payload.get("token") != self.token:
-            raise ValueError("SCM expired. Reopen SCM mode.")
+            raise ValueError("SCM expired. Generate Sample again.")
         if action in {"query", "compare"}:
             n = _integer(payload.get("n", 2048), "draws", 10000)
             seed = _integer(payload.get("data_seed", 5), "data seed", 2**32 - 1)
@@ -607,7 +607,7 @@ class Editor:
                 return response
             return dict(result, token=self.token)
         if action == "sample":
-            n = _integer(payload.get("n", 10), "rows", 3000)
+            n = _integer(payload.get("n", 10), "rows", 5000)
             seed = _integer(payload.get("data_seed", 5), "data seed", 2**32 - 1)
             data = self.model.sample_observational(n, seed=seed)
             if not np.isfinite(data.to_numpy(dtype=float)).all():

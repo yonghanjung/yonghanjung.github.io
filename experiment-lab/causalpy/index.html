@@ -450,8 +450,8 @@
     <header>
       <h1>CausalPy</h1>
       <div class="actions">
-        <label>Rows <input id="rows" type="number" min="0" max="3000" value="512" /></label>
-        <button id="scm-mode" aria-pressed="false">SCM mode</button><button id="generate" class="primary" disabled>Generate Sample</button>
+        <label>Rows <input id="rows" type="number" min="0" max="5000" step="1" value="512" required /></label>
+        <button id="generate" class="primary">Generate Sample</button>
       </div>
     </header>
     <div class="layout">
@@ -593,7 +593,7 @@
         </details>
       </form>
       <div id="query-formula" class="formula"></div>
-      <p id="query-status" role="status" aria-live="polite">Open SCM mode to compute.</p>
+      <p id="query-status" role="status" aria-live="polite">Generate Sample to compute.</p>
       <div id="query-results" hidden>
         <strong id="query-result-label">SCM Monte Carlo · approximate</strong>
         <div class="scroll"><table id="query-estimates" aria-label="Sample and SCM query estimates"></table></div>
@@ -669,7 +669,6 @@
       source = null,
       drag = null,
       revision = 0,
-      scmMode = false,
       model = null,
       token = null,
       sample = null,
@@ -697,7 +696,7 @@
     function clearComputation() {
       queryRevision++;
       $("query-results").hidden = true;
-      queryMessage(model ? "Changed. Compute." : "Open SCM mode to compute.");
+      queryMessage(model ? "Changed. Compute." : "Generate Sample to compute.");
     }
     function graphSignature() {
       return JSON.stringify([nodes.map(({ name, observed }) => [name, observed]).sort(), edges.map((edge) => [...edge]).sort()]);
@@ -722,8 +721,7 @@
       $("load-graph").disabled = busy;
       $("examples").disabled = busy;
       $("graph-library").disabled = busy;
-      $("generate").disabled = busy || dirty || !model;
-      $("scm-mode").disabled = busy;
+      $("generate").disabled = busy || dirty;
       $("apply").disabled = busy || !dirty;
       $("download").disabled = !sample;
       for (const el of document.querySelectorAll(
@@ -731,7 +729,7 @@
       ))
         el.disabled = busy;
       $("family").disabled = busy || !nodes?.find((n) => n.name === selected?.name)?.observed;
-      $("family").options[0].disabled = scmMode;
+      $("family").options[0].disabled = Boolean(model);
     }
     function invalidate(definition = true) {
       revision++;
@@ -748,7 +746,7 @@
       clearComputation();
       showEquation();
       controls();
-      message(definition ? (scmMode ? "SCM changed. Reopen SCM mode." : "Ready") : "Changed. Generate Sample.");
+      message(definition ? "Ready. Generate Sample." : "Changed. Generate Sample.");
     }
     function element(tag, attributes = {}, text) {
       const el = document.createElementNS(NS, tag);
@@ -847,11 +845,9 @@
         $("family").value = model?.variables[node.name]?.parameters.family || node.family;
         $("family").disabled = !node.observed;
       }
-      $("observed").closest("label").hidden = scmMode;
-      $("dimension").closest("label").hidden = scmMode;
-      $("family").closest("label").hidden = scmMode && !node?.observed;
+      $("family").closest("label").hidden = !node?.observed;
       showEquation();
-      if (!node || !scmMode || !model) $("mechanism").hidden = true;
+      if (!node || !model) $("mechanism").hidden = true;
       else inspectNode(node.name);
       render();
     }
@@ -1000,7 +996,7 @@
       drag = null;
       if (!moved) {
         if (mode === "edge") addEdge(node.name);
-        else if (!scmMode) openMenu(node.name, event.clientX, event.clientY);
+        else openMenu(node.name, event.clientX, event.clientY);
       } else {
         const p = point(event),
           target = nodes.find((n) => n !== node && Math.hypot(p.x - n.x, p.y - n.y) <= RADIUS);
@@ -1045,7 +1041,7 @@
       $(id).onchange = () => {
         const node = nodes.find((n) => n.name === selected?.name);
         if (!node) return;
-        if (id === "family" && scmMode && model) {
+        if (id === "family" && model) {
           dirty = true;
           invalidate(false);
           changeFunction({ family: $("family").value });
@@ -1226,8 +1222,6 @@
       $("query-reference").value = JSON.stringify(defaults(0));
       $("query-evidence").value = "{}";
       $("node-menu").hidden = true;
-      scmMode = false;
-      $("scm-mode").setAttribute("aria-pressed", false);
       invalidate();
       setMode("move");
       select({ name: graph.X?.[0] || graph.Y?.[0] || nodes.find((n) => n.observed)?.name || nodes[0].name });
@@ -1289,7 +1283,7 @@
           active.terminate();
           if (worker === active) worker = null;
           invalidate();
-          reject(Error("Python stopped. Retry Analyze or reopen SCM mode."));
+          reject(Error("Python stopped. Retry Identify or Generate Sample."));
         };
         const receive = (event) => {
           if (event.data.id !== id) return;
@@ -1330,7 +1324,7 @@
       } finally {
         busy = false;
         controls();
-        if (scmMode && model && selected?.name) inspectNode(selected.name);
+        if (model && selected?.name) inspectNode(selected.name);
       }
     }
     function outputName(variable, index, name = selected?.name) {
@@ -1581,7 +1575,7 @@
       return math;
     }
     function showEquation() {
-      const edge = scmMode && selected?.edge,
+      const edge = model && selected?.edge,
         node = nodes?.find((n) => n.name === (selected?.name || edge?.[1])),
         variable = model?.variables[node?.name];
       $("equation-view").hidden = !node;
@@ -1601,7 +1595,7 @@
       }
       $("equation-title").textContent = variable ? "Applied equation" : "Function template";
       $("applied-equation").replaceChildren(variable ? equationMath(variable, node.name) : equationTemplate(node));
-      $("equation-state").textContent = variable ? "" : node.observed ? "Parameters are drawn in SCM mode." : "Noise only.";
+      $("equation-state").textContent = variable ? "" : node.observed ? "Generate Sample draws the parameters." : "Noise only.";
     }
     function noiseMath(variable, name) {
       const noise = variable.noise,
@@ -1729,34 +1723,11 @@
         active = token;
       try {
         const result = await request("inspect", { token: active, name });
-        if (version === revision && active === token && selected?.name === name && scmMode) showFunction(result);
+        if (version === revision && active === token && selected?.name === name && model) showFunction(result);
       } catch (error) {
         if (version === revision) message(error.message, true);
       }
     }
-    $("scm-mode").onclick = () => {
-      scmMode = !scmMode;
-      $("scm-mode").setAttribute("aria-pressed", scmMode);
-      $("node-menu").hidden = true;
-      if (!scmMode) {
-        select(selected);
-        controls();
-        return;
-      }
-      perform(async () => {
-        if (!model) {
-          const version = revision;
-          const result = await request("build", { nodes, edges, model_seed: Number($("model-seed").value), noise: $("noise").value });
-          if (version !== revision) {
-            invalidate();
-            throw Error("Graph changed. Reopen SCM mode.");
-          }
-          install(result);
-        }
-        select(selected?.name || selected?.edge ? selected : { name: nodes[0]?.name });
-        message(dirty ? "Apply changes." : "Generate Sample.");
-      });
-    };
     function changeFunction(changes) {
       const name = selected?.name,
         version = revision;
@@ -1764,7 +1735,7 @@
         const result = await request("update", { token, name, ...changes });
         if (version !== revision) {
           invalidate();
-          throw Error("Graph changed. Reopen SCM mode.");
+          throw Error("Graph changed. Generate Sample again.");
         }
         install(result);
         nodes.find((n) => n.name === name).family = model.variables[name].parameters.family;
@@ -1795,9 +1766,17 @@
       }
     };
     $("generate").onclick = async () => {
+      if (!$("rows").reportValidity()) return;
       const version = revision;
       perform(async () => {
+        $("node-menu").hidden = true;
         clearComputation();
+        if (!model) {
+          const result = await request("build", { nodes, edges, model_seed: Number($("model-seed").value), noise: $("noise").value });
+          if (version !== revision) throw Error("Graph changed. Generate Sample again.");
+          install(result);
+          select(selected?.name || selected?.edge ? selected : { name: nodes[0]?.name });
+        }
         const result = await request("sample", {
           token,
           data_seed: Number($("data-seed").value),
