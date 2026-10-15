@@ -122,16 +122,27 @@
     const valid = Number.isInteger(draft.value) && draft.value > 0 && draft.value <= 72;
     return { valid, correct: valid && draft.value === q.answer.value };
   }
+  function createRng(seed) {
+    let state = seed >>> 0;
+    return () => {
+      state = (state + 0x6d2b79f5) >>> 0;
+      let value = state;
+      value = Math.imul(value ^ (value >>> 15), value | 1);
+      value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+      return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+    };
+  }
   function summary(states) {
     const graded = states.filter((s) => s.first);
     return {
       total: graded.length,
+      skipped: states.length - graded.length,
       correct: graded.filter((s) => s.first.correct).length,
       helped: graded.filter((s) => s.assisted).length,
-      master: graded.length > 0 && graded.every((s) => s.first.correct && !s.assisted),
+      master: graded.length > 0 && graded.length === states.length && graded.every((s) => s.first.correct && !s.assisted),
     };
   }
-  const api = { generate, question, verify, grade, summary, PAIRS, key };
+  const api = { generate, question, verify, grade, summary, createRng, PAIRS, key };
   root.GroupsLab = api;
   if (typeof module !== "undefined") module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

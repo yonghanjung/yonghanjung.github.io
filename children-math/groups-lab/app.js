@@ -2,7 +2,8 @@
   "use strict";
   const E = GroupsLab,
     app = document.getElementById("app"),
-    soundKey = "haydenGroupsLab.sound.v1";
+    soundKey = "haydenGroupsLab.sound.v1",
+    random = E.createRng(freshSeed());
   let soundEnabled = true,
     audio = null,
     toneToken = 0,
@@ -10,13 +11,23 @@
     screen = "home",
     lesson = null,
     recent = [],
-    demo = { rows: 6, columns: 5, swapped: false },
+    demo = null,
     demoAuto = false,
     demoTimer = null,
     demoPhase = "swap";
   try {
     soundEnabled = localStorage.getItem(soundKey) !== "off";
   } catch (_) {}
+  function freshSeed() {
+    try {
+      const values = new Uint32Array(1);
+      if (window.crypto?.getRandomValues) {
+        window.crypto.getRandomValues(values);
+        return values[0];
+      }
+    } catch (_) {}
+    return Math.floor(Math.random() * 4294967296) >>> 0;
+  }
   function audioStatus(text = "") {
     const status = document.getElementById("audioStatus");
     status.textContent = text;
@@ -152,7 +163,7 @@
   }
   function start(questions) {
     stopDemoAuto();
-    const qs = questions || E.generate(recent);
+    const qs = questions || E.generate(recent, random);
     if (!qs.every(E.verify)) return;
     lesson = { questions: qs, states: qs.map(freshState), index: 0, retry: !!questions };
     if (!questions) recent = qs.map((q) => q.signature);
@@ -248,14 +259,23 @@
               q.unknown === "each" ? "Share one each" : "Make group"
             );
     app.innerHTML = `<nav class="steps" aria-label="Learning steps">${["build", "solve", "story"]
-      .map((x) => `<span class="step ${q.stage === x ? "active" : ""}">${x[0].toUpperCase() + x.slice(1)}</span>`)
-      .join("")}<span class="counter">${lesson.index + 1} / ${lesson.states.length}</span></nav><div class="prompt">${
-      q.prompt
-    }</div><div class="stage-layout">${board(s)}<section class="actions" aria-label="Learning controls">${
+      .map((x) =>
+        btn(
+          x[0].toUpperCase() + x.slice(1),
+          `stage:${x}`,
+          `step ${q.stage === x ? "active" : ""}`,
+          `${q.stage === x ? 'aria-current="step"' : ""} ${lesson.questions.some((item) => item.stage === x) ? "" : "disabled"}`
+        )
+      )
+      .join("")}<span class="counter">${lesson.index + 1} / ${lesson.states.length}</span></nav>${btn(
+      lesson.index === lesson.states.length - 1 ? "Finish" : "Next",
+      "next",
+      "primary check"
+    )}<div class="prompt">${q.prompt}</div><div class="stage-layout">${board(s)}<section class="actions" aria-label="Learning controls">${
       s.correct
         ? `<div class="feedback correct"><span class="emoji" aria-hidden="true">🌟</span> <span>Great! ${
             q.kind === "build" ? "Equal groups." : q.answer.value + " " + q.label + "."
-          }</span></div>${family(q)}${btn(lesson.index === lesson.states.length - 1 ? "Finish" : "Next", "next", "primary check")}`
+          }</span></div>${family(q)}`
         : `${controls}${s.notice ? `<div class="feedback wrong" role="status">${s.notice}</div>` : ""}${btn(
             s.first ? "Check again" : "Check",
             "check",
@@ -280,11 +300,11 @@
   }
   function nextDemo() {
     const candidates = [],
-      current = E.key(demo.rows, demo.columns);
+      current = demo ? E.key(demo.rows, demo.columns) : null;
     for (let rows = 2; rows <= 9; rows++)
       for (let columns = 2; columns <= 9; columns++)
         if (rows * columns <= 72 && E.key(rows, columns) !== current) candidates.push({ rows, columns, swapped: false });
-    demo = candidates[Math.floor(Math.random() * candidates.length)];
+    demo = candidates[Math.floor(random() * candidates.length)];
   }
   function scheduleDemo() {
     if (!demoAuto || screen !== "home" || document.hidden) return;
@@ -332,9 +352,9 @@
   function complete() {
     const result = E.summary(lesson.states),
       missed = lesson.states.filter((s) => s.first && !s.first.correct);
-    app.innerHTML = `<section class="summary"><span class="eyebrow">Groups Lab</span><h1>${
-      result.master ? "Master! 🌟" : "Nice work!"
-    }</h1><div class="score">${result.correct}<small> / ${result.total}</small></div><div class="quiet">First answers${
+    app.innerHTML = `<section class="summary"><span class="eyebrow">Groups Lab</span><h1>${result.master ? "Master! 🌟" : "Lesson complete"}</h1>${
+      result.total ? `<div class="score">${result.correct}<small> / ${result.total}</small></div>` : ""
+    }<div class="quiet">${result.total ? "First answers · " : ""}${result.total} answered · ${result.skipped} skipped${
       result.helped ? " · " + result.helped + " with help" : ""
     }</div><div class="home-actions">${missed.length ? btn("Practice mistakes", "retry", "soft") : ""}${btn("New lesson", "start", "primary")}${btn(
       "Home",
@@ -415,9 +435,19 @@
     }
     const s = lesson.states[lesson.index],
       q = s.q;
-    if (action === "next" && s.correct) {
+    if (action === "next") {
       lesson.index++;
-      return render();
+      render();
+      window.scrollTo(0, 0);
+      return;
+    }
+    if (action.startsWith("stage:")) {
+      const index = lesson.questions.findIndex((item) => item.stage === action.slice(6));
+      if (index < 0) return;
+      lesson.index = index;
+      render();
+      window.scrollTo(0, 0);
+      return;
     }
     if (action === "view") {
       s.view = s.view === "array" ? "groups" : "array";
@@ -486,5 +516,6 @@
     stopDemoAuto();
     stopTone();
   });
+  nextDemo();
   render();
 })();
