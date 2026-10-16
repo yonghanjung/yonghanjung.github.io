@@ -377,6 +377,10 @@
     #query-status.error {
       color: var(--error);
     }
+    #query-status.info {
+      color: var(--muted);
+      font-size: 12px;
+    }
     #analysis-status {
       min-height: 24px;
       margin: 12px 0;
@@ -569,6 +573,9 @@
           </select>
           <input id="event-value" type="number" step="any" aria-label="Probability event value" value="0" />
         </div>
+        <label id="joint-event-field" hidden title='All conditions are combined with AND, for example {"A":["<=",0],"B":["<=",1]}.'
+          >Event<input id="joint-event" class="assignments" aria-label="Joint probability event JSON" value="{}" />
+        </label>
         <button id="compute-query" type="button" class="primary" disabled>Compute</button>
         <button id="analyze" type="submit">Identify</button>
         <details>
@@ -589,7 +596,7 @@
           <label
             id="extrapolation-field"
             title="Only for the UCA Sample estimate: continue beyond observed continuous training ranges. Results may be unreliable."
-            ><input id="allow-continuous-extrapolation" type="checkbox" /> Allow continuous extrapolation (UCA Sample)</label
+            ><input id="allow-continuous-extrapolation" type="checkbox" checked /> Allow continuous extrapolation (UCA Sample)</label
           >
         </details>
       </form>
@@ -690,9 +697,9 @@
       $("analysis-status").textContent = text;
       $("analysis-status").className = error ? "error" : "";
     }
-    function queryMessage(text, error = false) {
+    function queryMessage(text, error = false, info = false) {
       $("query-status").textContent = text;
-      $("query-status").className = error ? "error" : "";
+      $("query-status").className = error ? "error" : info ? "info" : "";
     }
     const distributionNotice = "Use Identify for the joint distribution. Numerical distribution computation is unsupported.";
     function clearComputation() {
@@ -1804,7 +1811,7 @@
         for (const values of result.rows) $("sample").append(row(values, "td"));
         $("result-title").textContent = `${result.shape[0] > 10 ? `10/${result.shape[0]}` : result.shape[0]} rows × ${result.shape[1]} columns`;
         message("Generated");
-        if ($("query-type").value === "interventional" && $("query-summary").value === "mean") {
+        if ($("query-type").value === "interventional" && ["mean", "probability"].includes($("query-summary").value)) {
           try {
             if (!Object.keys(assignments("query-evidence")).length) await computeQuery();
           } catch (error) {
@@ -1977,13 +1984,40 @@
         );
       return evidence;
     }
-    function eventMath(aliases = new Map()) {
-      const name = $("event-column").value,
-        value = Number($("event-value").value),
-        coordinate = /^(.*)(\[\d+\])$/.exec(name),
-        shown = aliases.get(name) || (coordinate && aliases.has(coordinate[1]) ? aliases.get(coordinate[1]) + coordinate[2] : name);
-      if (!queryColumns().includes(name) || !$("event-value").value.trim() || !Number.isFinite(value)) throw Error("Choose a finite outcome event.");
-      return m("mrow", mathName(shown), m("mo", { ">=": "≥", "<=": "≤", "==": "=" }[$("event-op").value]), m("mn", value));
+    function queryEvent() {
+      const pairs =
+        queryColumns().length > 1
+          ? assignments("joint-event")
+          : { [$("event-column").value]: [$("event-op").value, $("event-value").value.trim() ? Number($("event-value").value) : null] };
+      if (!Object.keys(pairs).length) throw Error("Choose an outcome event.");
+      return Object.fromEntries(
+        Object.entries(pairs).map(([name, condition]) => {
+          if (
+            !queryColumns().includes(name) ||
+            !Array.isArray(condition) ||
+            condition.length !== 2 ||
+            ![">=", "<=", "==", "!=", "<", ">"].includes(condition[0]) ||
+            typeof condition[1] !== "number" ||
+            !Number.isFinite(condition[1])
+          )
+            throw Error("Event needs selected target columns and [comparison, finite threshold] pairs.");
+          return [name, { op: condition[0], value: condition[1] }];
+        })
+      );
+    }
+    function eventMath(aliases = new Map(), intervention = null) {
+      return m(
+        "mrow",
+        ...Object.entries(queryEvent()).flatMap(([name, condition], i) => {
+          const coordinate = /^(.*)(\[\d+\])$/.exec(name),
+            shown = aliases.get(name) || (coordinate && aliases.has(coordinate[1]) ? aliases.get(coordinate[1]) + coordinate[2] : name),
+            variable = intervention && Object.keys(intervention).length ? m("msub", mathName(shown), assignmentMath(intervention)) : mathName(shown);
+          return [
+            ...(i ? [m("mo", "∧")] : []),
+            m("mrow", variable, m("mo", { ">=": "≥", "<=": "≤", "==": "=", "!=": "≠", "<": "<", ">": ">" }[condition.op]), m("mn", condition.value)),
+          ];
+        })
+      );
     }
     function lawName(values) {
       return Object.keys(values).length ? m("msub", m("mi", "I"), assignmentMath(values)) : m("mi", "I");
@@ -2168,10 +2202,8 @@
       if (summary === "mean_difference" && !counterfactual)
         body = m("mrow", expect(targets(), intervention), m("mo", "−"), expect(targets(), assignments("query-reference")));
       else {
-        let target = summary === "probability" ? mathName($("event-column").value) : targets();
-        if (counterfactual) target = decorated(target, intervention);
-        if (summary === "probability")
-          target = m("mrow", target, m("mo", { ">=": "≥", "<=": "≤", "==": "=" }[$("event-op").value]), m("mn", $("event-value").value));
+        let target = summary === "probability" ? eventMath(new Map(), counterfactual ? intervention : null) : targets();
+        if (counterfactual && summary !== "probability") target = decorated(target, intervention);
         if (summary === "mean_difference") target = m("mrow", target, m("mo", "−"), decorated(targets(), assignments("query-reference")));
         const condition = counterfactual
           ? Object.keys(evidence).length
@@ -2198,9 +2230,10 @@
       const multiple = queryNames("query-y").length > 1,
         summaryControl = $("query-summary"),
         previous = summaryControl.value;
-      if (multiple) summaryControl.value = "distribution";
-      else if (summaryControl.value === "distribution") summaryControl.value = "mean";
-      summaryControl.disabled = multiple;
+      if (multiple && !["probability", "distribution"].includes(summaryControl.value)) summaryControl.value = "probability";
+      else if (!multiple && summaryControl.value === "distribution") summaryControl.value = "mean";
+      summaryControl.disabled = false;
+      for (const value of ["mean", "mean_difference"]) summaryControl.querySelector(`[value="${value}"]`).disabled = multiple;
       summaryControl.querySelector('[value="distribution"]').hidden = !multiple;
       if (previous !== summaryControl.value) clearComputation();
       const summary = $("query-summary").value;
@@ -2211,7 +2244,19 @@
       } catch {}
       $("evidence-field").hidden = $("query-type").value !== "counterfactual" && !hasEvidence;
       $("reference-field").hidden = summary !== "mean_difference";
-      $("event-fields").hidden = summary !== "probability";
+      $("event-fields").hidden = summary !== "probability" || queryColumns().length > 1;
+      $("joint-event-field").hidden = summary !== "probability" || queryColumns().length < 2;
+      const columns = queryColumns(),
+        signature = JSON.stringify(columns),
+        joint = $("joint-event");
+      if (joint.dataset.columns !== signature) {
+        let previous = {};
+        try {
+          previous = assignments("joint-event");
+        } catch {}
+        joint.value = JSON.stringify(Object.fromEntries(columns.map((name) => [name, previous[name] || ["<=", 0]])));
+        joint.dataset.columns = signature;
+      }
       const selected = $("event-column").value;
       $("event-column").replaceChildren(...queryColumns().map((name) => new Option(name, name)));
       if (queryColumns().includes(selected)) $("event-column").value = selected;
@@ -2237,6 +2282,7 @@
       "event-column",
       "event-op",
       "event-value",
+      "joint-event",
       "query-draws",
       "allow-continuous-extrapolation",
     ])
@@ -2261,11 +2307,7 @@
       const intervention = actionValues(),
         evidence = queryEvidence(),
         summary = $("query-summary").value;
-      if (
-        summary === "probability" &&
-        (!$("event-column").value || !$("event-value").value.trim() || !Number.isFinite(Number($("event-value").value)))
-      )
-        throw Error("Choose an outcome column and a finite event value.");
+      const event = summary === "probability" ? queryEvent() : {};
       const version = queryRevision,
         currentToken = token,
         currentSample = sample?.sample_id,
@@ -2276,7 +2318,7 @@
           intervention,
           evidence,
           summary,
-          event: summary === "probability" ? { [$("event-column").value]: { op: $("event-op").value, value: Number($("event-value").value) } } : {},
+          event,
           n: Number($("query-draws").value),
           data_seed: Number($("data-seed").value),
           max_seconds: 10,
@@ -2351,12 +2393,13 @@
       )
         .filter(([, value]) => value.status !== "OK")
         .map(([label, value]) => label + " " + value.status + (value.reason ? ": " + value.reason : ""));
-      const noSample = !currentSample && payload.type === "interventional" && summary === "mean" && !Object.keys(evidence).length,
-        warning = estimate?.status === "OK" ? estimate.warning : "";
+      const noSample =
+          !currentSample && payload.type === "interventional" && ["mean", "probability"].includes(summary) && !Object.keys(evidence).length,
+        info = estimate?.status === "OK" ? estimate.info || estimate.warning || "" : "";
       queryMessage(
-        [...issues, warning].filter(Boolean).join(" · ") ||
-          (noSample ? "SCM computed. Generate Sample for a data estimate and comparison." : "Computed."),
-        !!issues.length
+        issues.join(" · ") || info || (noSample ? "SCM computed. Generate Sample for a data estimate and comparison." : "Computed."),
+        !!issues.length,
+        !issues.length && !!info
       );
     }
     $("compute-query").onclick = () => perform(computeQuery, queryMessage);
@@ -2370,6 +2413,7 @@
         analysisMessage("Checking identification…");
         actionValues();
         queryEvidence(true);
+        if ($("query-summary").value === "probability") queryEvent();
         const actions = queryNames("query-x"),
           key = analysisKey(actions),
           referenceNames = $("query-summary").value === "mean_difference" ? Object.keys(checkedAssignments("query-reference")) : [],

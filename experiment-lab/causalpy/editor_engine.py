@@ -229,9 +229,35 @@ def _uca_schedule(tree, schema, actions, targets, deadline):
     return ordered
 
 
+_EVENT_OPERATIONS = {"==": np.equal, "!=": np.not_equal, "<": np.less, "<=": np.less_equal, ">": np.greater, ">=": np.greater_equal}
+
+
+def _sample_event(payload, schema, targets):
+    if payload.get("summary", "mean") != "probability":
+        return None
+    event = payload.get("event")
+    columns = {column: v for v in targets for column in schema[v]["columns"]}
+    if not isinstance(event, dict) or not event:
+        raise ValueError("Probability requires an event on selected target columns.")
+    for column, condition in event.items():
+        if (column not in columns or not isinstance(condition, dict) or condition.get("op") not in _EVENT_OPERATIONS
+                or type(condition.get("value")) not in (int, float) or not np.isfinite(condition["value"])):
+            raise ValueError("Each event needs a selected target column, comparison operator and finite threshold.")
+        if condition["op"] in {"==", "!="} and schema[columns[column]]["type"] not in {"binary", "categorical"}:
+            raise NotImplementedError("Sample Probability supports continuous inequalities; equality requires a discrete target.")
+    return event
+
+
+def _event_hits(values, columns, event):
+    hits = np.ones(len(values), dtype=bool)
+    for column, condition in event.items():
+        hits &= _EVENT_OPERATIONS[condition["op"]](values[:, columns.index(column)], condition["value"])
+    return hits
+
+
 def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
     """Approximate a certified UCA functional with normalized, observed-only kNN kernels."""
-    extrapolate = payload.get("allow_continuous_extrapolation", False)
+    extrapolate = payload.get("allow_continuous_extrapolation", True)
     if type(extrapolate) is not bool:
         raise ValueError("Allow continuous extrapolation must be true or false.")
     result = dict(status="UNSUPPORTED", method="UCA plug-in (normalized kNN kernels)", n=len(data), approximate=True,
@@ -243,6 +269,10 @@ def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
     def fail(status, reason):
         return dict(result, status=status, reason=reason)
 
+    try:
+        event = _sample_event(payload, schema, payload["targets"])
+    except NotImplementedError as error:
+        return fail("UNSUPPORTED", str(error))
     from identification_engine import analyze
     actions, targets = payload["intervention"], payload["targets"]
     certificate = analyze(dict(nodes=[dict(name=v, observed=graph.nodes[v].get("observed", True),
@@ -293,7 +323,7 @@ def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
             if perf_counter() >= deadline:
                 return fail("UNKNOWN", "Sample estimator deadline exhausted.")
             read_later = {key for _, given in schedule[stage+1:] for _, key, _ in given}
-            terminal = not any(key in read_later for _, key, _ in head)
+            terminal = event is None and not any(key in read_later for _, key, _ in head)
             h = indices(v for v, _, _ in head)
             output = np.empty((len(evaluation), len(h)))
             diagnostic = dict(fold=heldout, stage=stage, head=[v for v, _, _ in head], context=[v for v, _, _ in context],
@@ -372,16 +402,19 @@ def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
                 values[key] = output[:, offset:offset+width]
                 offset += width
         predictions.append(np.concatenate([values["free:"+v] for v in targets], axis=1))
-    mean = np.concatenate(predictions).mean(axis=0)
+    draws = np.concatenate(predictions)
+    if not np.isfinite(draws).all():
+        return fail("UNKNOWN", "UCA kernels produced nonfinite values.")
+    outcomes = [c for v in targets for c in schema[v]["columns"]]
+    mean = _event_hits(draws, outcomes, event).mean(keepdims=True) if event is not None else draws.mean(axis=0)
     if not np.isfinite(mean).all():
         return fail("UNKNOWN", "UCA kernels produced nonfinite values.")
     if result["diagnostics"].get("fixed_range_violations"):
         result["extrapolated"] = True
-        result["warning"] = "Extrapolated approximation; policy is outside the observed training range. Reliability is not established."
+        result["info"] = "Approximate estimate; continuous extrapolation used."
     elif result["diagnostics"]["worst_weak_fraction"] > .05:
         result["warning"] = "Approximate estimate; weak empirical coverage may make it unreliable."
-    outcomes = [c for v in targets for c in schema[v]["columns"]]
-    return dict(result, status="OK", values=dict(zip(outcomes, mean.tolist())))
+    return dict(result, status="OK", values=dict(zip(["Probability"] if event is not None else outcomes, mean.tolist())))
 
 
 def _estimate_mean(data, graph, schema, payload, seed, deadline):
@@ -399,14 +432,18 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
     def fail(status, reason):
         return dict(result, status=status, reason=reason)
 
-    if payload.get("type", "interventional") != "interventional" or payload.get("summary", "mean") != "mean" or payload.get("evidence"):
-        return fail("UNSUPPORTED", "Sample estimation currently supports Interventional Mean without evidence.")
+    if payload.get("type", "interventional") != "interventional" or payload.get("summary", "mean") not in {"mean", "probability"} or payload.get("evidence"):
+        return fail("UNSUPPORTED", "Sample estimation supports Interventional Mean or Probability without evidence.")
     targets, actions = payload.get("targets"), payload.get("intervention", {})
     if (not isinstance(targets, list) or not targets or len(targets) != len(set(targets))
             or any(v not in schema for v in targets) or not isinstance(actions, dict) or any(v not in schema for v in actions)):
         raise ValueError("Use observed whole-node targets and intervention names.")
     if set(targets) & set(actions):
         return fail("UNSUPPORTED", "For Sample estimation, targets must differ from intervention nodes.")
+    try:
+        event = _sample_event(payload, schema, targets)
+    except NotImplementedError as error:
+        return fail("UNSUPPORTED", str(error))
     constants = {v: _array(value, schema[v]["shape"]).reshape(-1) for v, value in actions.items()}
     if any(schema[v]["type"] == "binary" and not np.isin(a, [0, 1]).all() for v, a in constants.items()):
         raise ValueError("Binary intervention values must be 0 or 1.")
@@ -416,6 +453,12 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
         return fail("UNKNOWN", "Sample estimator deadline exhausted.")
     outcomes = [c for v in targets for c in schema[v]["columns"]]
     if not actions:
+        if event is not None:
+            raw = data[outcomes].to_numpy(dtype=float)
+            if not np.isfinite(raw).all():
+                return fail("UNKNOWN", "Sample targets contain nonfinite values.")
+            return dict(result, status="OK", method="observed sample joint-event rate", adjustment=[], criterion="observational",
+                        values={"Probability": float(_event_hits(raw, outcomes, event).mean())})
         return dict(result, status="OK", method="observed sample mean", adjustment=[], criterion="observational",
                     values=dict(zip(outcomes, data[outcomes].mean().to_numpy().tolist())))
     from adjustment import construct_minimum_adjustment_set, check_adjustment_criterion, check_backdoor_criterion
@@ -432,6 +475,10 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
     features = action_columns + [c for v in adjustment if v not in discrete for c in schema[v]["columns"]]
     finite_covariates = [c for v in adjustment if v in discrete for c in schema[v]["columns"]]
     x, y = data[features].to_numpy(dtype=float), data[outcomes].to_numpy(dtype=float)
+    if event is not None:
+        if not np.isfinite(y).all():
+            return fail("UNKNOWN", "Sample targets contain nonfinite values.")
+        y = _event_hits(y, outcomes, event).astype(float)[:, None]
     finite_z = data[finite_covariates].to_numpy(dtype=float)
     requested = x.copy()
     offset = 0
@@ -499,7 +546,7 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
     values = predictions.mean(axis=0)
     if not np.isfinite(values).all():
         return fail("UNKNOWN", "Sample estimator produced nonfinite values.")
-    return dict(result, status="OK", values=dict(zip(outcomes, values.tolist())))
+    return dict(result, status="OK", values=dict(zip(["Probability"] if event is not None else outcomes, values.tolist())))
 
 
 def _reference(model, payload, n, seed, seconds):
@@ -603,7 +650,8 @@ class Editor:
                 response = dict(token=self.token, sample_id=self.sample_id, query=result["query"],
                                 data_estimate=estimate, scm_reference=result)
                 if estimate["status"] == result["status"] == "OK":
-                    response["difference"] = {c: value - result["values"][c] for c, value in estimate["values"].items()}
+                    reference_values = result.get("values", {"Probability": result.get("value")})
+                    response["difference"] = {c: value - reference_values[c] for c, value in estimate["values"].items()}
                 return response
             return dict(result, token=self.token)
         if action == "sample":
