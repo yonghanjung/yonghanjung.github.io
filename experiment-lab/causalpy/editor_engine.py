@@ -409,6 +409,8 @@ def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
     mean = _event_hits(draws, outcomes, event).mean(keepdims=True) if event is not None else draws.mean(axis=0)
     if not np.isfinite(mean).all():
         return fail("UNKNOWN", "UCA kernels produced nonfinite values.")
+    if perf_counter() >= deadline:
+        return fail("UNKNOWN", "Sample estimator deadline exhausted.")
     if result["diagnostics"].get("fixed_range_violations"):
         result["extrapolated"] = True
         result["info"] = "Approximate estimate; continuous extrapolation used."
@@ -457,10 +459,13 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
             raw = data[outcomes].to_numpy(dtype=float)
             if not np.isfinite(raw).all():
                 return fail("UNKNOWN", "Sample targets contain nonfinite values.")
-            return dict(result, status="OK", method="observed sample joint-event rate", adjustment=[], criterion="observational",
-                        values={"Probability": float(_event_hits(raw, outcomes, event).mean())})
-        return dict(result, status="OK", method="observed sample mean", adjustment=[], criterion="observational",
-                    values=dict(zip(outcomes, data[outcomes].mean().to_numpy().tolist())))
+            values = {"Probability": float(_event_hits(raw, outcomes, event).mean())}
+        else:
+            values = dict(zip(outcomes, data[outcomes].mean().to_numpy().tolist()))
+        if perf_counter() >= deadline:
+            return fail("UNKNOWN", "Sample estimator deadline exhausted.")
+        return dict(result, status="OK", method="observed sample joint-event rate" if event is not None else "observed sample mean",
+                    adjustment=[], criterion="observational", values=values)
     from adjustment import construct_minimum_adjustment_set, check_adjustment_criterion, check_backdoor_criterion
     try:
         adjustment = construct_minimum_adjustment_set(graph, list(actions), targets)
@@ -500,11 +505,19 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
     sizes, radii, poor_coverage = [], [], 0
 
     def neighbors(train, test, k):
-        distances = np.maximum(0, (test * test).sum(axis=1)[:, None]
-                               + (train * train).sum(axis=1)[None, :] - 2 * test @ train.T)
-        nearest = np.argpartition(distances, k - 1, axis=1)[:, :k]
-        radius = np.take_along_axis(distances, nearest, axis=1).max(axis=1)
-        return nearest, radius
+        indices, radii = [], []
+        for start in range(0, len(test), 64):
+            if perf_counter() >= deadline:
+                raise TimeoutError
+            block = test[start:start+64]
+            distances = np.maximum(0, (block * block).sum(axis=1)[:, None]
+                                   + (train * train).sum(axis=1)[None, :] - 2 * block @ train.T)
+            if not np.isfinite(distances).all():
+                raise FloatingPointError
+            nearest = np.argpartition(distances, k - 1, axis=1)[:, :k]
+            indices.append(nearest)
+            radii.append(np.take_along_axis(distances, nearest, axis=1).max(axis=1))
+        return np.concatenate(indices), np.concatenate(radii)
 
     for heldout in (0, 1):
         for group in groups:
@@ -522,6 +535,8 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
                                    or np.any(requested[test, :len(action_columns)] > x[train, :len(action_columns)].max(axis=0))):
                 return fail("UNKNOWN", "INSUFFICIENT_DATA: intervention lies outside a training stratum's action range.")
             center, scale = x[train].mean(axis=0), x[train].std(axis=0)
+            if not np.isfinite(center).all() or not np.isfinite(scale).all():
+                return fail("UNKNOWN", "Sample estimator produced nonfinite feature scales.")
             scale = np.where(scale > 0, scale, 1)
             training, query = (x[train] - center) / scale, (requested[test] - center) / scale
             if not features or not np.any(x[train].std(axis=0)):
@@ -530,8 +545,13 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
                 predictions[test] = y[train].mean(axis=0)
                 sizes.append(len(train))
                 continue
-            nearest, radius = neighbors(training, query, k)
-            _, factual_radius = neighbors(training, (x[test] - center) / scale, k)
+            try:
+                nearest, radius = neighbors(training, query, k)
+                _, factual_radius = neighbors(training, (x[test] - center) / scale, k)
+            except TimeoutError:
+                return fail("UNKNOWN", "Sample estimator deadline exhausted.")
+            except FloatingPointError:
+                return fail("UNKNOWN", "Sample estimator produced nonfinite distances.")
             baseline = np.maximum(factual_radius, 1e-12)
             poor_coverage += int(np.count_nonzero(radius > 9 * baseline))
             radii.extend((radius / baseline).tolist())
@@ -546,6 +566,8 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
     values = predictions.mean(axis=0)
     if not np.isfinite(values).all():
         return fail("UNKNOWN", "Sample estimator produced nonfinite values.")
+    if perf_counter() >= deadline:
+        return fail("UNKNOWN", "Sample estimator deadline exhausted.")
     return dict(result, status="OK", values=dict(zip(["Probability"] if event is not None else outcomes, values.tolist())))
 
 

@@ -12,7 +12,7 @@ async function sources(py, names) {
   );
 }
 async function initialize(id) {
-  postMessage({ id, message: "Loading Python 3.13…" });
+  postMessage({ id, message: "Preparing calculator…" });
   const py = await loadPyodide({ indexURL: baseURL });
   py.runPython("import json");
   return py;
@@ -23,8 +23,8 @@ async function prepare(py, action, id) {
     network = null;
     throw error;
   }));
-  if (action === "identify" || action === "examples" || action === "compare") {
-    postMessage({ id, message: "Loading graph algorithms…" });
+  if (["identify", "examples", "compare", "prepare"].includes(action)) {
+    if (!identification) postMessage({ id, message: "Preparing identification…" });
     await (identification ||= sources(py, [
       "graph.py",
       "adjustment.py",
@@ -43,14 +43,24 @@ async function prepare(py, action, id) {
       }));
   }
   if (action !== "identify" && action !== "examples") {
-    postMessage({ id, message: "Loading SCM packages…" });
-    await (scm ||= Promise.all([py.loadPackage(["numpy", "scipy"]), sources(py, ["SCM.py", "scm_registry.py", "editor_engine.py"])])
-      .then(() => py.runPython("from editor_engine import Editor\n_editor = Editor()"))
+    if (!scm) postMessage({ id, message: "Preparing calculator…" });
+    const preloadPandas = ["build", "prepare"].includes(action);
+    await (scm ||= Promise.all([
+      py.loadPackage(["numpy", "scipy", ...(preloadPandas ? ["pandas"] : [])]),
+      sources(py, ["SCM.py", "scm_registry.py", "editor_engine.py"]),
+    ])
+      .then(() => {
+        py.runPython("from editor_engine import Editor\n_editor = Editor()");
+        if (preloadPandas) {
+          py.runPython("import pandas");
+          pandas ||= Promise.resolve();
+        }
+      })
       .catch((error) => {
         scm = null;
         throw error;
       }));
-    if (action === "sample" || action === "update" || action === "compare")
+    if (["sample", "update", "compare", "prepare"].includes(action))
       await (pandas ||= py.loadPackage("pandas").catch((error) => {
         pandas = null;
         throw error;
@@ -66,6 +76,10 @@ self.onmessage = async ({ data: { id, action, payload } }) => {
     });
     const py = await ready;
     await prepare(py, action, id);
+    if (action === "prepare") {
+      postMessage({ id, result: { status: "READY" } });
+      return;
+    }
     postMessage({
       id,
       message:
