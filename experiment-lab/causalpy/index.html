@@ -548,6 +548,7 @@
         <label
           >Summary<select id="query-summary" aria-label="Query summary">
             <option value="mean">Mean</option>
+            <option value="distribution" hidden>Distribution</option>
             <option value="probability">Probability</option>
             <option value="mean_difference">Mean difference</option>
           </select></label
@@ -693,10 +694,11 @@
       $("query-status").textContent = text;
       $("query-status").className = error ? "error" : "";
     }
+    const distributionNotice = "Use Identify for the joint distribution. Numerical distribution computation is unsupported.";
     function clearComputation() {
       queryRevision++;
       $("query-results").hidden = true;
-      queryMessage(model ? "Changed. Compute." : "Generate Sample to compute.");
+      queryMessage($("query-summary").value === "distribution" ? distributionNotice : model ? "Changed. Compute." : "Generate Sample to compute.");
     }
     function graphSignature() {
       return JSON.stringify([nodes.map(({ name, observed }) => [name, observed]).sort(), edges.map((edge) => [...edge]).sort()]);
@@ -717,6 +719,7 @@
         identify = false;
       }
       $("analyze").disabled = busy || !identify;
+      $("compute-query").hidden = $("query-summary").value === "distribution";
       $("compute-query").disabled = busy || dirty || !model;
       $("load-graph").disabled = busy;
       $("examples").disabled = busy;
@@ -1969,7 +1972,9 @@
       if ($("query-type").value !== "counterfactual" && Object.keys(evidence).length)
         throw Error("Factual evidence is for Counterfactual. Clear it to {}.");
       if (identification && Object.keys(evidence).length)
-        throw Error("UNSUPPORTED: graph Identification with factual evidence. Compute uses the SCM.");
+        throw Error(
+          "UNSUPPORTED: graph Identification with factual evidence." + ($("query-summary").value === "distribution" ? "" : " Compute uses the SCM.")
+        );
       return evidence;
     }
     function eventMath(aliases = new Map()) {
@@ -2022,7 +2027,7 @@
     function summaryMath(result, values, summary) {
       const names = queryNames("query-y"),
         target = () => (summary === "probability" ? eventMath() : mathList(names.map(mathName))),
-        operator = summary === "probability" ? "P" : "E",
+        operator = ["probability", "distribution"].includes(summary) ? "P" : "E",
         bracket = (body) => fence(body, operator === "P" ? "(" : "[", operator === "P" ? ")" : "]");
       if (!Object.keys(values).length) return m("mrow", m("mi", operator), bracket(target()));
       const source = formulaSource(result),
@@ -2033,11 +2038,12 @@
               ? result.criteria[source].formula_tree
               : result.identification.formula_tree;
       if (!completeFormula(tree)) throw Error("Closed-form display unavailable; symbolic certificate is in Details.");
-      const budget = { remaining: 5000, used: new Set(nodes.map((n) => n.name)) },
-        compact =
-          names.length === 1 && nodes.find((node) => node.name === names[0])?.dimension === 1
-            ? summaryTree(tree, names[0], summary === "probability" ? "event" : "expectation")
-            : null;
+      const budget = { remaining: 5000, used: new Set(nodes.map((n) => n.name)) };
+      if (summary === "distribution") return formulaNode(tree, budget, 0, undefined, values);
+      const compact =
+        names.length === 1 && nodes.find((node) => node.name === names[0])?.dimension === 1
+          ? summaryTree(tree, names[0], summary === "probability" ? "event" : "expectation")
+          : null;
       if (compact) return formulaNode(compact, budget, 0, undefined, values);
       const aliases = new Map(names.map((name) => [name, dummyName(name, budget.used)])),
         coordinates = mathList([...aliases.values()].map(mathName)),
@@ -2176,8 +2182,12 @@
             : [];
         body = m(
           "mrow",
-          m("mi", summary === "probability" ? "P" : "E"),
-          fence(m("mrow", target, ...condition), summary === "probability" ? "(" : "[", summary === "probability" ? ")" : "]")
+          m("mi", ["probability", "distribution"].includes(summary) ? "P" : "E"),
+          fence(
+            m("mrow", target, ...condition),
+            ["probability", "distribution"].includes(summary) ? "(" : "[",
+            ["probability", "distribution"].includes(summary) ? ")" : "]"
+          )
         );
       }
       const math = m("math", body);
@@ -2185,7 +2195,16 @@
       return math;
     }
     function updateQuery() {
+      const multiple = queryNames("query-y").length > 1,
+        summaryControl = $("query-summary"),
+        previous = summaryControl.value;
+      if (multiple) summaryControl.value = "distribution";
+      else if (summaryControl.value === "distribution") summaryControl.value = "mean";
+      summaryControl.disabled = multiple;
+      summaryControl.querySelector('[value="distribution"]').hidden = !multiple;
+      if (previous !== summaryControl.value) clearComputation();
       const summary = $("query-summary").value;
+      if (summary === "distribution") queryMessage(distributionNotice);
       let hasEvidence = true;
       try {
         hasEvidence = Object.keys(assignments("query-evidence")).length > 0;
@@ -2235,6 +2254,10 @@
         updateQuery();
       };
     async function computeQuery() {
+      if ($("query-summary").value === "distribution") {
+        clearComputation();
+        return;
+      }
       const intervention = actionValues(),
         evidence = queryEvidence(),
         summary = $("query-summary").value;
@@ -2268,7 +2291,7 @@
         result.token !== token ||
         (currentSample && (sample?.sample_id !== currentSample || result.sample_id !== currentSample))
       ) {
-        queryMessage("Changed. Compute.");
+        queryMessage($("query-summary").value === "distribution" ? distributionNotice : "Changed. Compute.");
         return;
       }
       const reference = result.scm_reference || result,
