@@ -426,13 +426,58 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
     Support cutoffs are engineering diagnostics, not a proof of positivity.
     Finite-sample smoothing bias remains; no data standard error is asserted.
     """
-    result = dict(status="UNSUPPORTED", method="2-fold kNN g-computation", n=len(data),
+    result = dict(status="UNSUPPORTED", method="2-fold kNN g-computation", n=len(data), approximate=True,
                   diagnostics={"folds": 2, "data_uncertainty": "not estimated",
                                "limitations": "kNN smoothing bias and high-dimensional sparse support",
                                "support_checks": "empirical engineering checks, not a positivity certificate"})
 
     def fail(status, reason):
         return dict(result, status=status, reason=reason)
+
+    if payload.get("summary") == "mean_difference":
+        result.update(method="difference of two interventional Sample means", approximate=True)
+        if payload.get("type", "interventional") not in {"interventional", "counterfactual"} or payload.get("evidence"):
+            return fail("UNSUPPORTED", "Sample Mean difference requires no factual evidence.")
+        targets = payload.get("targets")
+        if (not isinstance(targets, list) or not targets or len(targets) != len(set(targets))
+                or any(v not in schema for v in targets)):
+            raise ValueError("Use observed whole-node targets.")
+        if len(targets) != 1:
+            return fail("UNSUPPORTED", "Use one outcome node for Mean difference; choose Probability for joint events.")
+        actions = [("Intervention", payload.get("intervention", {})), ("Reference", payload.get("reference"))]
+        for label, values in actions:
+            if not isinstance(values, dict) or any(v not in schema for v in values):
+                raise ValueError(f"{label} must contain observed whole-node values.")
+            for v, value in values.items():
+                value = _array(value, schema[v]["shape"])
+                if schema[v]["type"] == "binary" and not np.isin(value, [0, 1]).all():
+                    raise ValueError(f"{label}: binary intervention values must be 0 or 1.")
+        started = perf_counter()
+        arms = {}
+        result["diagnostics"]["arms"] = arms
+        for i, (label, values) in enumerate(actions):
+            arm_deadline = started + max(0, deadline - started) / 2 if i == 0 else deadline
+            arms[label] = _estimate_mean(data, graph, schema,
+                dict(payload, type="interventional", summary="mean", intervention=values, evidence={}), seed, arm_deadline)
+            if arms[label]["status"] != "OK":
+                return fail(arms[label]["status"], f"{label} mean: {arms[label].get('reason', arms[label]['status'])}")
+        outcomes = [c for v in targets for c in schema[v]["columns"]]
+        first, second = (arm.get("values", {}) for arm in arms.values())
+        if (set(first) != set(outcomes) or set(second) != set(outcomes)
+                or not np.isfinite([*first.values(), *second.values()]).all()):
+            return fail("UNKNOWN", "The two Sample means must have matching finite target coordinates.")
+        difference = {c: first[c] - second[c] for c in outcomes}
+        if not np.isfinite(list(difference.values())).all():
+            return fail("UNKNOWN", "Sample Mean difference produced nonfinite values.")
+        if perf_counter() >= deadline:
+            return fail("UNKNOWN", "Sample estimator deadline exhausted.")
+        messages = list(dict.fromkeys(arm[field] for arm in arms.values()
+                                     for field in ("info", "warning") if arm.get(field)))
+        if messages:
+            result["info"] = " ".join(messages)
+        if any(arm.get("extrapolated") for arm in arms.values()):
+            result["extrapolated"] = True
+        return dict(result, status="OK", values=difference)
 
     if payload.get("type", "interventional") != "interventional" or payload.get("summary", "mean") not in {"mean", "probability"} or payload.get("evidence"):
         return fail("UNSUPPORTED", "Sample estimation supports Interventional Mean or Probability without evidence.")
@@ -559,74 +604,85 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
             sizes.append(k)
     result["diagnostics"].update(poor_coverage_fraction=poor_coverage / len(data),
                                  max_squared_radius_ratio=max(radii, default=0),
-                                 coverage_rule="abstain if >5% rows exceed 3x their factual neighbor radius")
+                                 coverage_rule="warn if >5% rows exceed 3x their factual neighbor radius")
     result["k"] = sorted(set(sizes))
-    if poor_coverage > .05 * len(data):
-        return fail("UNKNOWN", "INSUFFICIENT_DATA: weak observed neighbor coverage for the intervention; generate more rows or change its value.")
     values = predictions.mean(axis=0)
     if not np.isfinite(values).all():
         return fail("UNKNOWN", "Sample estimator produced nonfinite values.")
     if perf_counter() >= deadline:
         return fail("UNKNOWN", "Sample estimator deadline exhausted.")
+    if poor_coverage > .05 * len(data):
+        result["info"] = "Approximate estimate; weak empirical coverage."
     return dict(result, status="OK", values=dict(zip(["Probability"] if event is not None else outcomes, values.tolist())))
 
 
 def _reference(model, payload, n, seed, seconds):
-    """Analytic scalar linear Mean when verified; otherwise use existing simulation."""
+    """Verified scalar linear means/contrasts; otherwise existing paired simulation."""
     started = perf_counter()
     options = dict(query_type=payload.get("type", "interventional"),
                    intervention=payload.get("intervention", {}), evidence=payload.get("evidence", {}),
                    reference=payload.get("reference"), summary=payload.get("summary", "mean"),
                    event=payload.get("event"), n=n, seed=seed)
-    if seconds > 0 and options["query_type"] == "interventional" and options["summary"] == "mean" and not options["evidence"]:
-        # The first deadline check precedes every draw: reuse validation, not MC.
-        template = model.query(payload.get("targets"), **options, max_seconds=0)
-        query = template["query"]
-        actions, needed = query["intervention"], set(query["targets"])
+    contrast = options["summary"] == "mean_difference"
+    if (seconds > 0 and not options["evidence"] and options["summary"] in {"mean", "mean_difference"}
+            and (options["query_type"] == "interventional" or contrast and options["query_type"] == "counterfactual")):
+        # Zero-budget validation draws nothing and preserves the original query metadata.
+        query = model.query(payload.get("targets"), **options, max_seconds=0)["query"]
         order = list(nx.topological_sort(model.graph))
-        for v in reversed(order):
-            if v in needed and v not in actions:
-                needed.update(model.graph.predecessors(v))
         linear_code = next(c for c in _make_equation.__code__.co_consts
                            if isinstance(c, CodeType) and c.co_name == "equation")
-        means = {}
-        for v in (v for v in order if v in needed):
-            if perf_counter() - started >= seconds or model._variables[v]["shape"] != ():
-                break
-            if v in actions:
-                means[v] = float(actions[v])
-                continue
-            function = model.equations[v]
-            if model._uses_legacy_rng(v):
-                break
-            noise = model.noise_distributions.get(v)
-            noise = noise.distribution if isinstance(noise, U) else noise
-            if noise is not None and (not isinstance(noise, rv_frozen) or noise.dist.name not in {"norm", "uniform"}
-                    or getattr(noise.rvs, "__func__", None) is not rv_frozen.rvs
-                    or getattr(noise.mean, "__func__", None) is not rv_frozen.mean):
-                break
-            mean_noise = np.asarray(0 if noise is None else noise.mean())
-            if mean_noise.shape or not np.isfinite(mean_noise):
-                break
-            if function is _noise_value and not model._variables[v]["observed"] and not model.graph.in_degree(v):
-                means[v] = float(mean_noise)
-            elif getattr(function, "__code__", None) is linear_code:
-                bindings = dict(zip(function.__code__.co_freevars, (c.cell_contents for c in function.__closure__)))
-                coefficients, intercept = bindings["coefficients"], bindings["intercept"]
-                if (bindings["kind"] != "linear" or set(coefficients) != set(model.graph.predecessors(v))
-                        or not np.isfinite([intercept, *coefficients.values()]).all()):
-                    break
-                means[v] = float(intercept + sum(c * means[p] for p, c in coefficients.items()) + mean_noise)
-            else:
-                break
-            if not np.isfinite(means[v]):
-                break
-        else:
-            if perf_counter() - started < seconds:
-                return dict(status="OK", approximate=False, query=query,
-                            values={model._variables[v].get("columns", [v])[0]: means[v] for v in query["targets"]},
-                            diagnostics={"method": "analytic linear expectation", "n": 0,
-                                         "conditioning": "none", "elapsed_seconds": perf_counter() - started})
+
+        def linear_means(actions):
+            needed = set(query["targets"])
+            for v in reversed(order):
+                if v in needed and v not in actions:
+                    needed.update(model.graph.predecessors(v))
+            means = {}
+            for v in (v for v in order if v in needed):
+                if perf_counter() - started >= seconds or model._variables[v]["shape"] != ():
+                    return None
+                if v in actions:
+                    means[v] = float(actions[v])
+                    continue
+                function = model.equations[v]
+                if model._uses_legacy_rng(v):
+                    return None
+                noise = model.noise_distributions.get(v)
+                noise = noise.distribution if isinstance(noise, U) else noise
+                if noise is not None and (not isinstance(noise, rv_frozen) or noise.dist.name not in {"norm", "uniform"}
+                        or getattr(noise.rvs, "__func__", None) is not rv_frozen.rvs
+                        or getattr(noise.mean, "__func__", None) is not rv_frozen.mean):
+                    return None
+                mean_noise = np.asarray(0 if noise is None else noise.mean())
+                if mean_noise.shape or not np.isfinite(mean_noise):
+                    return None
+                if function is _noise_value and not model._variables[v]["observed"] and not model.graph.in_degree(v):
+                    means[v] = float(mean_noise)
+                elif getattr(function, "__code__", None) is linear_code:
+                    bindings = dict(zip(function.__code__.co_freevars, (c.cell_contents for c in function.__closure__)))
+                    coefficients, intercept = bindings["coefficients"], bindings["intercept"]
+                    if (bindings["kind"] != "linear" or set(coefficients) != set(model.graph.predecessors(v))
+                            or not np.isfinite([intercept, *coefficients.values()]).all()):
+                        return None
+                    means[v] = float(intercept + sum(c * means[p] for p, c in coefficients.items()) + mean_noise)
+                else:
+                    return None
+                if not np.isfinite(means[v]):
+                    return None
+            return {model._variables[v].get("columns", [v])[0]: means[v] for v in query["targets"]}
+
+        worlds = [linear_means(query["intervention"])]
+        if contrast and worlds[0] is not None:
+            worlds.append(linear_means(query["reference"]))
+        if all(world is not None for world in worlds) and (not contrast or len(worlds) == 2):
+            values = {c: value - worlds[1][c] if contrast else value for c, value in worlds[0].items()}
+            if perf_counter() - started < seconds and np.isfinite(list(values.values())).all():
+                result = dict(status="OK", approximate=False, query=query, values=values,
+                              diagnostics={"method": "analytic linear expectation", "n": 0,
+                                           "conditioning": "none", "elapsed_seconds": perf_counter() - started})
+                if contrast:
+                    result.update(intervention_values=worlds[0], reference_values=worlds[1])
+                return result
     return model.query(payload.get("targets"), **options, max_seconds=max(0, seconds - (perf_counter() - started)))
 
 

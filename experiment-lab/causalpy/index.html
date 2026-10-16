@@ -1824,7 +1824,7 @@
         for (const values of result.rows) $("sample").append(row(values, "td"));
         $("result-title").textContent = `${result.shape[0] > 10 ? `10/${result.shape[0]}` : result.shape[0]} rows × ${result.shape[1]} columns`;
         message("");
-        if ($("query-type").value === "interventional" && ["mean", "probability"].includes($("query-summary").value)) {
+        if ($("query-type").value === "interventional" && ["mean", "probability", "mean_difference"].includes($("query-summary").value)) {
           try {
             if (!Object.keys(assignments("query-evidence")).length) await computeQuery();
           } catch (error) {

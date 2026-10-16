@@ -355,7 +355,7 @@ def analyze(payload):
 
 
 def graph_examples():
-    """Fresh JSON graph snapshots from the exact source dictionary."""
+    """Fresh source snapshots with treatment labels A, or A1, A2, ... ."""
     result = []
     for key, case in UCA_GRAPH_DICTIONARY.items():
         G = graph.create_acyclic_graph(case['graph'])
@@ -365,7 +365,19 @@ def graph_examples():
         positions = {v:(100+640*(i%width)/max(1,width-1),285 if len(observed)<=7 else 230+90*(i//width)) for i,v in enumerate(observed)}
         for i,v in enumerate(v for v in G if v not in case['observed']):
             positions[v] = (60+92*(i%9),45+70*(i//9))
+        names = {v: 'A' if len(case['X']) == 1 else f'A{i+1}' for i,v in enumerate(case['X'])}
+        reserved = set(names.values())
+        used = set(G) | reserved
+        for v in G:
+            if v not in names and (v == 'A' or v.startswith('A') and v[1:].isdigit()):
+                i = 0
+                while ('M' if i == 0 else f'M{i}') in used:
+                    i += 1
+                names[v] = 'M' if i == 0 else f'M{i}'
+                used.add(names[v])
+        label = lambda v: names.get(v, v)
         result.append(dict(id=key,title=case['title'],source=list(case['source']),
-            nodes=[dict(name=v,observed=v in case['observed'],dimension=1,x=positions[v][0],y=positions[v][1]) for v in G],
-            edges=[list(edge) for edge in G.edges],X=list(case['X']),Y=list(case['Y']),Z=list(case['Z'])))
+            nodes=[dict(name=label(v),observed=v in case['observed'],dimension=1,x=positions[v][0],y=positions[v][1]) for v in G],
+            edges=[[label(a),label(b)] for a,b in G.edges],
+            X=[label(v) for v in case['X']],Y=[label(v) for v in case['Y']],Z=[label(v) for v in case['Z']]))
     return result
