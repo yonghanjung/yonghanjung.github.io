@@ -1374,6 +1374,7 @@
     }
     function formulaNode(tree, budget = { remaining: 5000, used: new Set(nodes.map((n) => n.name)) }, depth = 0, aliases = new Map(), values = {}) {
       if (!tree || --budget.remaining < 0 || depth > 96) throw Error("Formula display limit.");
+      if (tree.type === "expectation" && tree.outcomes.length > 1) throw Error("Multiple outcomes require Probability or Distribution.");
       const child = (value, scope = aliases) => formulaNode(value, budget, depth + 1, scope, values),
         argument = (value) => mathArgument(value, aliases, values);
       if (tree.type === "number") return m("mn", tree.value);
@@ -1930,6 +1931,11 @@
           .filter(Boolean)
       ),
     ];
+    function checkedSummary(summary = $("query-summary").value) {
+      if (queryNames("query-y").length > 1 && !["probability", "distribution"].includes(summary))
+        throw Error("Multiple outcomes require Probability or Distribution.");
+      return summary;
+    }
     function assignments(id) {
       const value = JSON.parse($(id).value || "{}");
       if (!value || typeof value !== "object" || Array.isArray(value)) throw Error("Use a JSON object of node values.");
@@ -2059,6 +2065,7 @@
       return null;
     }
     function summaryMath(result, values, summary) {
+      summary = checkedSummary(summary);
       const names = queryNames("query-y"),
         target = () => (summary === "probability" ? eventMath() : mathList(names.map(mathName))),
         operator = ["probability", "distribution"].includes(summary) ? "P" : "E",
@@ -2096,7 +2103,9 @@
       );
     }
     function renderEstimand() {
+      let summary;
       try {
+        summary = checkedSummary();
         queryEvidence(true);
       } catch (error) {
         $("identification-results").hidden = true;
@@ -2113,7 +2122,6 @@
         reference;
       try {
         const values = actionValues(),
-          summary = $("query-summary").value,
           referenceValues = summary === "mean_difference" ? checkedAssignments("query-reference") : null;
         if (summary === "probability") eventMath();
         reference = referenceValues
@@ -2191,7 +2199,7 @@
     function queryMath() {
       const intervention = actionValues(),
         evidence = queryEvidence(),
-        summary = $("query-summary").value,
+        summary = checkedSummary(),
         counterfactual = $("query-type").value === "counterfactual",
         targets = () => mathList(queryNames("query-y").map(mathName)),
         action = (values) => m("mrow", m("mi", "do"), fence(assignmentMath(values))),
@@ -2300,13 +2308,11 @@
         updateQuery();
       };
     async function computeQuery() {
-      if ($("query-summary").value === "distribution") {
-        clearComputation();
-        return;
-      }
+      clearComputation();
+      const summary = checkedSummary();
+      if (summary === "distribution") return;
       const intervention = actionValues(),
-        evidence = queryEvidence(),
-        summary = $("query-summary").value;
+        evidence = queryEvidence();
       const event = summary === "probability" ? queryEvent() : {};
       const version = queryRevision,
         currentToken = token,
@@ -2411,12 +2417,13 @@
       perform(async () => {
         $("identification-results").hidden = true;
         analysisMessage("Checking identification…");
+        const summary = checkedSummary();
         actionValues();
         queryEvidence(true);
-        if ($("query-summary").value === "probability") queryEvent();
+        if (summary === "probability") queryEvent();
         const actions = queryNames("query-x"),
           key = analysisKey(actions),
-          referenceNames = $("query-summary").value === "mean_difference" ? Object.keys(checkedAssignments("query-reference")) : [],
+          referenceNames = summary === "mean_difference" ? Object.keys(checkedAssignments("query-reference")) : [],
           referenceKey = analysisKey(referenceNames),
           payload = {
             nodes,
