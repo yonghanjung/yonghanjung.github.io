@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overfitting and Double Descent</title>
+<style>
+:root {
+  --bg: #FFFFFF; --panel: #F8FAFC; --ink: #11233F; --muted: #53657A; --line: #CBD5E1;
+  --grid: #E2E8F0; --navy: #173B7A; --teal: #0E7490; --testfill: #FFFFFF;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F172A; --panel: #16213A; --ink: #E2E8F0; --muted: #94A3B8; --line: #334155;
+    --grid: #1E293B; --navy: #8FB3F0; --teal: #38BDD8; --testfill: #0F172A;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F172A; --panel: #16213A; --ink: #E2E8F0; --muted: #94A3B8; --line: #334155;
+  --grid: #1E293B; --navy: #8FB3F0; --teal: #38BDD8; --testfill: #0F172A;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+       font: 19px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1400px; margin: 0 auto; padding: 18px 16px 28px; }
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-bottom: 14px; }
+h1 { font-size: 30px; margin: 0; }
+.tabs { display: inline-flex; flex-wrap: wrap; max-width: 100%; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.tabs button { flex: 1 1 auto; border: 0; border-radius: 0; padding: 8px 20px; background: var(--bg); color: var(--ink);
+               font-weight: 700; font-size: 19px; }
+.tabs button[aria-pressed="true"] { background: var(--teal); color: #FFFFFF; }
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px 26px;
+            background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+.ctl label { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; font-size: 19px; margin-bottom: 6px; }
+.ctl output { font-variant-numeric: tabular-nums; color: var(--teal); font-size: 22px; }
+.ctl label.check { justify-content: flex-start; align-items: center; gap: 10px; margin-top: 26px; cursor: pointer; }
+.check input { width: 24px; height: 24px; accent-color: var(--teal); }
+input[type=range] { width: 100%; height: 28px; accent-color: var(--teal); }
+select, input[type=number], button { font: inherit; color: var(--ink); background: var(--bg);
+       border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; }
+select { width: 100%; }
+.row { display: flex; gap: 8px; }
+.row input { width: 100%; min-width: 0; }
+button { cursor: pointer; white-space: nowrap; }
+.readouts { display: flex; flex-wrap: wrap; gap: 8px 40px; margin: 16px 4px 12px; font-size: 26px; }
+.readouts b { font-variant-numeric: tabular-nums; }
+.plots { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 900px) { .plots { grid-template-columns: 1fr; } }
+canvas { width: 100%; height: 480px; display: block; border: 1px solid var(--line); border-radius: 12px; }
+@media (max-width: 600px) { body { font-size: 17px; } h1 { font-size: 24px; } .readouts { font-size: 21px; } canvas { height: 380px; } }
+.tr { color: var(--navy); } .te { color: var(--teal); }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+<div class="top">
+  <h1>Overfitting and double descent</h1>
+  <div class="tabs" role="group" aria-label="View">
+    <button type="button" id="vOF" aria-pressed="true">Overfitting</button>
+    <button type="button" id="vDD" aria-pressed="false">Double descent</button>
+  </div>
+</div>
+<section class="controls" aria-label="Settings">
+  <div class="ctl"><label for="src">Data</label>
+    <select id="src"><option value="lecture">Lecture data</option><option value="fresh">New random data</option></select></div>
+  <div class="ctl"><label for="n">Training points <output id="nOut" for="n"></output></label>
+    <input type="range" id="n" min="2" max="100" value="10"></div>
+  <div class="ctl"><label for="m">Test points <output id="mOut" for="m"></output></label>
+    <input type="range" id="m" min="1" max="1000" value="50"></div>
+  <div class="ctl"><label for="d">Degree d <output id="dOut" for="d"></output></label>
+    <input type="range" id="d" min="0" max="50" value="3"></div>
+  <div class="ctl"><label for="lam">Penalty &lambda; <output id="lamOut" for="lam"></output></label>
+    <input type="range" id="lam" min="0" max="70" value="0"></div>
+  <div class="ctl"><label class="check"><input type="checkbox" id="showTest" checked> Show test data</label></div>
+  <div class="ctl" id="seedBox" hidden><label for="seed">Seed</label>
+    <div class="row"><input type="number" id="seed" value="507"><button id="redraw" type="button">New draw</button></div></div>
+</section>
+<div class="readouts" aria-live="polite">
+  <span id="Dbox"></span>
+  <span class="tr">Training RMSE <b id="trv"></b></span>
+  <span class="te" id="teBox">Test RMSE <b id="tev"></b></span>
+</div>
+<div class="plots">
+  <canvas id="fitc" role="img" aria-label="Training points, test points, the truth, and the fitted polynomial"></canvas>
+  <canvas id="errc" role="img" aria-label="Training and test RMSE against the degree"></canvas>
+</div>
+</main>
+<!-- Least squares up to degree n - 1: Vandermonde with Arnoldi (Brubeck, Nakatsukasa, and Trefethen, SIAM Review 63(2), 2021).
+     Past n - 1 (double-descent view): of all polynomials of degree <= d through every distinct training point, the one with the
+     smallest int h^2 dx + int x(1 - x) h'(x)^2 dx on [0, 1], i.e. the smallest Legendre weights sum (1 + k(k + 1)) theta_k^2.
+     Lecture data: fixed lists of 100 training and 50 test points (the truth sin(2 pi x) plus noise with SD 0.3); test points beyond
+     the first 50 are new draws from the same model with seed 2026. Just past n - 1 an RMSE above 1,000 shows as > 1,000.
+     Penalty lambda > 0: least squares plus lambda times that same C(h), for every degree; slider position s gives lambda = 10^(s/10 - 7). -->
+<script>
+const LECTURE = {"x":[0.0,0.111,0.222,0.333,0.444,0.556,0.667,0.778,0.889,1.0,0.161,0.1,0.098,0.115,0.497,0.277,0.96,0.114,0.435,0.272,0.843,0.603,0.646,0.376,0.396,0.196,0.884,0.872,0.875,0.565,0.82,0.803,0.411,0.416,0.352,0.174,0.158,0.353,0.931,0.347,0.192,0.623,0.06,0.055,0.002,0.354,0.523,0.646,0.316,0.341,0.883,0.117,0.569,0.41,0.539,0.361,0.687,0.125,0.408,0.507,0.697,0.976,0.364,0.904,0.326,0.055,0.211,0.021,0.402,0.004,0.751,0.67,0.195,0.402,0.859,0.839,0.765,0.58,0.007,0.506,0.155,0.561,0.928,0.903,0.621,0.122,0.922,0.643,0.622,0.308,0.108,0.705,0.444,0.7,0.853,0.458,0.389,0.367,0.471,0.661],"y":[0.197,0.306,1.139,0.728,0.609,0.115,-0.742,-1.563,0.318,0.321,0.529,0.898,1.082,0.949,0.11,0.741,-0.128,0.791,0.424,1.26,-1.354,-0.544,-1.163,1.003,1.212,0.806,-0.845,-0.428,-0.48,-0.471,-0.742,-0.781,0.427,0.699,0.724,1.149,0.88,0.652,-0.727,0.548,1.049,-1.086,0.139,0.387,-0.443,0.607,-0.075,-0.561,0.85,0.604,-0.761,1.226,-0.826,0.137,-0.043,0.572,-0.537,0.694,0.594,-0.585,-1.204,-0.217,0.799,-0.153,1.007,0.424,0.946,0.146,0.633,-0.155,-1.222,-1.082,0.669,0.466,-0.408,-1.168,-0.852,-0.175,-0.416,0.284,1.309,0.026,-0.75,-0.279,-0.221,0.464,0.328,-1.363,-1.002,0.894,0.53,-0.751,0.666,-1.642,-0.628,0.086,1.053,0.724,-0.199,-0.424],"u":[0.848,0.933,0.205,0.808,0.56,0.378,0.192,0.999,0.392,0.829,0.019,0.247,0.279,0.343,0.32,0.893,0.69,0.814,0.526,0.945,0.93,0.967,0.095,0.448,0.041,0.688,0.451,0.952,0.88,0.235,0.846,0.295,0.805,0.498,0.758,0.072,0.752,0.413,0.512,0.129,0.745,0.664,0.372,0.499,0.241,0.362,0.462,0.431,0.171,0.189],"v":[-0.986,-0.341,0.76,-0.862,-0.656,0.867,0.668,0.464,0.948,-1.121,0.311,0.501,1.159,1.177,1.137,-0.303,-1.403,-0.926,-0.13,-0.402,-0.054,-0.319,0.538,0.331,0.534,-0.369,0.974,-0.15,-0.699,1.285,-1.287,1.274,-0.755,0.115,-0.863,0.523,-1.396,1.198,0.35,0.816,-1.008,-0.852,0.684,0.058,1.37,1.115,0.213,0.578,0.471,0.906]};
+// Least-squares polynomial fits of every degree 0..Dmax at once, by Vandermonde with Arnoldi
+// (Brubeck, Nakatsukasa, and Trefethen 2021, SIAM Review 63(2)): the basis is orthonormal on the training points,
+// so the fit of degree D uses the first D + 1 coefficients, and no ill-conditioned Vandermonde matrix is formed.
+function arnoldiFit(x, y, Dmax) {
+  const m = x.length, t = x.map(v => 2 * v - 1);
+  const Q = [new Array(m).fill(1)], H = [];
+  for (let k = 0; k < Dmax; k++) {
+    let q = t.map((v, i) => v * Q[k][i]);
+    const h = new Array(k + 2).fill(0);
+    for (let pass = 0; pass < 2; pass++) {               // Gram-Schmidt twice, for orthogonality
+      for (let j = 0; j <= k; j++) {
+        let s = 0; for (let i = 0; i < m; i++) s += Q[j][i] * q[i];
+        s /= m; h[j] += s;
+        for (let i = 0; i < m; i++) q[i] -= s * Q[j][i];
+      }
+    }
+    let nrm = 0; for (let i = 0; i < m; i++) nrm += q[i] * q[i];
+    h[k + 1] = Math.sqrt(nrm / m);
+    H.push(h);
+    Q.push(q.map(v => v / h[k + 1]));
+  }
+  const c = Q.map(col => { let s = 0; for (let i = 0; i < m; i++) s += col[i] * y[i]; return s / m; });
+  return { c, H, Q };
+}
+// ---------- data ----------
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function drawPool(seed, N) {                               // x uniform on [0, 1], y = sin(2 pi x) + 0.3 z
+  const r = mulberry32(seed), x = [], y = [];
+  for (let i = 0; i < N; i++) {
+    const xi = r(), u1 = Math.max(r(), 1e-12), u2 = r();
+    x.push(xi); y.push(Math.sin(2 * Math.PI * xi) + 0.3 * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2));
+  }
+  return { x, y };
+}
+let pool = null;
+function makePool() {
+  if (el.src.value === "lecture") {
+    const extra = drawPool(2026, 950);                       // test points beyond the fixed 50: new draws, same model
+    pool = { x: LECTURE.x, y: LECTURE.y, u: LECTURE.u.concat(extra.x), v: LECTURE.v.concat(extra.y) }; return;
+  }
+  const s = Number(el.seed.value) || 0, tr = drawPool(s, 300), te = drawPool(s + 1000003, 1000);
+  pool = { x: tr.x, y: tr.y, u: te.x, v: te.y };
+}
+// ---------- least squares, degree <= n - 1 ----------
+function evalAll(fit, s, Dmax) {                           // cumulative fits of degree 0..Dmax at the points s
+  const t = s.map(v => 2 * v - 1), W = [new Array(s.length).fill(1)], out = [];
+  let acc = s.map(() => fit.c[0]); out.push(acc.slice());
+  for (let k = 0; k < Dmax; k++) {
+    const w = t.map((v, i) => v * W[k][i]);
+    for (let j = 0; j <= k; j++) { const h = fit.H[k][j]; for (let i = 0; i < s.length; i++) w[i] -= h * W[j][i]; }
+    const hk = fit.H[k][k + 1]; for (let i = 0; i < w.length; i++) w[i] /= hk;
+    W.push(w);
+    acc = acc.map((a, i) => a + fit.c[k + 1] * w[i]); out.push(acc.slice());
+  }
+  return out;
+}
+function trainingAll(fit, Dmax) {                          // cumulative fits at the training points, from the orthonormal basis
+  const m = fit.Q[0].length, out = []; let acc = new Array(m).fill(0);
+  for (let k = 0; k <= Dmax; k++) { acc = acc.map((a, i) => a + fit.c[k] * fit.Q[k][i]); out.push(acc.slice()); }
+  return out;
+}
+// ---------- past n - 1: the smoothest curve through every training point ----------
+// Among all polynomials of degree <= d through every distinct training point, the one with the smallest
+// int h^2 dx + int x(1 - x) h'(x)^2 dx = sum_k (1 + k(k + 1)) theta_k^2 (Legendre basis orthonormal on [0, 1]).
+// Kernel form h(x) = sum_i alpha_i K_d(x, x_i), K_d(x, z) = sum_{k <= d} L_k(x) L_k(z) / w_k; K_d(X, X) = R^T R by Givens updates.
+const wDD = k => 1 + k * (k + 1);
+function ddPath(xd, yd, u, v, Kmax) {
+  const m = xd.length, M = u.length, tx = xd.map(q => 2 * q - 1), tu = u.map(q => 2 * q - 1);
+  const R = new Float64Array(m * m), KU = new Float64Array(M * m), te = new Array(Kmax + 1).fill(NaN), alpha = [];
+  let Px0 = null, Px1 = new Float64Array(m).fill(1), Pu0 = null, Pu1 = new Float64Array(M).fill(1);
+  const r = new Float64Array(m), z = new Float64Array(m), a = new Float64Array(m);
+  for (let k = 0; k <= Kmax; k++) {
+    if (k > 0) {
+      const nx = new Float64Array(m), nu = new Float64Array(M);
+      for (let i = 0; i < m; i++) nx[i] = ((2 * k - 1) * tx[i] * Px1[i] - (k - 1) * (Px0 ? Px0[i] : 0)) / k;
+      for (let j = 0; j < M; j++) nu[j] = ((2 * k - 1) * tu[j] * Pu1[j] - (k - 1) * (Pu0 ? Pu0[j] : 0)) / k;
+      Px0 = Px1; Px1 = nx; Pu0 = Pu1; Pu1 = nu;
+    }
+    const sc = Math.sqrt((2 * k + 1) / wDD(k));
+    for (let i = 0; i < m; i++) r[i] = sc * Px1[i];
+    for (let j = 0; j < M; j++) { const lu = sc * Pu1[j]; for (let i = 0; i < m; i++) KU[j * m + i] += lu * r[i]; }
+    for (let j = 0; j < m; j++) {
+      const b = r[j]; if (b === 0) continue;
+      const aa = R[j * m + j], h = Math.hypot(aa, b), c = aa / h, s = b / h;
+      R[j * m + j] = h;
+      for (let l = j + 1; l < m; l++) { const Rj = R[j * m + l], rl = r[l]; R[j * m + l] = c * Rj + s * rl; r[l] = -s * Rj + c * rl; }
+    }
+    if (k >= m) {
+      for (let i = 0; i < m; i++) { let s = yd[i]; for (let l = 0; l < i; l++) s -= R[l * m + i] * z[l]; z[i] = s / R[i * m + i]; }
+      for (let i = m - 1; i >= 0; i--) { let s = z[i]; for (let l = i + 1; l < m; l++) s -= R[i * m + l] * a[l]; a[i] = s / R[i * m + i]; }
+      let ss = 0;
+      for (let j = 0; j < M; j++) { let p = 0; for (let i = 0; i < m; i++) p += KU[j * m + i] * a[i]; ss += (p - v[j]) ** 2; }
+      te[k] = Math.sqrt(ss / M); alpha[k] = Float64Array.from(a);
+    }
+  }
+  return { te, alpha };
+}
+function ddCurve(xd, alpha, d, g) {
+  const m = xd.length, G = g.length, tx = xd.map(q => 2 * q - 1), tg = g.map(q => 2 * q - 1), h = new Float64Array(G);
+  let Px0 = null, Px1 = new Float64Array(m).fill(1), Pg0 = null, Pg1 = new Float64Array(G).fill(1);
+  for (let k = 0; k <= d; k++) {
+    if (k > 0) {
+      const nx = new Float64Array(m), ng = new Float64Array(G);
+      for (let i = 0; i < m; i++) nx[i] = ((2 * k - 1) * tx[i] * Px1[i] - (k - 1) * (Px0 ? Px0[i] : 0)) / k;
+      for (let j = 0; j < G; j++) ng[j] = ((2 * k - 1) * tg[j] * Pg1[j] - (k - 1) * (Pg0 ? Pg0[j] : 0)) / k;
+      Px0 = Px1; Px1 = nx; Pg0 = Pg1; Pg1 = ng;
+    }
+    const L = Math.sqrt(2 * k + 1); let th = 0;
+    for (let i = 0; i < m; i++) th += L * Px1[i] * alpha[i];
+    th /= wDD(k);
+    for (let j = 0; j < G; j++) h[j] += th * L * Pg1[j];
+  }
+  return h;
+}
+// Least squares plus a complexity penalty: minimize (1/n) sum (y_i - h(x_i))^2 + lam * C(h), C(h) = sum_k (1 + k(k + 1)) theta_k^2,
+// over polynomials of degree <= d, for every d. Kernel form on the distinct x values with counts c_j:
+// (K_d + n lam C^-1) alpha = ybar, h(X) = ybar - n lam C^-1 alpha; R^T R = n lam C^-1 + K_d starts diagonal and gains one row per degree.
+function penPath(xd, yd, cnt, n, u, v, Kmax, lam) {
+  const m = xd.length, M = u.length, tx = xd.map(q => 2 * q - 1), tu = u.map(q => 2 * q - 1);
+  const R = new Float64Array(m * m), KU = new Float64Array(M * m);
+  for (let j = 0; j < m; j++) R[j * m + j] = Math.sqrt(n * lam / cnt[j]);
+  const te = new Array(Kmax + 1), trSS = new Array(Kmax + 1), alpha = [];
+  let Px0 = null, Px1 = new Float64Array(m).fill(1), Pu0 = null, Pu1 = new Float64Array(M).fill(1);
+  const r = new Float64Array(m), z = new Float64Array(m), a = new Float64Array(m);
+  for (let k = 0; k <= Kmax; k++) {
+    if (k > 0) {
+      const nx = new Float64Array(m), nu = new Float64Array(M);
+      for (let i = 0; i < m; i++) nx[i] = ((2 * k - 1) * tx[i] * Px1[i] - (k - 1) * (Px0 ? Px0[i] : 0)) / k;
+      for (let j = 0; j < M; j++) nu[j] = ((2 * k - 1) * tu[j] * Pu1[j] - (k - 1) * (Pu0 ? Pu0[j] : 0)) / k;
+      Px0 = Px1; Px1 = nx; Pu0 = Pu1; Pu1 = nu;
+    }
+    const sc = Math.sqrt((2 * k + 1) / (1 + k * (k + 1)));
+    for (let i = 0; i < m; i++) r[i] = sc * Px1[i];
+    for (let j = 0; j < M; j++) { const lu = sc * Pu1[j]; for (let i = 0; i < m; i++) KU[j * m + i] += lu * r[i]; }
+    for (let j = 0; j < m; j++) {
+      const b = r[j]; if (b === 0) continue;
+      const aa = R[j * m + j], h = Math.hypot(aa, b), c = aa / h, s = b / h;
+      R[j * m + j] = h;
+      for (let l = j + 1; l < m; l++) { const Rj = R[j * m + l], rl = r[l]; R[j * m + l] = c * Rj + s * rl; r[l] = -s * Rj + c * rl; }
+    }
+    for (let i = 0; i < m; i++) { let s = yd[i]; for (let l = 0; l < i; l++) s -= R[l * m + i] * z[l]; z[i] = s / R[i * m + i]; }
+    for (let i = m - 1; i >= 0; i--) { let s = z[i]; for (let l = i + 1; l < m; l++) s -= R[i * m + l] * a[l]; a[i] = s / R[i * m + i]; }
+    let ss = 0;
+    for (let j = 0; j < M; j++) { let p = 0; for (let i = 0; i < m; i++) p += KU[j * m + i] * a[i]; ss += (p - v[j]) ** 2; }
+    te[k] = Math.sqrt(ss / M); alpha[k] = Float64Array.from(a);
+    trSS[k] = Float64Array.from(a, (q, j) => yd[j] - n * lam * q / cnt[j]);   // the fitted values at the distinct x
+  }
+  return { te, fitted: trSS, alpha };
+}
+// ---------- state ----------
+let view = "OF", cache = null, curD = 3;
+const DDMAX = 3000, LOGMAX = Math.log(DDMAX + 1);
+const sliderToD = s => view === "OF" ? +s : Math.round(Math.exp(s / 1000 * LOGMAX) - 1);
+const lamOf = s => +s === 0 ? 0 : Math.pow(10, +s / 10 - 7);
+const dToSlider = d => view === "OF" ? Math.min(50, d) : Math.round(1000 * Math.log(d + 1) / LOGMAX);
+const rm = (a, b) => Math.sqrt(a.reduce((s, q, i) => s + (q - b[i]) ** 2, 0) / a.length);
+function compute() {
+  const n = +el.n.value, M = +el.m.value;
+  const x = pool.x.slice(0, n), y = pool.y.slice(0, n), u = pool.u.slice(0, M), v = pool.v.slice(0, M);
+  const sums = new Map();
+  x.forEach((xi, i) => { const q = sums.get(xi) || [0, 0]; q[0] += y[i]; q[1] += 1; sums.set(xi, q); });
+  const ux = [...sums.keys()].sort((a, b) => a - b), uy = ux.map(q => sums.get(q)[0] / sums.get(q)[1]), mD = ux.length;
+  const lsMax = view === "OF" ? Math.min(50, mD - 1) : mD - 1;
+  const fit = arnoldiFit(x, y, lsMax);
+  const trLS = trainingAll(fit, lsMax).map(p => rm(p, y)), teLS = evalAll(fit, u, lsMax).map(p => rm(p, v));
+  const lam = lamOf(el.lam.value);
+  const dd = view === "DD" && lam === 0 ? ddPath(ux, uy, u, v, DDMAX) : null;
+  const trDD = rm(x.map(xi => sums.get(xi)[0] / sums.get(xi)[1]), y);   // past n - 1 every distinct x is fit exactly
+  let pen = null;
+  if (lam > 0) {                                           // least squares plus lam C(h), unique at every degree
+    const cnt = ux.map(q => sums.get(q)[1]), pos = new Map(ux.map((q, j) => [q, j]));
+    const p = penPath(ux, uy, cnt, n, u, v, view === "OF" ? 50 : DDMAX, lam);
+    pen = { te: p.te, alpha: p.alpha, tr: p.fitted.map(f => rm(x.map(xi => f[pos.get(xi)]), y)) };
+  }
+  cache = { n, x, y, u, v, ux, uy, mD, lsMax, fit, trLS, teLS, dd, trDD, lam, pen };
+}
+function errAt(d) {
+  const c = cache;
+  if (c.pen) return { tr: c.pen.tr[d], te: c.pen.te[d], ls: false, pen: true };
+  if (d <= c.lsMax) return { tr: c.trLS[d], te: c.teLS[d], ls: true };
+  return { tr: c.trDD, te: c.dd.te[d], ls: false };
+}
+// ---------- drawing ----------
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function setup(cv) {
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+  const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, W: r.width, H: r.height };
+}
+const PAD = { l: 58, r: 18, t: 44, b: 56 };
+function frame(ctx, W, H, X, Y, xticks, yticks, xlab, ylab) {
+  ctx.clearRect(0, 0, W, H); ctx.lineWidth = 1; ctx.font = "16px system-ui, sans-serif";
+  ctx.strokeStyle = css("--grid"); ctx.fillStyle = css("--muted");
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (const v of yticks) { ctx.beginPath(); ctx.moveTo(PAD.l, Y(v)); ctx.lineTo(W - PAD.r, Y(v)); ctx.stroke(); ctx.fillText(String(v), PAD.l - 6, Y(v)); }
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (const [v, lab] of xticks) { ctx.beginPath(); ctx.moveTo(X(v), PAD.t); ctx.lineTo(X(v), H - PAD.b); ctx.stroke(); ctx.fillText(lab, X(v), H - PAD.b + 5); }
+  ctx.fillText(xlab, PAD.l + (W - PAD.l - PAD.r) / 2, H - PAD.b + 28);
+  ctx.save(); ctx.translate(16, PAD.t + (H - PAD.t - PAD.b) / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = "center"; ctx.fillText(ylab, 0, -4); ctx.restore();
+}
+function clipTo(ctx, W, H) { ctx.save(); ctx.beginPath(); ctx.rect(PAD.l, PAD.t, W - PAD.l - PAD.r, H - PAD.t - PAD.b); ctx.clip(); }
+function drawFit(st) {
+  const { ctx, W, H } = setup(el.fitc);
+  const X = v => PAD.l + v * (W - PAD.l - PAD.r), Y = v => PAD.t + (2.5 - v) / 5 * (H - PAD.t - PAD.b);
+  frame(ctx, W, H, X, Y, [0, 0.25, 0.5, 0.75, 1].map(v => [v, String(v)]), [-2, -1, 0, 1, 2], "x", "y");
+  const Yc = v => Y(Math.max(-1e4, Math.min(1e4, v)));
+  clipTo(ctx, W, H);
+  ctx.setLineDash([6, 5]); ctx.strokeStyle = css("--muted"); ctx.lineWidth = 1.5; ctx.beginPath();
+  for (let i = 0; i <= 300; i++) { const x = i / 300; i ? ctx.lineTo(X(x), Y(Math.sin(2 * Math.PI * x))) : ctx.moveTo(X(x), Y(Math.sin(2 * Math.PI * x))); }
+  ctx.stroke(); ctx.setLineDash([]);
+  const r = st.n > 120 ? 3 : 4.5;
+  if (el.showTest.checked) {
+    ctx.lineWidth = 1.2; ctx.strokeStyle = css("--navy"); ctx.fillStyle = css("--testfill"); ctx.globalAlpha = 0.85;
+    for (let i = 0; i < st.u.length; i++) { ctx.beginPath(); ctx.arc(X(st.u[i]), Y(st.v[i]), r, 0, 2 * Math.PI); ctx.fill(); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = css("--navy");
+  for (let i = 0; i < st.x.length; i++) { ctx.beginPath(); ctx.arc(X(st.x[i]), Y(st.y[i]), r, 0, 2 * Math.PI); ctx.fill(); }
+  ctx.strokeStyle = css("--teal"); ctx.lineWidth = 3.4; ctx.beginPath();
+  st.curve.forEach(([x, y], i) => i ? ctx.lineTo(X(x), Yc(y)) : ctx.moveTo(X(x), Yc(y)));
+  ctx.stroke(); ctx.restore();
+  legend(ctx, [["dot", css("--navy"), "training"], ...(el.showTest.checked ? [["ring", css("--navy"), "test"]] : []),
+               ["line", css("--teal"), "fit"], ["dash", css("--muted"), "truth"]]);
+}
+function legend(ctx, items) {                              // one row of keys above the plot
+  ctx.font = "17px system-ui, sans-serif"; ctx.textBaseline = "middle"; ctx.textAlign = "left";
+  let x = PAD.l; const y = PAD.t / 2 + 2;
+  for (const [kind, col, label] of items) {
+    ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = kind === "line" ? 3.4 : 2;
+    if (kind === "dot" || kind === "ring") { ctx.beginPath(); ctx.arc(x + 8, y, 5, 0, 2 * Math.PI); if (kind === "dot") ctx.fill(); else ctx.stroke(); }
+    else { ctx.setLineDash(kind === "dash" ? [6, 5] : kind === "dots" ? [2, 4] : []); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 22, y); ctx.stroke(); ctx.setLineDash([]); }
+    ctx.fillStyle = css("--ink"); ctx.fillText(label, x + 28, y); x += 40 + ctx.measureText(label).width;
+  }
+}
+function drawErr(st) {
+  const { ctx, W, H } = setup(el.errc), TOP = 1.5, c = cache, dd = view === "DD";
+  const xmax = dd ? DDMAX : 50, pos = d => dd ? Math.log(d + 1) / LOGMAX : d / 50;
+  const X = d => PAD.l + pos(d) * (W - PAD.l - PAD.r), Y = v => PAD.t + (TOP - v) / TOP * (H - PAD.t - PAD.b);
+  const ticks = dd ? [0, 1, 3, 10, 30, 100, 300, 1000, 3000].map(v => [v, v >= 1000 ? (v / 1000) + "k" : String(v)]) : [0, 10, 20, 30, 40, 50].map(v => [v, String(v)]);
+  frame(ctx, W, H, X, Y, ticks, [0, 0.5, 1, 1.5], dd ? "degree d (log scale)" : "degree d", "RMSE");
+  clipTo(ctx, W, H);
+  ctx.setLineDash([2, 4]); ctx.strokeStyle = css("--muted"); ctx.lineWidth = 1.3;
+  ctx.beginPath(); ctx.moveTo(X(0), Y(0.3)); ctx.lineTo(X(xmax), Y(0.3)); ctx.stroke();
+  if (dd && !c.pen) { ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(X(c.mD - 1), PAD.t); ctx.lineTo(X(c.mD - 1), H - PAD.b); ctx.stroke(); }
+  ctx.setLineDash([]);
+  ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(X(st.d), PAD.t); ctx.lineTo(X(st.d), H - PAD.b); ctx.stroke();
+  const top = dd ? DDMAX : (c.pen ? 50 : c.lsMax), series = [["tr", css("--navy")]];
+  if (el.showTest.checked) series.push(["te", css("--teal")]);
+  for (const [key, col] of series) {
+    ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 3; ctx.beginPath();
+    for (let k = 0; k <= top; k++) { const e = errAt(k)[key]; const px = X(k), py = Y(Math.min(e, TOP)); k ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+    ctx.stroke();
+    const few = top <= 60;
+    for (let k = 0; k <= top; k++) {
+      const e = errAt(k)[key], px = X(k);
+      if (e > TOP) { if (few) { ctx.beginPath(); ctx.moveTo(px - 4, Y(TOP) + 7); ctx.lineTo(px + 4, Y(TOP) + 7); ctx.lineTo(px, Y(TOP) + 1); ctx.fill(); } }
+      else if (few || k === st.d) { ctx.beginPath(); ctx.arc(px, Y(e), k === st.d ? 7 : 3, 0, 2 * Math.PI); ctx.fill(); }
+    }
+  }
+  ctx.restore();
+  if (dd && !c.pen) { ctx.font = "16px system-ui, sans-serif"; ctx.fillStyle = css("--muted"); ctx.textAlign = "left"; ctx.textBaseline = "top";
+            ctx.fillText("d = n − 1", X(c.mD - 1) + 5, PAD.t + 4); }
+  legend(ctx, [["line", css("--navy"), "training"], ...(el.showTest.checked ? [["line", css("--teal"), "test"]] : []),
+               ["dots", css("--muted"), "noise 0.3"]]);
+}
+// ---------- update ----------
+function fmt(v, capped) {
+  if (!isFinite(v)) return "&infin;";
+  if (capped && v > 1000) return "&gt; 1,000";
+  if (Math.abs(v) < 5e-4) return "0.000";
+  if (Math.abs(v) < 1e4) return v.toFixed(3);
+  const e = Math.floor(Math.log10(Math.abs(v))); return (v / 10 ** e).toFixed(2) + " &times; 10<sup>" + e + "</sup>";
+}
+function render() {
+  const c = cache, d = view === "OF" ? Math.min(curD, c.pen ? 50 : c.lsMax) : curD, e = errAt(d);
+  const g = []; for (let i = 0; i <= 700; i++) g.push(i / 700);
+  let curve;
+  if (e.pen) {
+    const h = ddCurve(c.ux, c.pen.alpha[d], d, g);
+    curve = g.map((q, i) => [q, h[i]]);
+  } else if (e.ls) {
+    const gv = evalAll(c.fit, g, d)[d], tv = trainingAll(c.fit, d)[d];
+    curve = g.map((q, i) => [q, gv[i]]).concat(c.x.map((q, i) => [q, tv[i]]));
+  } else {
+    const h = ddCurve(c.ux, c.dd.alpha[d], d, g);
+    curve = g.map((q, i) => [q, h[i]]).concat(c.ux.map((q, i) => [q, c.uy[i]]));
+  }
+  curve.sort((a, b) => a[0] - b[0]);
+  el.nOut.textContent = c.n; el.mOut.textContent = +el.m.value; el.dOut.textContent = curD;
+  el.Dbox.innerHTML = "Degree <b>" + d + "</b>" + (c.pen ? "" : d === c.mD - 1 ? " = n &minus; 1" : d > c.mD - 1 ? " &gt; n &minus; 1" : "");
+  el.lamOut.textContent = c.lam === 0 ? "off" : c.lam.toPrecision(2);
+  el.trv.innerHTML = fmt(e.tr, false); el.tev.innerHTML = fmt(e.te, !e.ls && !e.pen);
+  el.teBox.hidden = !el.showTest.checked;
+  const st = { n: c.n, x: c.x, y: c.y, u: c.u, v: c.v, d, curve };
+  drawFit(st); drawErr(st);
+}
+const el = Object.fromEntries(["src", "n", "m", "d", "seed", "redraw", "seedBox", "nOut", "mOut", "dOut", "Dbox", "trv", "tev", "teBox",
+  "showTest", "lam", "lamOut", "fitc", "errc", "vOF", "vDD"].map(k => [k, document.getElementById(k)]));
+let queued = false;
+function full() { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; compute(); render(); }); }
+function setView(v) {
+  view = v; el.vOF.setAttribute("aria-pressed", v === "OF"); el.vDD.setAttribute("aria-pressed", v === "DD");
+  el.d.max = v === "OF" ? 50 : 1000; if (v === "OF") curD = Math.min(curD, 50);
+  el.d.value = dToSlider(curD); full();
+}
+function onSource() {
+  const lec = el.src.value === "lecture";
+  el.seedBox.hidden = lec; el.n.max = lec ? 100 : 300; el.m.max = 1000;
+  if (+el.n.value > +el.n.max) el.n.value = el.n.max;
+  if (+el.m.value > +el.m.max) el.m.value = el.m.max;
+  makePool(); full();
+}
+el.src.addEventListener("change", onSource);
+el.n.addEventListener("input", full); el.m.addEventListener("input", full); el.lam.addEventListener("input", full);
+el.d.addEventListener("input", () => { curD = sliderToD(el.d.value); render(); });
+el.showTest.addEventListener("change", render);
+el.vOF.addEventListener("click", () => setView("OF")); el.vDD.addEventListener("click", () => setView("DD"));
+el.seed.addEventListener("change", () => { makePool(); full(); });
+el.redraw.addEventListener("click", () => { el.seed.value = (+el.seed.value || 0) + 1; makePool(); full(); });
+window.addEventListener("resize", render);
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+onSource();
+</script>
+</body>
+</html>

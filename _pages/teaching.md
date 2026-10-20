@@ -7,6 +7,14 @@ nav: true
 nav_order: 4
 ---
 
+## IS 507: Data, Statistical Models, and Information
+
+**Fall 2026, University of Illinois Urbana-Champaign**
+
+Interactive demos:
+
+- [Lecture 9: Overfitting and double descent, interactive demo](/teaching/2026F/IS507/lecture-09-overfitting-demo.html)
+
 ## IS 455: Database Design & Prototyping
 
 **Spring 2026, University of Illinois Urbana-Champaign**
