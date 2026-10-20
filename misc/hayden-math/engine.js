@@ -28,6 +28,9 @@
     "mixed_multiply_add_subtract_missing_factor",
     "mixed_multiply_add_subtract_missing_addend",
     "mixed_multiply_add_subtract_missing_subtrahend",
+    "division_quotient_blank",
+    "division_dividend_blank",
+    "division_divisor_blank",
   ];
   const FIRST = ["Avery", "Blake", "Casey", "Drew", "Emery", "Finley", "Harper", "Jamie", "Jordan", "Quinn", "Riley", "Rowan", "Sage", "Taylor"];
   const LAST = ["Brooks", "Carter", "Clark", "Ellis", "Foster", "Grant", "Hayes", "Lane", "Parker", "Reed", "Scott", "Turner", "Walker", "Young"];
@@ -225,6 +228,15 @@
     return Object.fromEntries(p.first.map((f) => [f, [...domains[f]][0]]));
   }
   function equationParams(shape, width) {
+    if (shape.startsWith("division_")) {
+      const divisor = rand(2, 9),
+        quotient = rand(1, 9);
+      return {
+        kind: "divide",
+        terms: [divisor * quotient, divisor, quotient],
+        blank: shape === "division_dividend_blank" ? 0 : shape === "division_divisor_blank" ? 1 : 2,
+      };
+    }
     if (shape.startsWith("addition_") || shape.startsWith("subtraction_")) {
       const w = width ?? pick([2, 3]);
       if (![2, 3].includes(w)) throw Error("Width must be 2 or 3");
@@ -265,11 +277,13 @@
           const [a, b] = shuffle(range(2, 9)).slice(0, 2);
           return { a, b };
         })()
-      : bounded(
-          () => ({ a: rand(10, 99), b: rand(2, 9) }),
-          (p) => (p.a % 10) * p.b >= 10 || Math.floor(p.a / 10) * p.b + Math.floor(((p.a % 10) * p.b) / 10) >= 10,
-          1000
-        );
+      : shape === "two_digit_by_one_digit_product_blank"
+        ? { a: rand(10, 99), b: rand(2, 9) }
+        : bounded(
+            () => ({ a: rand(10, 99), b: rand(2, 9) }),
+            (p) => (p.a % 10) * p.b >= 10 || Math.floor(p.a / 10) * p.b + Math.floor(((p.a % 10) * p.b) / 10) >= 10,
+            1000
+          );
     const blank = shape.endsWith("missing_two_digit_factor") ? 0 : shape.endsWith("missing_one_digit_factor") ? 1 : 2;
     return { kind: "multiply", fact, distinct: fact, terms: [p.a, p.b, p.a * p.b], blank };
   }
@@ -329,9 +343,10 @@
       return `(${value("a")} × ${p.b}) + ${value("c")} − ${value("d")} = ${value("z")}`;
     }
     const t = p.terms.map((v, i) => (blank && i === p.blank ? "□" : v));
-    return `${t[0]} ${p.kind === "addsub" ? p.op : "×"} ${t[1]} = ${t[2]}`;
+    return `${t[0]} ${p.kind === "addsub" ? p.op : p.kind === "divide" ? "÷" : "×"} ${t[1]} = ${t[2]}`;
   }
   function equationDomain(p) {
+    if (p.kind === "divide") return p.blank === 0 ? range(2, 81) : p.blank === 1 ? range(2, 9) : range(1, 9);
     return p.kind === "mixed"
       ? p.role === "a"
         ? range(2, 9)
@@ -352,7 +367,11 @@
     if (p.kind === "mixed")
       return (p.role === "a" ? x : p.a) * p.b + (p.role === "c" ? x : p.c) - (p.role === "d" ? x : p.d) === (p.role === "z" ? x : p.z);
     const t = p.terms.map((v, i) => (i === p.blank ? x : v));
-    return p.kind === "addsub" ? (p.op === "+" ? t[0] + t[1] : t[0] - t[1]) === t[2] : t[0] * t[1] === t[2];
+    return p.kind === "addsub"
+      ? (p.op === "+" ? t[0] + t[1] : t[0] - t[1]) === t[2]
+      : p.kind === "divide"
+        ? t[1] !== 0 && t[0] / t[1] === t[2]
+        : t[0] * t[1] === t[2];
   }
   function expected(section, type, p) {
     if (section !== "brain") {
@@ -406,6 +425,12 @@
       return `${pack} ${add} ${take} ${end} No other cards were added or removed. ${ask}`.replace(/  /g, " ");
     }
     const [a, b, z] = p.terms;
+    if (p.kind === "divide")
+      return p.blank === 0
+        ? `${who} filled ${z} boxes with ${b} cards each. There were no loose cards. How many cards were in all the boxes?`
+        : p.blank === 1
+          ? `${who} shared ${a} cards equally among ${z} boxes, with no cards left over. How many cards were in each box?`
+          : `${who} shared ${a} cards equally among ${b} boxes, with no cards left over. How many cards were in each box?`;
     if (p.kind === "multiply")
       return p.blank === 2
         ? `${who} filled ${a} boxes with ${b} cards each. There were no loose cards. How many cards were in all the boxes?`
@@ -434,9 +459,11 @@
         hint:
           p.kind === "mixed"
             ? "Follow the multiply, add, and subtract steps. If a step is missing, work backward."
-            : p.kind === "multiply"
-              ? "Use equal groups. A missing factor can be found by sharing the total."
-              : "Use the known amounts. Addition and subtraction can undo each other.",
+            : p.kind === "divide"
+              ? "Division and multiplication undo each other. Use the known equal groups."
+              : p.kind === "multiply"
+                ? "Use equal groups. A missing factor can be found by sharing the total."
+                : "Use the known amounts. Addition and subtraction can undo each other.",
         explanation: equationText(p, false),
       };
     if (type === BRAINS[0])
@@ -533,6 +560,10 @@
           Math.max(p.c, p.d, p.a * p.b + p.c, p.z) >= 100 &&
           ["a", "c", "d", "z"].includes(p.role)
         );
+      if (p.kind === "divide") {
+        const [dividend, divisor, quotient] = p.terms;
+        return int(divisor, 2, 9) && int(quotient, 1, 9) && dividend === divisor * quotient && [0, 1, 2].includes(p.blank);
+      }
       if (p.kind === "multiply") {
         const [a, b, z] = p.terms;
         return (
@@ -541,7 +572,7 @@
           int(z, 1, 999) &&
           a * b === z &&
           [0, 1, 2].includes(p.blank) &&
-          (p.fact ? !p.distinct || a !== b : (a % 10) * b >= 10 || Math.floor(a / 10) * b + Math.floor(((a % 10) * b) / 10) >= 10)
+          (p.fact ? !p.distinct || a !== b : p.blank === 2 || (a % 10) * b >= 10 || Math.floor(a / 10) * b + Math.floor(((a % 10) * b) / 10) >= 10)
         );
       }
       return false;
@@ -598,6 +629,8 @@
         p.kind === "mixed" &&
         p.role === (s.endsWith("result_blank") ? "z" : s.endsWith("missing_factor") ? "a" : s.endsWith("missing_addend") ? "c" : "d")
       );
+    if (s.startsWith("division_"))
+      return p.kind === "divide" && p.blank === (s === "division_dividend_blank" ? 0 : s === "division_divisor_blank" ? 1 : 2);
     if (s.startsWith("two_digit_"))
       return (
         p.kind === "multiply" &&
@@ -755,14 +788,20 @@
   const DOMAINS = ["arithmetic", "measurement", "geometry", "narrative"];
   const MEASURES = ["ruler_length", "ruler_compare", "unit_compare", "elapsed_minutes"];
   const GEOMETRY = ["equal_side_perimeter", "inverse_perimeter", "rectangle_side", "perimeter_compare"];
-  const NARRATIVES = ["changes_final", "changes_start", "changes_added", "inverse_groups"];
+  const NARRATIVE_EQUATIONS = {
+    equal_shares: "division_quotient_blank",
+    full_kit_supply: "division_dividend_blank",
+    cards_per_kit: "division_divisor_blank",
+    two_digit_card_total: "two_digit_by_one_digit_product_blank",
+  };
+  const NARRATIVES = ["changes_final", "changes_start", "changes_added", "inverse_groups", ...Object.keys(NARRATIVE_EQUATIONS)];
   const SCENES = [
     "a class visit to a science museum",
     "a school art display for families",
     "a nature club exhibition",
     "a classroom game at a family evening",
   ];
-  const arithmeticShapes = [...SHAPES.slice(0, 5), ...SHAPES.slice(9)];
+  const arithmeticShapes = [...SHAPES.slice(0, 5), "two_digit_by_one_digit_product_blank", ...SHAPES.slice(9)];
   const timeText = (m) => {
     const h = Math.floor(m / 60);
     return `${h % 12 || 12}:${String(m % 60).padStart(2, "0")} ${h >= 12 ? "pm" : "am"}`;
@@ -798,6 +837,7 @@
     }
     const actor = pick(["Hayden", "Maya", "Sofia", "Eli"]),
       scene = pick(SCENES);
+    if (Object.hasOwn(NARRATIVE_EQUATIONS, type)) return { ...equationParams(NARRATIVE_EQUATIONS[type]), actor, scene };
     if (type === "inverse_groups")
       return bounded(
         () => ({ actor, scene, groups: rand(3, 9), size: rand(3, 9), added: rand(120, 300), used: rand(60, 190) }),
@@ -806,6 +846,7 @@
     return { actor, scene, start: rand(320, 650), added: rand(120, 290), used: rand(100, 280) };
   }
   function domainAnswer(section, type, p) {
+    if (section === "narrative" && Object.hasOwn(NARRATIVE_EQUATIONS, type)) return expected("equation", type, p);
     if (section === "measurement")
       return {
         value:
@@ -900,6 +941,49 @@
       }
     }
     if (section === "narrative") {
+      if (Object.hasOwn(NARRATIVE_EQUATIONS, type)) {
+        const [a, b, z] = p.terms;
+        const facts =
+          type === "two_digit_card_total"
+            ? [
+                `There are ${a} empty boxes ready for the activity.`,
+                `Each box will hold exactly ${b} cards when it is full.`,
+                "How many cards are needed to fill all the boxes?",
+              ]
+            : type === "equal_shares"
+              ? [
+                  `The supply contains ${a} cards ready to be packed.`,
+                  `${p.actor} shares them equally among ${b} kits for the activity.`,
+                  "How many cards go into each kit?",
+                ]
+              : type === "full_kit_supply"
+                ? [
+                    `There are ${z} full kits ready for the activity.`,
+                    `Each full kit contains exactly ${b} cards from the same supply.`,
+                    "How many cards are in all the kits together?",
+                  ]
+                : [
+                    `The supply contains ${a} cards ready to be packed.`,
+                    `${p.actor} fills ${z} kits with the same number of cards in each.`,
+                    "How many cards are in each kit?",
+                  ];
+        return {
+          prompt: [
+            `${p.actor} is preparing card kits for ${p.scene}.`,
+            facts[0],
+            facts[1],
+            "Every card goes into exactly one full kit or box, and no cards are left over, added, or removed.",
+            facts[2],
+          ].join(" "),
+          visual: null,
+          response: field("Cards", "cards"),
+          hint:
+            p.kind === "divide"
+              ? "Use equal groups. Division and multiplication undo each other."
+              : "Split the two-digit number into tens and ones, then multiply each part.",
+          explanation: equationText(p, false),
+        };
+      }
       let sentences;
       if (type === "inverse_groups") {
         const final = p.groups * p.size + p.added - p.used;
@@ -984,6 +1068,11 @@
       return int(p.squareSide, 8, 20) && int(p.triangleSide, 3, 20) && 4 * p.squareSide > 3 * p.triangleSide && p.unit === "cm";
     }
     if (!["Hayden", "Maya", "Sofia", "Eli"].includes(p.actor) || !SCENES.includes(p.scene)) return false;
+    if (Object.hasOwn(NARRATIVE_EQUATIONS, type))
+      return (
+        bounds("equation", type, p) &&
+        shapeMatches({ section: "equation", typeId: NARRATIVE_EQUATIONS[type], shapeId: NARRATIVE_EQUATIONS[type], params: p })
+      );
     if (type === "inverse_groups")
       return int(p.groups, 3, 9) && int(p.size, 3, 9) && int(p.added, 120, 300) && int(p.used, 60, 190) && p.groups * p.size + p.added - p.used > 0;
     return int(p.start, 320, 650) && int(p.added, 120, 290) && int(p.used, 100, 280);
@@ -1108,7 +1197,7 @@
   }
 
   // HM6-v1 extends original rule families; seeded replay is versioned, not eternal.
-  const VERSION = "HM6-v2",
+  const VERSION = "HM6-v3",
     TOPICS = [...DOMAINS, "brain"];
   const EXTRA_MEASURES = ["clock_read", "coin_total", "coin_missing"];
   const EXTRA_GEOMETRY = ["rectangle_area", "inverse_area", "equal_partition", "line_relation", "angle_type", "symmetry"];
@@ -1465,8 +1554,8 @@
   function schedule(section) {
     if (section === "mix")
       return shuffle([
-        ["arithmetic", { shapeId: pick(SHAPES.slice(0, 5)), width: 2 }],
-        ["arithmetic", { shapeId: pick(SHAPES.slice(0, 5)), width: 3 }],
+        ["arithmetic", { shapeId: pick(arithmeticShapes) }],
+        ["arithmetic", { shapeId: pick(arithmeticShapes) }],
         ...["measurement", "geometry", "narrative", "brain"].flatMap((s) => [
           [s, {}],
           [s, {}],
@@ -1478,6 +1567,10 @@
         ["arithmetic", { shapeId: "subtraction_result_blank", width: 2 }],
         ["arithmetic", { shapeId: "addition_missing_addend", width: 3 }],
         ["arithmetic", { shapeId: "subtraction_missing_subtrahend", width: 3 }],
+        ["arithmetic", { shapeId: "two_digit_by_one_digit_product_blank" }],
+        ["arithmetic", { shapeId: "division_quotient_blank" }],
+        ["arithmetic", { shapeId: "division_dividend_blank" }],
+        ["arithmetic", { shapeId: "division_divisor_blank" }],
       ];
       while (a.length < 10) a.push(["arithmetic", {}]);
       return shuffle(a);

@@ -42,6 +42,12 @@ nav_order: 7
     <p>Turn arrays. Explore equal groups.</p>
     <a class="misc-play" href="{{ '/children-math/groups-lab/' | relative_url }}" aria-label="Explore Groups Lab">Explore</a>
   </article>
+  <article class="misc-project misc-project--workshop">
+    <div class="misc-category">Explore</div>
+    <h2>Multiply Lab</h2>
+    <p>Split tens and ones. See each part of a bigger multiplication.</p>
+    <a class="misc-play" href="{{ '/children-math/multiplication-lab/' | relative_url }}" aria-label="Explore Multiply Lab">Explore</a>
+  </article>
   <article class="misc-project">
     <div class="misc-category">Game</div>
     <h2>Multiplication</h2>

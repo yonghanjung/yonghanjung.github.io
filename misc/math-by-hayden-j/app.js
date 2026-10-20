@@ -173,32 +173,35 @@
       r = state.active,
       canResume = r && r.phase !== "complete",
       custom = s.count === "custom";
-    app.innerHTML = `<section class="setup"><div><span class="label">Math</span><div class="choices operations" role="group" aria-label="Operation">${D.OPS.map(
+    app.innerHTML = `<section class="setup"><div><span class="label">Math</span><div class="choices operations" role="group" aria-label="Operations">${D.OPS.map(
       (op) =>
         button(
           op,
           `op:${op}`,
-          s.op === op ? "selected" : "",
+          s.ops.includes(op) ? "selected" : "",
           `aria-label="${
-            op === "+"
-              ? "Addition"
-              : op === "−"
-                ? "Subtraction"
-                : op === "×"
-                  ? "Multiplication"
-                  : op === "+−"
-                    ? "Addition and subtraction"
-                    : "Division"
-          }" aria-pressed="${s.op === op}"`
+            op === "+" ? "Addition" : op === "−" ? "Subtraction" : op === "×" ? "Multiplication" : "Division"
+          }" aria-pressed="${s.ops.includes(op)}"`
         )
-    ).join(
-      ""
-    )}</div></div><div><span class="label">Time</span><div class="choices time" role="group" aria-label="Seconds per question">${D.DURATIONS.map(
-      (sec) => button(`${sec}s`, `seconds:${sec}`, s.seconds === sec ? "selected" : "", `aria-pressed="${s.seconds === sec}"`)
     ).join("")}</div></div>${
-      ["+", "−", "+−"].includes(s.op)
-        ? `<div class="difficulty"><span class="label">Level</span><div class="choices levels" role="group" aria-label="${
-            s.op === "+" ? "Addition" : s.op === "−" ? "Subtraction" : "Addition and subtraction"
+      s.ops.includes("×")
+        ? `<div><span class="label">Multiplication</span><div class="choices multiplication" role="group" aria-label="Multiplication range">${[
+            ["tables", "Tables"],
+            ["2-digit", "2-digit"],
+          ]
+            .map(([value, label]) =>
+              button(label, `multiplication:${value}`, s.multiplication === value ? "selected" : "", `aria-pressed="${s.multiplication === value}"`)
+            )
+            .join("")}</div></div>`
+        : ""
+    }<div><span class="label">Time</span><div class="choices time" role="group" aria-label="Seconds per question">${D.DURATIONS.map((sec) =>
+      button(`${sec}s`, `seconds:${sec}`, s.seconds === sec ? "selected" : "", `aria-pressed="${s.seconds === sec}"`)
+    ).join("")}</div></div>${
+      s.ops.some((op) => ["+", "−"].includes(op))
+        ? `<div class="difficulty"><span class="label">${D.operationLabel(
+            s.ops.filter((op) => ["+", "−"].includes(op))
+          )} Level</span><div class="choices levels" role="group" aria-label="${
+            s.ops.includes("+") && s.ops.includes("−") ? "Addition and subtraction" : s.ops.includes("+") ? "Addition" : "Subtraction"
           } difficulty">${D.LEVELS.map((level) =>
             button(
               `${level[0].toUpperCase() + level.slice(1)}<small>≤ ${level === "easy" ? 10 : level === "medium" ? 20 : s.difficultLimit}</small>`,
@@ -264,7 +267,7 @@
       result = D.record(r).result;
     app.innerHTML = `<section class="game ${feedback ? "feedback" : ""}"><div class="game-bar"><span class="counter">${r.index + 1} / ${
       r.unlimited ? "∞" : r.records.length
-    }</span><span class="badge">${r.op} · ${r.seconds}s</span>${r.unlimited ? button("Finish", "finish", "finish soft") : ""}${button(
+    }</span><span class="badge">${p.op} · ${r.seconds}s</span>${r.unlimited ? button("Finish", "finish", "finish soft") : ""}${button(
       paused ? "Resume" : "Pause",
       paused ? "resume" : "pause",
       "pause soft",
@@ -350,15 +353,13 @@
     const r = state.active,
       m = D.summary(r),
       wrong = r.records.filter((x) => x.result && x.result.status !== "correct");
-    app.innerHTML = `<section class="summary"><span class="label">${r.op} · ${r.seconds}s${
-      ["+", "−", "+−"].includes(r.op) ? ` · ≤ ${r.sumLimit}` : ""
-    }</span>${m.master ? '<div class="master">Master! ✦</div>' : ""}<div class="summary-score">${m.correct}<small> / ${
-      m.total
-    }</small></div><div class="summary-actions">${wrong.length ? button("Practice mistakes", "retry", "soft") : ""}${button(
-      "New round",
-      "start",
-      "primary"
-    )}</div>${
+    app.innerHTML = `<section class="summary"><span class="label">${D.operationLabel(r.ops)} · ${r.seconds}s${
+      r.ops.some((op) => ["+", "−"].includes(op)) ? ` · ${D.operationLabel(r.ops.filter((op) => ["+", "−"].includes(op)))} ≤ ${r.sumLimit}` : ""
+    }${r.ops.includes("×") ? ` · × ${r.multiplication === "2-digit" ? "2-digit" : "Tables"}` : ""}</span>${
+      m.master ? '<div class="master">Master! ✦</div>' : ""
+    }<div class="summary-score">${m.correct}<small> / ${m.total}</small></div><div class="summary-actions">${
+      wrong.length ? button("Practice mistakes", "retry", "soft") : ""
+    }${button("New round", "start", "primary")}</div>${
       wrong.length
         ? `<div class="notes"><span class="label">Wrong answers · ${wrong.length}</span>${wrong
             .map(
@@ -401,7 +402,19 @@
     if (!b || b.disabled) return;
     const a = b.dataset.action;
     if (a.startsWith("op:")) {
-      state.settings.op = a.slice(3);
+      const op = a.slice(3),
+        selected = state.settings.ops;
+      if (selected.includes(op) && selected.length === 1) {
+        notice = "Choose at least one.";
+      } else {
+        state.settings.ops = D.operations(selected.includes(op) ? selected.filter((value) => value !== op) : [...selected, op]);
+        notice = "";
+      }
+      save();
+      render();
+    } else if (a.startsWith("multiplication:")) {
+      state.settings.multiplication = a.slice(15);
+      notice = "";
       save();
       render();
     } else if (a.startsWith("seconds:")) {
