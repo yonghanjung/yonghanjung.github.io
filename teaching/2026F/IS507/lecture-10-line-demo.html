@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Least-Squares Line Explorer</title>
+<style>
+:root {
+  --bg: #FFFFFF; --panel: #F8FAFC; --ink: #11233F; --muted: #53657A; --line: #CBD5E1;
+  --grid: #E2E8F0; --navy: #173B7A; --teal: #0E7490; --rust: #9A3412; --on-teal: #FFFFFF; --ring: #FFFFFF;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F172A; --panel: #16213A; --ink: #E2E8F0; --muted: #94A3B8; --line: #334155;
+    --grid: #1E293B; --navy: #8FB3F0; --teal: #38BDD8; --rust: #F59E73; --on-teal: #0F172A; --ring: #E2E8F0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F172A; --panel: #16213A; --ink: #E2E8F0; --muted: #94A3B8; --line: #334155;
+  --grid: #1E293B; --navy: #8FB3F0; --teal: #38BDD8; --rust: #F59E73; --on-teal: #0F172A; --ring: #E2E8F0;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+       font: 19px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1400px; margin: 0 auto; padding: 18px 16px 28px; }
+.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 24px; margin-bottom: 14px; }
+h1 { font-size: 30px; margin: 0; }
+.sub { color: var(--muted); }
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px 26px;
+            background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+.ctl label { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; font-size: 19px; margin-bottom: 6px; }
+.ctl output { font-variant-numeric: tabular-nums; color: var(--teal); font-size: 22px; }
+.ctl label.check { justify-content: flex-start; align-items: center; gap: 10px; margin-top: 8px; cursor: pointer; font-weight: 400; }
+.check input { width: 22px; height: 22px; accent-color: var(--teal); }
+input[type=range] { width: 100%; height: 28px; accent-color: var(--teal); }
+button { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+         border-radius: 8px; padding: 6px 14px; cursor: pointer; white-space: nowrap; }
+button.primary { background: var(--teal); color: var(--on-teal); border-color: var(--teal); font-weight: 700; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+.buttons { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.readouts { display: flex; flex-wrap: wrap; gap: 8px 40px; margin: 16px 4px 12px; font-size: 26px; }
+.readouts b { font-variant-numeric: tabular-nums; }
+.eq { font-size: 26px; margin: 4px 4px 0; }
+.plots { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; }
+@media (max-width: 900px) { .plots { grid-template-columns: 1fr; } }
+canvas { width: 100%; height: 480px; display: block; border: 1px solid var(--line); border-radius: 12px; }
+#surf { cursor: crosshair; }
+.note { color: var(--muted); font-size: 16px; margin: 10px 4px 0; }
+@media (max-width: 600px) { body { font-size: 17px; } h1 { font-size: 24px; } .readouts, .eq { font-size: 21px; } canvas { height: 360px; } }
+.te { color: var(--teal); } .ru { color: var(--rust); } .mu { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <h1>Choosing a line: two numbers, one error</h1>
+    <span class="sub">IS 507 Lecture 10 · 331 training patients, diabetes data</span>
+  </div>
+
+  <div class="controls">
+    <div class="ctl">
+      <label for="b0"><span>Intercept β<sub>0</sub></span> <output id="b0o"></output></label>
+      <input id="b0" type="range" min="-300" max="300" step="0.1">
+    </div>
+    <div class="ctl">
+      <label for="b1"><span>Slope β<sub>1</sub></span> <output id="b1o"></output></label>
+      <input id="b1" type="range" min="-10" max="25" step="0.01">
+    </div>
+    <div class="ctl">
+      <div class="buttons">
+        <button id="flat" type="button">Flat line at the mean</button>
+        <button id="best" type="button" class="primary">Show the best line</button>
+      </div>
+      <label class="check"><input id="miss" type="checkbox" checked> Show each patient's miss</label>
+    </div>
+  </div>
+
+  <div class="eq">ŷ = <b class="te" id="eqb0"></b> + <b class="te" id="eqb1"></b> × BMI</div>
+  <div class="readouts">
+    <span>Training MSE: <b id="mse"></b></span>
+    <span>Training RMSE: <b class="te" id="rmse"></b></span>
+    <span class="mu">Best possible RMSE: <b id="brmse"></b></span>
+  </div>
+
+  <div class="plots">
+    <canvas id="fit" role="img" aria-label="Training patients, BMI against progression, with the chosen line and each patient's miss"></canvas>
+    <canvas id="surf" role="img" aria-label="Training RMSE for every intercept and slope; the current choice is marked"></canvas>
+  </div>
+  <p class="note">Left: each red segment is one patient's miss, y − ŷ. Training MSE is the average of the squared misses; RMSE is its square root.
+  Right: the training RMSE for every choice of (β<sub>0</sub>, β<sub>1</sub>); darker is smaller. Click anywhere on it to pick that line. The best line sits at the bottom of a long, narrow valley.</p>
+  <p class="note">Data: Efron, Hastie, Johnstone, and Tibshirani (2004), "Least Angle Regression," <i>Annals of Statistics</i> 32(2); the unscaled copy in scikit-learn, <code>load_diabetes(scaled=False)</code>. The 331 training patients of the Lecture 9 split (<code>train_test_split(test_size=0.25, random_state=507)</code>). The data block below is written by <code>lecture-10-notebook-2026-10-08-v1.ipynb</code>.</p>
+</main>
+
+<script>
+// DATA-BEGIN (written by the Lecture 10 notebook; do not edit by hand)
+const DATA = {"bmi":[26.5,31.9,29.9,26.5,25.7,24.5,23.5,29.0,19.8,36.6,23.7,30.7,25.4,28.6,25.8,22.6,27.7,19.6,34.3,20.1,23.0,26.2,20.7,29.0,23.1,28.1,23.1,24.0,30.6,32.0,32.7,20.5,19.2,26.3,24.8,30.2,27.4,32.0,23.3,29.4,22.2,21.0,22.7,33.5,23.6,27.4,25.8,24.3,25.5,31.2,28.7,18.0,30.6,23.0,25.5,32.0,35.0,25.6,23.6,21.9,42.2,22.1,30.8,25.7,28.1,22.0,24.5,23.3,24.5,24.0,24.1,22.0,22.9,27.8,36.7,25.3,21.2,19.3,22.1,28.8,21.0,28.0,24.1,26.0,19.9,29.5,24.5,37.0,33.0,23.0,21.4,24.0,23.4,24.8,25.4,25.9,24.1,22.6,20.2,24.5,23.5,33.6,31.4,25.2,23.4,22.1,20.6,20.4,25.9,26.2,22.8,26.3,22.2,18.9,27.7,25.0,21.0,31.6,31.6,27.0,25.4,32.9,26.2,32.8,24.0,19.4,24.1,27.0,30.3,24.1,27.5,23.8,24.9,23.3,33.0,25.3,24.2,26.0,26.5,21.0,24.4,21.8,25.3,20.3,28.0,25.5,23.5,30.1,30.4,28.3,30.4,29.7,20.9,21.2,23.4,31.9,22.1,23.5,31.5,25.6,22.1,34.6,31.4,22.5,18.8,22.6,23.5,26.9,32.1,31.0,30.6,27.2,21.9,31.8,31.9,21.2,37.8,23.9,23.5,22.5,25.8,23.6,23.6,24.9,27.7,33.2,20.6,25.8,22.8,22.8,24.9,25.5,25.4,28.8,24.7,24.3,28.4,25.2,27.3,22.8,26.5,19.0,34.6,27.3,32.4,35.0,29.6,36.1,24.2,24.7,20.3,25.6,28.0,30.1,22.5,24.2,33.8,20.8,28.3,27.9,30.2,24.6,33.0,22.4,26.5,20.0,26.1,31.2,21.7,31.9,27.5,24.7,28.1,30.5,26.9,25.6,31.6,25.2,23.2,24.7,27.7,38.3,35.1,24.5,23.0,25.3,20.8,29.2,19.2,29.2,23.7,33.1,24.2,18.1,28.5,25.7,26.9,33.0,23.2,32.1,29.0,25.7,24.1,25.4,22.7,22.6,28.5,23.0,31.5,29.3,35.0,29.2,25.2,24.1,24.0,30.8,27.7,23.3,23.4,20.3,30.7,31.4,35.3,34.3,21.1,19.7,20.7,32.3,26.3,22.2,25.1,27.9,20.9,29.6,26.0,26.2,27.0,26.8,27.7,24.6,26.8,24.2,23.5,24.9,26.8,28.1,31.3,25.9,26.9,20.2,27.0,21.6,22.1,28.2,28.8,22.0,22.1,33.9,27.2,28.0,21.3,23.1,23.1,25.6,25.3,32.6,25.9,30.6,18.8,30.0,28.3],"y":[49,91,167,229,182,111,55,145,49,258,179,174,61,121,134,42,220,57,306,55,200,63,99,302,52,113,125,74,175,243,259,65,137,113,80,198,111,245,214,208,90,158,78,332,118,276,262,84,257,164,182,94,272,146,197,215,200,131,160,111,242,72,258,155,265,72,97,94,241,170,84,138,129,242,336,94,63,134,47,52,252,173,65,68,158,198,233,237,295,135,83,199,53,90,25,116,200,72,59,47,91,233,293,292,87,178,45,170,92,44,253,115,93,72,142,97,63,310,303,67,179,288,185,220,252,55,66,182,166,58,144,209,132,54,252,190,71,198,142,88,107,128,206,59,69,81,42,147,195,281,103,184,64,135,104,263,114,172,173,81,77,310,187,75,51,71,154,249,281,221,232,174,96,275,268,109,281,152,66,185,219,69,88,104,191,275,53,164,127,93,53,59,97,196,168,51,178,91,210,40,51,101,264,150,95,140,236,321,92,150,214,100,128,155,178,150,257,70,197,268,52,214,220,64,196,72,217,230,87,178,143,77,248,141,67,39,272,202,140,171,118,259,263,148,102,200,72,244,116,202,88,131,64,104,232,248,60,141,190,110,170,52,110,168,91,97,265,50,68,296,128,222,160,89,71,317,297,65,78,96,99,192,274,261,68,77,89,217,292,102,83,212,86,84,88,109,109,191,90,219,107,144,43,104,200,273,163,126,311,77,131,75,74,237,283,200,69,180,127,139,42,185,53,31,181,78,230,202,85,85,246],"b0":-131.6,"b1":10.74,"rmse_best":62.0,"y_mean":150.2};
+// DATA-END
+
+const X = DATA.bmi, Y = DATA.y, N = X.length;
+const sx = X.reduce((a, v) => a + v, 0) / N, sy = Y.reduce((a, v) => a + v, 0) / N;
+let sxx = 0, sxy = 0, syy = 0;
+for (let i = 0; i < N; i++) { sxx += X[i] * X[i]; sxy += X[i] * Y[i]; syy += Y[i] * Y[i]; }
+sxx /= N; sxy /= N; syy /= N;
+// Training MSE of the line b0 + b1 x, in closed form from the sample moments.
+const mse = (b0, b1) => syy - 2 * b0 * sy - 2 * b1 * sxy + b0 * b0 + 2 * b0 * b1 * sx + b1 * b1 * sxx;
+
+const $ = id => document.getElementById(id);
+const b0in = $("b0"), b1in = $("b1");
+const XR = [17, 44], YR = [0, 360];
+const B0R = [+b0in.min, +b0in.max], B1R = [+b1in.min, +b1in.max];
+
+function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function setup(c) {
+  const r = c.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  c.width = Math.round(r.width * d); c.height = Math.round(r.height * d);
+  const g = c.getContext("2d"); g.setTransform(d, 0, 0, d, 0, 0);
+  return [g, r.width, r.height];
+}
+const PAD = { l: 64, r: 16, t: 16, b: 52 };
+function axes(g, w, h, xr, yr, xlab, ylab, xt, yt) {
+  const px = x => PAD.l + (x - xr[0]) / (xr[1] - xr[0]) * (w - PAD.l - PAD.r);
+  const py = y => h - PAD.b - (y - yr[0]) / (yr[1] - yr[0]) * (h - PAD.t - PAD.b);
+  g.strokeStyle = css("--grid"); g.lineWidth = 1; g.fillStyle = css("--muted"); g.font = "15px system-ui, sans-serif";
+  g.textAlign = "center"; g.textBaseline = "top";
+  for (const t of xt) { g.beginPath(); g.moveTo(px(t), PAD.t); g.lineTo(px(t), h - PAD.b); g.stroke(); g.fillText(t, px(t), h - PAD.b + 6); }
+  g.textAlign = "right"; g.textBaseline = "middle";
+  for (const t of yt) { g.beginPath(); g.moveTo(PAD.l, py(t)); g.lineTo(w - PAD.r, py(t)); g.stroke(); g.fillText(t, PAD.l - 8, py(t)); }
+  g.textAlign = "center"; g.textBaseline = "bottom"; g.font = "16px system-ui, sans-serif";
+  g.fillText(xlab, (PAD.l + w - PAD.r) / 2, h - 4);
+  g.save(); g.translate(16, (PAD.t + h - PAD.b) / 2); g.rotate(-Math.PI / 2); g.textBaseline = "middle"; g.fillText(ylab, 0, 0); g.restore();
+  return [px, py];
+}
+
+function drawFit(b0, b1) {
+  const [g, w, h] = setup($("fit"));
+  g.clearRect(0, 0, w, h);
+  const [px, py] = axes(g, w, h, XR, YR, "BMI", "progression, one year later", [20, 25, 30, 35, 40], [0, 100, 200, 300]);
+  g.save(); g.beginPath(); g.rect(PAD.l, PAD.t, w - PAD.l - PAD.r, h - PAD.t - PAD.b); g.clip();
+  if ($("miss").checked) {
+    g.strokeStyle = css("--rust"); g.globalAlpha = 0.55; g.lineWidth = 1.2;
+    for (let i = 0; i < N; i++) { g.beginPath(); g.moveTo(px(X[i]), py(Y[i])); g.lineTo(px(X[i]), py(b0 + b1 * X[i])); g.stroke(); }
+    g.globalAlpha = 1;
+  }
+  g.fillStyle = css("--navy"); g.globalAlpha = 0.55;
+  for (let i = 0; i < N; i++) { g.beginPath(); g.arc(px(X[i]), py(Y[i]), 3.2, 0, 2 * Math.PI); g.fill(); }
+  g.globalAlpha = 1;
+  g.strokeStyle = css("--teal"); g.lineWidth = 3.5; g.beginPath();
+  g.moveTo(px(XR[0]), py(b0 + b1 * XR[0])); g.lineTo(px(XR[1]), py(b0 + b1 * XR[1])); g.stroke();
+  g.restore();
+}
+
+// The error surface is drawn once into an offscreen image; the marker is redrawn on every move.
+let surfImg = null, surfKey = "";
+function drawSurf(b0, b1) {
+  const c = $("surf"), [g, w, h] = setup(c);
+  const key = w + "x" + h + css("--bg");
+  const px = v => PAD.l + (v - B1R[0]) / (B1R[1] - B1R[0]) * (w - PAD.l - PAD.r);
+  const py = v => h - PAD.b - (v - B0R[0]) / (B0R[1] - B0R[0]) * (h - PAD.t - PAD.b);
+  if (key !== surfKey) {
+    const d = window.devicePixelRatio || 1, W = Math.round((w - PAD.l - PAD.r) * d), H = Math.round((h - PAD.t - PAD.b) * d);
+    const img = g.createImageData(W, H), lo = Math.log(DATA.rmse_best), hi = Math.log(400);
+    const dark = matchMedia("(prefers-color-scheme: dark)").matches && document.documentElement.dataset.theme !== "light"
+                 || document.documentElement.dataset.theme === "dark";
+    for (let j = 0; j < H; j++) {
+      const v0 = B0R[1] - (j + 0.5) / H * (B0R[1] - B0R[0]);
+      for (let i = 0; i < W; i++) {
+        const v1 = B1R[0] + (i + 0.5) / W * (B1R[1] - B1R[0]);
+        const r = Math.sqrt(Math.max(mse(v0, v1), 0));
+        let t = Math.min(Math.max((Math.log(r) - lo) / (hi - lo), 0), 1);   // 0 at the best line, 1 far away
+        const band = Math.floor(t * 14) % 2 ? 0.06 : 0;                        // contour bands
+        const k = (j * W + i) * 4;
+        if (dark) { img.data[k] = 15 + 200 * t; img.data[k + 1] = 23 + 200 * t; img.data[k + 2] = 42 + 190 * t; }
+        else { img.data[k] = 14 + 236 * t; img.data[k + 1] = 116 + 134 * t; img.data[k + 2] = 144 + 108 * t; }
+        for (let m = 0; m < 3; m++) img.data[k + m] *= 1 - band;
+        img.data[k + 3] = 255;
+      }
+    }
+    surfImg = { img, x: PAD.l * d, y: PAD.t * d }; surfKey = key;
+  }
+  g.clearRect(0, 0, w, h);
+  g.putImageData(surfImg.img, surfImg.x, surfImg.y);
+  const d = window.devicePixelRatio || 1; g.setTransform(d, 0, 0, d, 0, 0);
+  axes(g, w, h, B1R, B0R, "slope β₁", "intercept β₀", [-10, -5, 0, 5, 10, 15, 20, 25], [-300, -200, -100, 0, 100, 200, 300]);
+  g.strokeStyle = css("--ring"); g.lineWidth = 2; g.beginPath(); g.arc(px(DATA.b1), py(DATA.b0), 6, 0, 2 * Math.PI); g.stroke();
+  g.fillStyle = css("--rust"); g.strokeStyle = css("--ring"); g.lineWidth = 2;
+  const mx = Math.min(Math.max(px(b1), PAD.l), w - PAD.r), my = Math.min(Math.max(py(b0), PAD.t), h - PAD.b);
+  g.beginPath(); g.arc(mx, my, 8, 0, 2 * Math.PI); g.fill(); g.stroke();
+  g.fillStyle = css("--ink"); g.font = "15px system-ui, sans-serif"; g.textAlign = "left"; g.textBaseline = "top";
+  g.fillText("○ best line   ● your line", PAD.l + 8, PAD.t + 6);
+}
+
+function update() {
+  const b0 = +b0in.value, b1 = +b1in.value, m = Math.max(mse(b0, b1), 0);
+  $("b0o").textContent = b0.toFixed(1); $("b1o").textContent = b1.toFixed(2);
+  $("eqb0").textContent = b0.toFixed(1); $("eqb1").textContent = b1.toFixed(2);
+  $("mse").textContent = Math.round(m).toLocaleString("en-US");
+  $("rmse").textContent = Math.sqrt(m).toFixed(1);
+  $("brmse").textContent = DATA.rmse_best.toFixed(1);
+  drawFit(b0, b1); drawSurf(b0, b1);
+}
+function set(b0, b1) {
+  b0in.value = Math.min(Math.max(b0, B0R[0]), B0R[1]);
+  b1in.value = Math.min(Math.max(b1, B1R[0]), B1R[1]);
+  update();
+}
+b0in.addEventListener("input", update); b1in.addEventListener("input", update); $("miss").addEventListener("change", update);
+$("best").addEventListener("click", () => set(DATA.b0, DATA.b1));
+$("flat").addEventListener("click", () => set(DATA.y_mean, 0));
+$("surf").addEventListener("click", e => {
+  const r = e.currentTarget.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  set(B0R[1] - (y - PAD.t) / (r.height - PAD.t - PAD.b) * (B0R[1] - B0R[0]),
+      B1R[0] + (x - PAD.l) / (r.width - PAD.l - PAD.r) * (B1R[1] - B1R[0]));
+});
+window.addEventListener("resize", update);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { surfKey = ""; update(); });
+new MutationObserver(() => { surfKey = ""; update(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+set(DATA.y_mean, 0);
+</script>
+</body>
+</html>
