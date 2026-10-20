@@ -778,15 +778,6 @@ select:focus-visible {
   padding-right: 8px;
 }
 
-.choices.multiplication {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-.choices.multiplication button {
-  min-height: 48px;
-  font-size: 16px;
-  padding: 8px;
-}
-
 .header-actions {
   display: flex;
   align-items: center;

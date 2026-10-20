@@ -43,16 +43,13 @@
   function area(parent) {
     const wrap = node("section", "area-block");
     wrap.setAttribute("aria-label", "Area model");
-    wrap.append(node("div", "dimension", `Width: ${model.a} = ${model.x.join(" + ")}`));
+    wrap.append(node("div", "dimension", `Width: ${model.a}${model.x.length > 1 ? " = " + model.x.join(" + ") : ""}`));
     const image = node("div", "area-frame"),
       ns = "http://www.w3.org/2000/svg",
       svg = document.createElementNS(ns, "svg");
     svg.setAttribute("viewBox", `0 0 ${model.a} ${model.b}`);
     svg.setAttribute("role", "img");
-    svg.setAttribute(
-      "aria-label",
-      `A rectangle ${model.a} units wide and ${model.b} units high, split at the tens and ones. Each colored part matches an equation below.`
-    );
+    svg.setAttribute("aria-label", `A rectangle ${model.a} units wide and ${model.b} units high. Each colored part matches an equation below.`);
     for (const part of model.parts) {
       if (part.width === 0 || part.height === 0) continue;
       const rect = document.createElementNS(ns, "rect");
@@ -71,8 +68,8 @@
       svg.append(rect);
     }
     image.append(svg);
-    wrap.append(image, node("div", "dimension", `Height: ${model.b}${mode === "two" ? " = " + model.y.join(" + ") : ""}`));
-    if (model.x[1] === 0 || (mode === "two" && model.y[1] === 0))
+    wrap.append(image, node("div", "dimension", `Height: ${model.b}${model.y.length > 1 ? " = " + model.y.join(" + ") : ""}`));
+    if (model.x.includes(0) || model.y.includes(0))
       wrap.append(node("p", "quiet zero-note", "A zero-width or zero-height part has area 0. It is not drawn."));
     parent.append(wrap);
   }
@@ -117,7 +114,7 @@
     };
     line(String(model.a), "");
     line("× " + model.b, "", "rule");
-    if (mode === "two") {
+    if (model.rows.length > 1) {
       line(String(model.rows[1].value), `${model.a} × ${model.y[1]}`);
       line("+ " + model.rows[0].value, `${model.a} × ${model.y[0]}`, "rule");
     }
@@ -138,8 +135,8 @@
     const select = node("select");
     select.setAttribute("aria-label", "Multiplication type");
     [
-      ["two", "2-digit × 2-digit"],
-      ["one", "2-digit × 1-digit"],
+      ["two", "1–2 digits × 1–2 digits"],
+      ["one", "1–2 digits × 1 digit"],
     ].forEach(([value, text]) => {
       const option = node("option", "", text);
       option.value = value;
@@ -167,8 +164,8 @@
       lab.append(n);
       return [lab, n];
     };
-    const [la, a] = input("First number", model.a, 10, 99),
-      [lb, b] = input("Second number", model.b, mode === "one" ? 2 : 10, mode === "one" ? 9 : 99);
+    const [la, a] = input("First number", model.a, 1, 99),
+      [lb, b] = input("Second number", model.b, 1, mode === "one" ? 9 : 99);
     const apply = node("button", "apply", "Use");
     apply.type = "submit";
     fields.append(la, node("span", "times", "×"), lb, apply);

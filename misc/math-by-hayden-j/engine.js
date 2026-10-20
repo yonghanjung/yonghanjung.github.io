@@ -52,7 +52,7 @@
     const [a, b] = pool[integer(0, pool.length - 1, rng)];
     return { a, b, op, answer: op === "+" ? a + b : a - b };
   }
-  function problem(op, rng = Math.random, sumLimit = 10, difficulty = "easy", multiplication = "tables") {
+  function problem(op, rng = Math.random, sumLimit = 10, difficulty = "easy") {
     if (!OPS.includes(op)) throw new Error("Invalid operation");
     if (op === "+" && ["medium", "difficult"].includes(difficulty)) {
       return regroupPair(op, sumLimit, rng() < 0.95, rng);
@@ -79,14 +79,14 @@
       }
       return { a, b: index, op, answer: a - index };
     }
-    const a = op === "÷" ? integer(1, 9, rng) : multiplication === "2-digit" ? integer(10, 99, rng) : integer(2, 9, rng),
+    const a = op === "÷" ? integer(1, 9, rng) : integer(2, 9, rng),
       b = integer(2, 9, rng);
     return op === "×" ? { a, b, op, answer: a * b } : { a: a * b, b, op, answer: a };
   }
   function initial() {
     return {
       version: 1,
-      settings: { ops: ["×"], multiplication: "tables", seconds: 6, difficulty: "easy", difficultLimit: 100, count: 10, customCount: 10 },
+      settings: { ops: ["×"], seconds: 6, difficulty: "easy", difficultLimit: 100, count: 10, customCount: 10 },
       active: null,
       history: [],
     };
@@ -103,7 +103,6 @@
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       op: ops.join(""),
       ops: [...ops],
-      multiplication: options.multiplication || "tables",
       seconds,
       difficulty: options.difficulty || "none",
       sumLimit: options.sumLimit ?? null,
@@ -129,10 +128,9 @@
     state.active = makeRound(
       ops,
       s.seconds,
-      balancedOperations(ops, unlimited ? 1 : count, rng).map((op) => problem(op, rng, limit, s.difficulty, s.multiplication)),
+      balancedOperations(ops, unlimited ? 1 : count, rng).map((op) => problem(op, rng, limit, s.difficulty)),
       {
         unlimited,
-        multiplication: s.multiplication,
         difficulty: hasAddSub ? s.difficulty : "none",
         sumLimit: hasAddSub ? limit : null,
       }
@@ -200,7 +198,7 @@
     const r = state.active;
     if (!r || r.phase !== "feedback") return false;
     if (!r.unlimited && r.index === r.records.length - 1) return close(state);
-    if (r.unlimited) r.records.push({ problem: problem(nextOperation(r, rng), rng, r.sumLimit || 10, r.difficulty, r.multiplication), result: null });
+    if (r.unlimited) r.records.push({ problem: problem(nextOperation(r, rng), rng, r.sumLimit || 10, r.difficulty), result: null });
     r.index++;
     r.phase = "ready";
     r.remaining = r.seconds * 1000;
@@ -214,15 +212,23 @@
     r.records = r.records.filter((x) => x.result !== null);
     return close(state);
   }
+  function isDrillProblem(p) {
+    if (!validProblem(p)) return false;
+    if (p.op === "×") return p.a >= 2 && p.a <= 9 && p.b >= 2 && p.b <= 9;
+    if (p.op === "÷") return p.b >= 2 && p.b <= 9 && p.answer >= 1 && p.answer <= 9;
+    return true;
+  }
+  function retryProblems(round) {
+    return (round?.records || []).filter((x) => x.result && x.result.status !== "correct" && isDrillProblem(x.problem)).map((x) => x.problem);
+  }
   function retry(state) {
     const r = state.active;
     if (!r || r.phase !== "complete") return false;
-    const missed = r.records.filter((x) => x.result && x.result.status !== "correct").map((x) => x.problem);
+    const missed = retryProblems(r);
     if (!missed.length) return false;
     state.active = makeRound(r.ops, r.seconds, missed, {
       difficulty: r.difficulty,
       sumLimit: r.sumLimit,
-      multiplication: r.multiplication,
     });
     return true;
   }
@@ -271,7 +277,7 @@
     const r = JSON.parse(JSON.stringify(raw));
     r.ops = operations(r.ops ?? r.op);
     r.op = r.ops.join("");
-    r.multiplication = r.multiplication === "2-digit" ? "2-digit" : "tables";
+    delete r.multiplication;
     r.unlimited = Boolean(r.unlimited);
     const hasAddSub = r.ops.some((op) => ["+", "−"].includes(op));
     if (!r.difficulty) r.difficulty = hasAddSub ? "legacy" : "none";
@@ -285,7 +291,6 @@
     const set = raw.settings || {};
     const ops = operations(set.ops ?? set.op ?? set.mode);
     if (ops.length) s.settings.ops = ops;
-    if (["tables", "2-digit"].includes(set.multiplication)) s.settings.multiplication = set.multiplication;
     if (DURATIONS.includes(set.seconds)) s.settings.seconds = set.seconds;
     if (LEVELS.includes(set.difficulty)) s.settings.difficulty = set.difficulty;
     if (Number.isInteger(set.difficultLimit) && set.difficultLimit >= 30 && set.difficultLimit <= 100 && set.difficultLimit % 10 === 0)
@@ -301,6 +306,12 @@
     if (validRound(raw.active)) {
       s.active = normalizeRound(raw.active);
       const r = s.active;
+      r.records.forEach((x, index) => {
+        if (x.result === null && !isDrillProblem(x.problem)) {
+          x.problem = problem(x.problem.op);
+          if (index === r.index) r.remaining = r.seconds * 1000;
+        }
+      });
       if (["running", "ready", "paused"].includes(r.phase)) {
         r.phase = "paused";
         r.remaining = Number.isFinite(r.remaining) ? Math.max(0, Math.min(r.seconds * 1000, r.remaining)) : 0;
@@ -330,6 +341,8 @@
     next,
     finish,
     retry,
+    retryProblems,
+    isDrillProblem,
     summary,
     hydrate,
   };

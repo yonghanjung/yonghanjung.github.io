@@ -183,19 +183,10 @@
             op === "+" ? "Addition" : op === "−" ? "Subtraction" : op === "×" ? "Multiplication" : "Division"
           }" aria-pressed="${s.ops.includes(op)}"`
         )
-    ).join("")}</div></div>${
-      s.ops.includes("×")
-        ? `<div><span class="label">Multiplication</span><div class="choices multiplication" role="group" aria-label="Multiplication range">${[
-            ["tables", "Tables"],
-            ["2-digit", "2-digit"],
-          ]
-            .map(([value, label]) =>
-              button(label, `multiplication:${value}`, s.multiplication === value ? "selected" : "", `aria-pressed="${s.multiplication === value}"`)
-            )
-            .join("")}</div></div>`
-        : ""
-    }<div><span class="label">Time</span><div class="choices time" role="group" aria-label="Seconds per question">${D.DURATIONS.map((sec) =>
-      button(`${sec}s`, `seconds:${sec}`, s.seconds === sec ? "selected" : "", `aria-pressed="${s.seconds === sec}"`)
+    ).join(
+      ""
+    )}</div></div><div><span class="label">Time</span><div class="choices time" role="group" aria-label="Seconds per question">${D.DURATIONS.map(
+      (sec) => button(`${sec}s`, `seconds:${sec}`, s.seconds === sec ? "selected" : "", `aria-pressed="${s.seconds === sec}"`)
     ).join("")}</div></div>${
       s.ops.some((op) => ["+", "−"].includes(op))
         ? `<div class="difficulty"><span class="label">${D.operationLabel(
@@ -355,11 +346,13 @@
       wrong = r.records.filter((x) => x.result && x.result.status !== "correct");
     app.innerHTML = `<section class="summary"><span class="label">${D.operationLabel(r.ops)} · ${r.seconds}s${
       r.ops.some((op) => ["+", "−"].includes(op)) ? ` · ${D.operationLabel(r.ops.filter((op) => ["+", "−"].includes(op)))} ≤ ${r.sumLimit}` : ""
-    }${r.ops.includes("×") ? ` · × ${r.multiplication === "2-digit" ? "2-digit" : "Tables"}` : ""}</span>${
-      m.master ? '<div class="master">Master! ✦</div>' : ""
-    }<div class="summary-score">${m.correct}<small> / ${m.total}</small></div><div class="summary-actions">${
-      wrong.length ? button("Practice mistakes", "retry", "soft") : ""
-    }${button("New round", "start", "primary")}</div>${
+    }</span>${m.master ? '<div class="master">Master! ✦</div>' : ""}<div class="summary-score">${m.correct}<small> / ${
+      m.total
+    }</small></div><div class="summary-actions">${D.retryProblems(r).length ? button("Practice mistakes", "retry", "soft") : ""}${button(
+      "New round",
+      "start",
+      "primary"
+    )}</div>${
       wrong.length
         ? `<div class="notes"><span class="label">Wrong answers · ${wrong.length}</span>${wrong
             .map(
@@ -410,11 +403,6 @@
         state.settings.ops = D.operations(selected.includes(op) ? selected.filter((value) => value !== op) : [...selected, op]);
         notice = "";
       }
-      save();
-      render();
-    } else if (a.startsWith("multiplication:")) {
-      state.settings.multiplication = a.slice(15);
-      notice = "";
       save();
       render();
     } else if (a.startsWith("seconds:")) {

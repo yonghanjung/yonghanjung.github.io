@@ -2,22 +2,14 @@
   "use strict";
   const MODES = ["two", "one"];
   function split(n) {
-    return [Math.floor(n / 10) * 10, n % 10];
+    return n < 10 ? [n] : [Math.floor(n / 10) * 10, n % 10];
   }
   function key(a, b) {
     return [a, b].sort((x, y) => x - y).join("x");
   }
   function lesson(a, b, mode = "two") {
-    if (
-      !MODES.includes(mode) ||
-      !Number.isInteger(a) ||
-      a < 10 ||
-      a > 99 ||
-      !Number.isInteger(b) ||
-      b < (mode === "one" ? 2 : 10) ||
-      b > (mode === "one" ? 9 : 99)
-    )
-      throw Error("Use a two-digit first number and a valid second number.");
+    if (!MODES.includes(mode) || !Number.isInteger(a) || a < 1 || a > 99 || !Number.isInteger(b) || b < 1 || b > (mode === "one" ? 9 : 99))
+      throw Error("Use whole numbers from 1 to 99, with a one-digit second number in one-digit mode.");
     const x = split(a),
       y = mode === "one" ? [b] : split(b);
     const parts = y.flatMap((height, row) =>
@@ -48,8 +40,7 @@
     if (!MODES.includes(mode)) throw Error("Unknown mode");
     const seen = new Set(recent.slice(-20));
     const choices = [];
-    for (let a = 10; a <= 99; a++)
-      for (let b = mode === "one" ? 2 : 10; b <= (mode === "one" ? 9 : 99); b++) if (!seen.has(key(a, b))) choices.push([a, b]);
+    for (let a = 1; a <= 99; a++) for (let b = 1; b <= (mode === "one" ? 9 : 99); b++) if (!seen.has(key(a, b))) choices.push([a, b]);
     const pair = choices[Math.min(choices.length - 1, Math.floor(random() * choices.length))];
     return lesson(pair[0], pair[1], mode);
   }

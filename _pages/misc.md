@@ -37,31 +37,31 @@ nav_order: 7
 
 <section class="misc-portfolio" aria-label="Games and music">
   <article class="misc-project misc-project--workshop">
-    <div class="misc-category">Explore</div>
-    <h2>Groups Lab</h2>
-    <p>Turn arrays. Explore equal groups.</p>
-    <a class="misc-play" href="{{ '/children-math/groups-lab/' | relative_url }}" aria-label="Explore Groups Lab">Explore</a>
-  </article>
-  <article class="misc-project misc-project--workshop">
-    <div class="misc-category">Explore</div>
-    <h2>Multiply Lab</h2>
-    <p>Split tens and ones. See each part of a bigger multiplication.</p>
-    <a class="misc-play" href="{{ '/children-math/multiplication-lab/' | relative_url }}" aria-label="Explore Multiply Lab">Explore</a>
-  </article>
-  <article class="misc-project">
     <div class="misc-category">Game</div>
-    <h2>Multiplication</h2>
-    <p>Practice times tables.</p>
-    <a class="misc-play" href="{{ '/misc/multiplication/' | relative_url }}" aria-label="Play Multiplication">Play</a>
-  </article>
-  <article class="misc-project misc-project--workshop">
-    <div class="misc-category">Game</div>
-    <h2>Math by Hayden.J</h2>
+    <h2>Daily</h2>
     <p>Add, multiply, and divide.</p>
     <div class="misc-game-links">
       <a class="misc-play" href="{{ '/misc/math-by-hayden-j/' | relative_url }}" aria-label="Play Quick Math by Hayden.J">Quick Math</a>
       <a class="misc-play" href="{{ '/misc/hayden-math/' | relative_url }}" aria-label="Play Math Lab by Hayden.J">Math Lab</a>
     </div>
+  </article>
+  <article class="misc-project">
+    <div class="misc-category">Game</div>
+    <h2>Multiplication Table</h2>
+    <p>Practice times tables.</p>
+    <a class="misc-play" href="{{ '/misc/multiplication/' | relative_url }}" aria-label="Play Multiplication Table">Play</a>
+  </article>
+  <article class="misc-project misc-project--workshop">
+    <div class="misc-category">Explore</div>
+    <h2>Division Practice</h2>
+    <p>Turn arrays. Explore equal groups.</p>
+    <a class="misc-play" href="{{ '/children-math/groups-lab/' | relative_url }}" aria-label="Explore Division Practice">Explore</a>
+  </article>
+  <article class="misc-project misc-project--workshop">
+    <div class="misc-category">Explore</div>
+    <h2>Two Digit Multiplication</h2>
+    <p>Split tens and ones. See each part of a bigger multiplication.</p>
+    <a class="misc-play" href="{{ '/children-math/multiplication-lab/' | relative_url }}" aria-label="Explore Two Digit Multiplication">Explore</a>
   </article>
   <article class="misc-project misc-project--music">
     <div class="misc-category">Music</div>

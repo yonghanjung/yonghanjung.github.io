@@ -1196,14 +1196,488 @@
     return out;
   }
 
+  const NEW_FAMILIES = {
+    measurement: ["clock_end", "clock_start", "clock_meridiem", "active_minutes", "duration_compare", "clock_error"],
+    narrative: ["comparison_chain", "group_difference", "equalize_transfer", "fraction_whole", "shopping_change"],
+    brain: [
+      "intended_multiplier",
+      "inequality_count",
+      "three_shared_parts",
+      "equal_perimeter_rectangle_square",
+      "two_attribute_matching",
+      "digit_constraints",
+    ],
+  };
+  const newSection = (type) => Object.keys(NEW_FAMILIES).find((s) => NEW_FAMILIES[s].includes(type));
+  const hourMinute = (m) => ({ Hour: Math.floor(m / 60) % 12 || 12, Minute: m % 60 });
+  const clockVisual = (m) => {
+    const { Hour: hour, Minute: minute } = hourMinute(m);
+    return { kind: "clock", hour, minute, hourAngle: (hour % 12) * 30 + minute * 0.5, minuteAngle: minute * 6 };
+  };
+  const bars = (rows, note = "Each ? box stands for the same amount. Other labels are not to scale.") => ({ kind: "bar_model", rows, note });
+  const unitRow = (label, count, extra = null) => ({
+    label,
+    segments: [
+      ...Array.from({ length: count }, () => ({ text: "?", role: "unit" })),
+      ...(extra === null ? [] : [{ text: String(extra), role: "extra" }]),
+    ],
+  });
+  function newParams(type) {
+    if (["clock_end", "clock_start"].includes(type))
+      return { start: rand(7, 10) * 60 + rand(0, 11) * 5, duration: pick([15, 20, 25, 30, 40, 45, 50, 60, 75, 90]) };
+    if (type === "clock_meridiem") {
+      const period = pick(["morning", "afternoon", "noon", "midnight"]);
+      return { hour: period === "morning" ? rand(7, 11) : period === "afternoon" ? rand(1, 5) : 12, minute: rand(0, 59), period };
+    }
+    if (type === "active_minutes") {
+      const start = rand(8, 11) * 60 + rand(0, 11) * 5,
+        duration = rand(6, 18) * 5,
+        rest = rand(1, 4) * 5;
+      return { start, duration, rest };
+    }
+    if (type === "duration_compare") {
+      const startA = rand(7, 10) * 60 + rand(0, 11) * 5,
+        startB = rand(12, 15) * 60 + rand(0, 11) * 5,
+        durationA = rand(3, 12) * 5,
+        extra = rand(1, 6) * 5;
+      return { startA, startB, durationA, extra };
+    }
+    if (type === "clock_error") return { shown: rand(9, 13) * 60 + rand(0, 11) * 5, error: rand(1, 5) * 5, fast: Boolean(rand(0, 1)) };
+    if (type === "comparison_chain") return { a: rand(20, 60), less: rand(2, 9), more: rand(2, 9) };
+    if (type === "group_difference") {
+      const small = rand(2, 5);
+      return { small, large: rand(small + 2, 9), unit: rand(2, 9) };
+    }
+    if (type === "equalize_transfer") return { b: rand(10, 35), gap: rand(2, 9), transfer: rand(2, 9) };
+    if (type === "fraction_whole") {
+      const parts = rand(2, 7);
+      return { parts, wholeParts: rand(parts + 1, 9), unit: rand(2, 9) };
+    }
+    if (type === "shopping_change") {
+      const price = rand(15, 95),
+        quantity = rand(2, 9),
+        change = rand(1, 99);
+      return { price, quantity, paid: price * quantity + change };
+    }
+    if (type === "intended_multiplier") {
+      const wrong = rand(2, 7);
+      return { original: rand(2, 9), wrong, right: rand(wrong + 1, 9) };
+    }
+    if (type === "inequality_count") {
+      const lo = rand(2, 6),
+        [left, right] = shuffle(range(2, 9));
+      return { lo, hi: rand(lo + 1, 8), left, right, lowerSlack: rand(0, left - 1), upperSlack: rand(1, right) };
+    }
+    if (type === "three_shared_parts") return { unit: rand(2, 9), extra: rand(2, 30) };
+    if (type === "equal_perimeter_rectangle_square") {
+      const side = rand(3, 9);
+      return { side, delta: rand(1, side - 2) };
+    }
+    if (type === "two_attribute_matching")
+      return { names: shuffle(FIRST).slice(0, 3), colors: shuffle(["Red", "Blue", "Green"]), mirror: Boolean(rand(0, 1)) };
+    if (type === "digit_constraints") {
+      const tens = rand(1, 8);
+      return { tens, gap: rand(1, 9 - tens) };
+    }
+    throw Error("Unknown reasoning family");
+  }
+  function matchingStates(p) {
+    const out = [];
+    for (const days of permutations([1, 2, 3]))
+      for (const colors of permutations(p.colors)) {
+        const red = colors.indexOf(p.colors[0]),
+          blue = colors.indexOf(p.colors[1]);
+        if (
+          days[0] === days[red] + (p.mirror ? 1 : -1) &&
+          days[1] === (p.mirror ? 1 : 3) &&
+          days[blue] === (p.mirror ? 3 : 1) &&
+          colors[2] !== p.colors[0]
+        )
+          out.push({ days, colors });
+      }
+    return out;
+  }
+  function newAnswer(type, p) {
+    if (type === "clock_end") return hourMinute(p.start + p.duration);
+    if (type === "clock_start") return hourMinute(p.start);
+    if (type === "clock_meridiem")
+      return { value: `${p.hour}:${String(p.minute).padStart(2, "0")} ${["morning", "midnight"].includes(p.period) ? "am" : "pm"}` };
+    if (type === "active_minutes") return { value: p.duration - p.rest };
+    if (type === "duration_compare") return { value: p.extra };
+    if (type === "clock_error") return hourMinute(p.shown + (p.fast ? -p.error : p.error));
+    if (type === "comparison_chain") return { value: p.a + (p.a - p.less) + (p.a - p.less + p.more) };
+    if (type === "group_difference") {
+      const difference = (p.large - p.small) * p.unit;
+      const candidates = range(1, 9).filter((u) => (p.large - p.small) * u === difference);
+      if (candidates.length !== 1) throw Error("Group unit not unique");
+      return { value: candidates[0] };
+    }
+    if (type === "equalize_transfer") {
+      const a = p.b + p.gap + 2 * p.transfer;
+      const candidates = range(0, a).filter((x) => a - x - (p.b + x) === p.gap);
+      if (candidates.length !== 1) throw Error("Transfer not unique");
+      return { value: candidates[0] };
+    }
+    if (type === "fraction_whole") return { value: p.wholeParts * p.unit };
+    if (type === "shopping_change") return { value: p.paid - p.price * p.quantity };
+    if (type === "intended_multiplier") {
+      const observed = p.original * p.wrong,
+        extra = p.original * (p.right - p.wrong),
+        candidates = range(2, 9).filter((r) => p.original * r === observed + extra);
+      if (candidates.length !== 1) throw Error("Multiplier not unique");
+      return { value: candidates[0] };
+    }
+    if (type === "inequality_count")
+      return {
+        value: range(1, 9).filter((n) => p.left * n > p.left * (p.lo - 1) + p.lowerSlack && p.right * n < p.right * p.hi + p.upperSlack).length,
+      };
+    if (type === "three_shared_parts") return { value: p.unit };
+    if (type === "equal_perimeter_rectangle_square") return { value: p.side };
+    if (type === "two_attribute_matching") {
+      const states = matchingStates(p);
+      if (states.length !== 1) throw Error("Matching assignment not unique");
+      return { Day: ["Monday", "Tuesday", "Wednesday"][states[0].days[2] - 1], Color: states[0].colors[2] };
+    }
+    if (type === "digit_constraints") {
+      const sum = 2 * p.tens + p.gap,
+        candidates = range(10, 99).filter((n) => Math.floor(n / 10) + (n % 10) === sum && (n % 10) - Math.floor(n / 10) === p.gap);
+      if (candidates.length !== 1) throw Error("Digits not unique");
+      return { value: candidates[0] };
+    }
+    throw Error("Unknown reasoning answer");
+  }
+  function newBounds(type, p) {
+    if (["clock_end", "clock_start"].includes(type))
+      return (
+        int(p.start, 420, 655) && p.start % 5 === 0 && [15, 20, 25, 30, 40, 45, 50, 60, 75, 90].includes(p.duration) && p.start + p.duration < 1440
+      );
+    if (type === "clock_meridiem")
+      return (
+        ["morning", "afternoon", "noon", "midnight"].includes(p.period) &&
+        int(
+          p.hour,
+          p.period === "morning" ? 7 : p.period === "afternoon" ? 1 : 12,
+          p.period === "morning" ? 11 : p.period === "afternoon" ? 5 : 12
+        ) &&
+        int(p.minute, 0, 59)
+      );
+    if (type === "active_minutes")
+      return (
+        int(p.start, 480, 715) &&
+        p.start % 5 === 0 &&
+        int(p.duration, 30, 90) &&
+        p.duration % 5 === 0 &&
+        int(p.rest, 5, 20) &&
+        p.rest % 5 === 0 &&
+        p.duration > p.rest
+      );
+    if (type === "duration_compare")
+      return (
+        int(p.startA, 420, 655) &&
+        p.startA % 5 === 0 &&
+        int(p.startB, 720, 955) &&
+        p.startB % 5 === 0 &&
+        int(p.durationA, 15, 60) &&
+        p.durationA % 5 === 0 &&
+        int(p.extra, 5, 30) &&
+        p.extra % 5 === 0
+      );
+    if (type === "clock_error")
+      return int(p.shown, 540, 835) && p.shown % 5 === 0 && int(p.error, 5, 25) && p.error % 5 === 0 && typeof p.fast === "boolean";
+    if (type === "comparison_chain") return int(p.a, 20, 60) && int(p.less, 2, 9) && int(p.more, 2, 9);
+    if (type === "group_difference") return int(p.small, 2, 5) && int(p.large, p.small + 2, 9) && int(p.unit, 2, 9);
+    if (type === "equalize_transfer") return int(p.b, 10, 35) && int(p.gap, 2, 9) && int(p.transfer, 2, 9);
+    if (type === "fraction_whole") return int(p.parts, 2, 7) && int(p.wholeParts, p.parts + 1, 9) && int(p.unit, 2, 9);
+    if (type === "shopping_change")
+      return int(p.price, 15, 95) && int(p.quantity, 2, 9) && int(p.paid - p.price * p.quantity, 1, 99) && p.paid <= 999;
+    if (type === "intended_multiplier") return int(p.original, 2, 9) && int(p.wrong, 2, 7) && int(p.right, p.wrong + 1, 9);
+    if (type === "inequality_count")
+      return (
+        int(p.lo, 2, 6) &&
+        int(p.hi, p.lo + 1, 8) &&
+        int(p.left, 2, 9) &&
+        int(p.right, 2, 9) &&
+        p.left !== p.right &&
+        int(p.lowerSlack, 0, p.left - 1) &&
+        int(p.upperSlack, 1, p.right)
+      );
+    if (type === "three_shared_parts") return int(p.unit, 2, 9) && int(p.extra, 2, 30);
+    if (type === "equal_perimeter_rectangle_square") return int(p.side, 3, 9) && int(p.delta, 1, p.side - 2);
+    if (type === "two_attribute_matching")
+      return (
+        Array.isArray(p.names) &&
+        p.names.length === 3 &&
+        new Set(p.names).size === 3 &&
+        p.names.every((n) => FIRST.includes(n)) &&
+        Array.isArray(p.colors) &&
+        p.colors.length === 3 &&
+        new Set(p.colors).size === 3 &&
+        p.colors.every((c) => ["Red", "Blue", "Green"].includes(c)) &&
+        typeof p.mirror === "boolean"
+      );
+    if (type === "digit_constraints") return int(p.tens, 1, 8) && int(p.gap, 1, 9 - p.tens);
+    return false;
+  }
+  function newView(type, p) {
+    const scalar = (label, unit) => ({ kind: "integer", fields: [{ key: "value", label, ...(unit ? { unit } : {}) }] }),
+      pair = {
+        kind: "pair",
+        fields: [
+          { key: "Hour", label: "Hour" },
+          { key: "Minute", label: "Minute" },
+        ],
+      };
+    let prompt,
+      visual = null,
+      response,
+      hint,
+      explanation;
+    if (type === "clock_end" || type === "clock_start") {
+      const end = p.start + p.duration,
+        given = type === "clock_end" ? p.start : end;
+      prompt =
+        type === "clock_end"
+          ? `An activity starts at the time on this clock (${given < 720 ? "am" : "pm"}). It lasts ${
+              p.duration
+            } minutes. What time does it end? Enter the hour and minute.`
+          : `An activity ends at the time on this clock (${given < 720 ? "am" : "pm"}). It lasted ${
+              p.duration
+            } minutes. What time did it start? Enter the hour and minute.`;
+      visual = clockVisual(given);
+      response = pair;
+      hint =
+        type === "clock_end" ? "Move forward by the duration. Each hour has 60 minutes." : "Move backward by the duration. Each hour has 60 minutes.";
+      explanation =
+        type === "clock_end"
+          ? `${timeText(p.start)} + ${p.duration} minutes = ${timeText(end)}.`
+          : `${timeText(end)} − ${p.duration} minutes = ${timeText(p.start)}.`;
+    } else if (type === "clock_meridiem") {
+      const suffix = ["morning", "midnight"].includes(p.period) ? "am" : "pm",
+        format = (h, m, s) => `${h}:${String(m).padStart(2, "0")} ${s}`,
+        options = [
+          format(p.hour, p.minute, "am"),
+          format(p.hour, p.minute, "pm"),
+          format((p.hour % 12) + 1, p.minute, suffix),
+          format(p.hour, (p.minute + 5) % 60, suffix),
+        ],
+        rotate = (p.hour + p.minute) % 4;
+      const context = ["noon", "midnight"].includes(p.period)
+        ? p.minute === 0
+          ? `It is ${p.period}.`
+          : `It is less than one hour after ${p.period}.`
+        : `It is ${p.period}.`;
+      prompt = `${context} Which time matches this clock? Noon uses pm; midnight uses am.`;
+      visual = clockVisual((p.hour % 12) * 60 + p.minute);
+      response = { kind: "choice", fields: [{ key: "value", label: "Time", options: [...options.slice(rotate), ...options.slice(0, rotate)] }] };
+      hint = "Read both hands, then use the stated part of the day.";
+      explanation = `The hands show ${p.hour}:${String(p.minute).padStart(2, "0")}. ${context} The time is ${format(p.hour, p.minute, suffix)}.`;
+    } else if (type === "active_minutes") {
+      const end = p.start + p.duration;
+      prompt = `A workshop runs from ${timeText(p.start)} to ${timeText(end)} on the same day. That time includes a ${
+        p.rest
+      }-minute break. How many minutes are spent working?`;
+      response = scalar("Working time", "minutes");
+      hint = "Find the entire interval, then remove the break.";
+      explanation = `The interval is ${p.duration} minutes. ${p.duration} − ${p.rest} = ${p.duration - p.rest} working minutes.`;
+    } else if (type === "duration_compare") {
+      prompt = `Activity A runs from ${timeText(p.startA)} to ${timeText(p.startA + p.durationA)}. Activity B runs from ${timeText(
+        p.startB
+      )} to ${timeText(p.startB + p.durationA + p.extra)} on the same day. How many minutes longer is B?`;
+      response = scalar("Longer by", "minutes");
+      hint = "Find each duration before comparing them.";
+      explanation = `A lasts ${p.durationA} minutes; B lasts ${p.durationA + p.extra} minutes. ${p.durationA + p.extra} − ${p.durationA} = ${
+        p.extra
+      } minutes.`;
+    } else if (type === "clock_error") {
+      const actual = p.shown + (p.fast ? -p.error : p.error);
+      prompt = `This clock shows ${p.shown < 720 ? "an am" : "a pm"} time. It is ${p.error} minutes ${
+        p.fast ? "fast" : "slow"
+      }. What is the actual time? Enter the hour and minute.`;
+      visual = clockVisual(p.shown);
+      response = pair;
+      hint = p.fast
+        ? "A fast clock is ahead. Move backward to find the actual time."
+        : "A slow clock is behind. Move forward to find the actual time.";
+      explanation = `Shown: ${timeText(p.shown)}. ${p.fast ? "Subtract" : "Add"} ${p.error} minutes: ${timeText(actual)}.`;
+    } else if (type === "comparison_chain") {
+      const b = p.a - p.less,
+        c = b + p.more;
+      prompt = `A box holds ${p.a} red beads. There are ${p.less} fewer blue beads than red beads, and ${p.more} more green beads than blue beads. How many beads are there altogether?`;
+      response = scalar("Total", "beads");
+      visual = bars([unitRow(`Red total: ${p.a}`, 1, p.less), unitRow("Blue", 1), unitRow("Green", 1, p.more)]);
+      hint = "Find blue first, then green. Add all three colors.";
+      explanation = `Blue: ${p.a} − ${p.less} = ${b}. Green: ${b} + ${p.more} = ${c}. Total: ${p.a} + ${b} + ${c} = ${p.a + b + c}.`;
+    } else if (type === "group_difference") {
+      const difference = (p.large - p.small) * p.unit;
+      prompt = `Each packet holds the same number of cards. Mia has ${p.small} packets. Leo has ${p.large} packets and ${difference} more cards than Mia. How many cards are in one packet?`;
+      visual = bars([unitRow("Mia", p.small), unitRow("Leo", p.large)]);
+      response = scalar("One packet", "cards");
+      hint = "The extra packets account for the difference in cards.";
+      explanation = `Extra packets: ${p.large} − ${p.small} = ${p.large - p.small}. Each packet: ${difference} ÷ ${p.large - p.small} = ${
+        p.unit
+      } cards.`;
+    } else if (type === "equalize_transfer") {
+      const a = p.b + p.gap + 2 * p.transfer;
+      prompt = `Ava has ${a} cards and Ben has ${p.b}. Ava gives some cards to Ben. Ava then has ${p.gap} more cards than Ben. How many cards did she give him?`;
+      response = scalar("Cards given", "cards");
+      visual = bars(
+        [
+          { label: "Ava before", segments: [{ text: String(a), role: "known" }] },
+          { label: "Ben before", segments: [{ text: String(p.b), role: "known" }] },
+        ],
+        `After the transfer, Ava has ${p.gap} more. Not to scale.`
+      );
+      hint = "Each transferred card reduces their difference by two.";
+      explanation = `The original difference is ${a} − ${p.b} = ${a - p.b}. It decreases by ${a - p.b} − ${p.gap} = ${2 * p.transfer}. Cards given: ${
+        2 * p.transfer
+      } ÷ 2 = ${p.transfer}.`;
+    } else if (type === "fraction_whole") {
+      prompt = `${p.parts}/${p.wholeParts} of a collection is ${
+        p.parts * p.unit
+      } cards. The fraction describes equal parts. How many cards are in the whole collection?`;
+      visual = bars(
+        [{ label: "Whole", segments: Array.from({ length: p.wholeParts }, (_, i) => ({ text: "?", role: i < p.parts ? "known" : "unit" })) }],
+        `${p.parts} equal parts together = ${p.parts * p.unit} cards.`
+      );
+      response = scalar("Whole", "cards");
+      hint = "Find one equal part first, then all the parts.";
+      explanation = `One part: ${p.parts * p.unit} ÷ ${p.parts} = ${p.unit}. Whole: ${p.wholeParts} × ${p.unit} = ${p.wholeParts * p.unit} cards.`;
+    } else if (type === "shopping_change") {
+      prompt = `One notebook costs ${p.price}¢. Sam buys ${p.quantity} notebooks and pays ${p.paid}¢. How much change should Sam receive?`;
+      response = scalar("Change", "¢");
+      hint = "Find the total cost, then subtract it from the amount paid.";
+      explanation = `Cost: ${p.price} × ${p.quantity} = ${p.price * p.quantity}¢. Change: ${p.paid} − ${p.price * p.quantity} = ${
+        p.paid - p.price * p.quantity
+      }¢.`;
+    } else if (type === "intended_multiplier") {
+      const observed = p.original * p.wrong,
+        extra = p.original * (p.right - p.wrong);
+      prompt = `A number was multiplied by ${p.wrong}, giving ${observed}. The multiplier should have been another whole number from 2 to 9. The correct product is ${extra} greater. What multiplier was intended?`;
+      response = scalar("Multiplier");
+      hint = "Find the starting number, then the correct product.";
+      explanation = `Starting number: ${observed} ÷ ${p.wrong} = ${p.original}. Correct product: ${observed} + ${extra} = ${
+        p.original * p.right
+      }. Intended multiplier: ${p.original * p.right} ÷ ${p.original} = ${p.right}.`;
+    } else if (type === "inequality_count") {
+      const lower = p.left * (p.lo - 1) + p.lowerSlack,
+        upper = p.right * p.hi + p.upperSlack,
+        candidates = range(1, 9).filter((n) => p.left * n > lower && p.right * n < upper);
+      prompt = `Choose a whole number from 1 to 9. Both clues must hold: ${p.left} × □ > ${lower}, and ${p.right} × □ < ${upper}. How many numbers work?`;
+      response = scalar("How many");
+      hint = "Check the candidates 1 through 9 and keep those satisfying both clues.";
+      explanation = `The working numbers are ${candidates.join(", ")}. There are ${candidates.length}.`;
+    } else if (type === "three_shared_parts") {
+      const total = 3 * p.unit + p.extra;
+      prompt = `Ana and Bo have the same number of cards. Cam has ${p.extra} more cards than Ana. Together they have ${total} cards. How many cards does Ana have?`;
+      visual = bars([unitRow("Ana", 1), unitRow("Bo", 1), unitRow("Cam", 1, p.extra)]);
+      response = scalar("Ana", "cards");
+      hint = "Remove Cam's extra cards. The rest makes three equal parts.";
+      explanation = `Equal parts total: ${total} − ${p.extra} = ${3 * p.unit}. Ana: ${3 * p.unit} ÷ 3 = ${p.unit} cards.`;
+    } else if (type === "equal_perimeter_rectangle_square") {
+      const w = p.side - p.delta,
+        h = p.side + p.delta;
+      prompt = `A rectangle is ${w} cm wide and ${h} cm long. A square has the same perimeter as the rectangle. How long is one side of the square?`;
+      response = scalar("Square side", "cm");
+      visual = { kind: "rectangle", widthLabel: `${w} cm`, heightLabel: `${h} cm`, notToScale: true };
+      hint = "Find the rectangle's perimeter, then share it among four equal sides.";
+      explanation = `Perimeter: 2 × (${w} + ${h}) = ${4 * p.side} cm. Square side: ${4 * p.side} ÷ 4 = ${p.side} cm.`;
+    } else if (type === "two_attribute_matching") {
+      const [a, b, c] = p.names,
+        [red, blue] = p.colors,
+        days = ["Monday", "Tuesday", "Wednesday"],
+        fixedB = days[p.mirror ? 0 : 2],
+        fixedBlue = days[p.mirror ? 2 : 0];
+      prompt = `${a}, ${b}, and ${c} each read on a different day: Monday, Tuesday, or Wednesday. Each used a different card: Red, Blue, or Green.\n${a} read exactly one day ${
+        p.mirror ? "after" : "before"
+      } the child with ${red}. ${b} read on ${fixedB}. The ${blue} card was used on ${fixedBlue}. ${c} did not use ${red}.\nOn which day did ${c} read, and which card did ${c} use?`;
+      response = {
+        kind: "choice",
+        fields: [
+          { key: "Day", label: "Day", options: days },
+          { key: "Color", label: "Card", options: ["Red", "Blue", "Green"] },
+        ],
+      };
+      hint = "Place the fixed day and card, then use the one-day clue. Each day and card is used once.";
+      const s = matchingStates(p)[0];
+      explanation = p.names.map((name, i) => `${name}: ${days[s.days[i] - 1]}, ${s.colors[i]}`).join(". ") + ".";
+    } else if (type === "digit_constraints") {
+      const ones = p.tens + p.gap,
+        sum = p.tens + ones;
+      prompt = `A two-digit number has digits with sum ${sum}. Its ones digit is ${p.gap} greater than its tens digit. What is the number?`;
+      response = scalar("Number");
+      hint = "List digit pairs with the stated sum, then check their difference.";
+      explanation = `Digits ${p.tens} and ${ones} have sum ${sum} and difference ${p.gap}. The number is ${10 * p.tens + ones}.`;
+    }
+    if (newSection(type) === "narrative") {
+      const contexts = {
+        comparison_chain:
+          "The box contains only these three groups of beads, counted once each. Every bead belongs to exactly one of the three color groups.",
+        group_difference:
+          "All packets are completely full for both children, and there are no loose cards anywhere. Both children use the same kind of packet.",
+        equalize_transfer: "No cards are added or removed during the transfer. The total number of cards stays the same for both children together.",
+        fraction_whole:
+          "The whole collection is split into equal-sized parts before counting starts at the school activity. Every part has the same number of cards, including the parts outside the stated fraction.",
+        shopping_change:
+          "Sam is buying useful school supplies for a class project with several classmates at the school shop. All notebooks have exactly the same price, with no discounts, taxes, delivery costs, or other extra charges.",
+      };
+      const questionAt = prompt.lastIndexOf("How ");
+      prompt = prompt.slice(0, questionAt) + contexts[type] + " " + prompt.slice(questionAt);
+    }
+    return { prompt, visual, response, hint, explanation };
+  }
+  function verifyNew(q) {
+    const errors = [];
+    try {
+      if (q.section !== newSection(q.typeId) || q.shapeId !== q.typeId || !newBounds(q.typeId, q.params))
+        throw Error("Invalid reasoning family bounds");
+      const answer = newAnswer(q.typeId, q.params),
+        view = newView(q.typeId, q.params);
+      if (!same(answer, q.answer)) throw Error("Reasoning answer differs");
+      for (const f of view.response.fields)
+        if (view.response.kind === "choice" ? !f.options.includes(answer[f.key]) : !int(answer[f.key], 0, 999))
+          throw Error("Reasoning answer outside response domain");
+      if (
+        !same(q.response, view.response) ||
+        !same(q.visual, view.visual) ||
+        q.prompt !== view.prompt ||
+        q.hint !== view.hint ||
+        q.explanation !== view.explanation
+      )
+        throw Error("Reasoning displayed facts differ");
+    } catch (e) {
+      errors.push(e.message);
+    }
+    return { ok: !errors.length, errors };
+  }
+  function makeNew(section, typeId) {
+    if (section !== newSection(typeId)) throw Error("Reasoning section mismatch");
+    const params = newParams(typeId),
+      q = {
+        id: questionId(),
+        section,
+        typeId,
+        shapeId: typeId,
+        params,
+        ...newView(typeId, params),
+        answer: newAnswer(typeId, params),
+        signature: JSON.stringify([section, typeId, params]),
+      };
+    const result = verifyNew(q);
+    if (!result.ok) throw Error(result.errors.join("; "));
+    return q;
+  }
+
   // HM6-v1 extends original rule families; seeded replay is versioned, not eternal.
-  const VERSION = "HM6-v3",
+  const VERSION = "HM6-v4",
     TOPICS = [...DOMAINS, "brain"];
   const EXTRA_MEASURES = ["clock_read", "coin_total", "coin_missing"];
   const EXTRA_GEOMETRY = ["rectangle_area", "inverse_area", "equal_partition", "line_relation", "angle_type", "symmetry"];
   const EXTRA_BRAINS = ["alternating_moves", "two_marker_path"];
   MEASURES.push(...EXTRA_MEASURES);
   GEOMETRY.push(...EXTRA_GEOMETRY);
+  MEASURES.push(...NEW_FAMILIES.measurement);
+  NARRATIVES.push(...NEW_FAMILIES.narrative);
+  EXTRA_BRAINS.push(...NEW_FAMILIES.brain);
   function normalizeSeed(value) {
     const s = String(value ?? "").trim();
     if (!s) return null;
@@ -1502,6 +1976,7 @@
     );
   }
   function verifyQuestion(q) {
+    if (newSection(q?.typeId)) return verifyNew(q);
     const extras =
       q?.section === "measurement" ? EXTRA_MEASURES : q?.section === "geometry" ? EXTRA_GEOMETRY : q?.section === "brain" ? EXTRA_BRAINS : [];
     if (!extras.includes(q?.typeId)) return q?.section === "brain" ? verifyLegacy(q) : verifyDomains(q);
@@ -1530,8 +2005,18 @@
   }
   function makeQuestion(section, options = {}) {
     const extras = section === "measurement" ? EXTRA_MEASURES : section === "geometry" ? EXTRA_GEOMETRY : section === "brain" ? EXTRA_BRAINS : [],
-      all = section === "measurement" ? MEASURES : section === "geometry" ? GEOMETRY : section === "brain" ? [...BRAINS, ...EXTRA_BRAINS] : [];
+      all =
+        section === "measurement"
+          ? MEASURES
+          : section === "geometry"
+            ? GEOMETRY
+            : section === "brain"
+              ? [...BRAINS, ...EXTRA_BRAINS]
+              : section === "narrative"
+                ? NARRATIVES
+                : [];
     const typeId = options.typeId ?? (all.length ? pick(all) : null);
+    if (newSection(typeId)) return makeNew(section, typeId);
     if (!extras.includes(typeId))
       return section === "brain"
         ? generateLegacy("brain", { ...options, typeId })
@@ -1587,7 +2072,8 @@
       v = q.visual;
     let diagram = null;
     if (v) {
-      if (v.kind === "symmetry") diagram = { kind: v.kind, shape: v.shape };
+      if (v.kind === "bar_model") diagram = { kind: v.kind, rows: v.rows, note: v.note };
+      else if (v.kind === "symmetry") diagram = { kind: v.kind, shape: v.shape };
       else if (v.kind === "lines") {
         const segments = v.segments
           .map((s) =>
@@ -1705,6 +2191,7 @@
 
   const api = {
     VERSION,
+    NEW_FAMILIES,
     normalizeSeed,
     questionFingerprint,
     DOMAINS: TOPICS,

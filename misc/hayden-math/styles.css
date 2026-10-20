@@ -518,3 +518,8 @@ a {
 .composite-visual {
   width: 260px;
 }
+
+.bar-visual {
+  width: 360px;
+  max-width: 100%;
+}

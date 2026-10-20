@@ -269,7 +269,11 @@
   }
   function visual(q, parent) {
     const v = q.visual;
-    if (!v || !["perimeter", "ruler", "rectangle", "clock", "coins", "angle", "lines", "symmetry", "partition", "composite"].includes(v.kind)) return;
+    if (
+      !v ||
+      !["perimeter", "ruler", "rectangle", "clock", "coins", "angle", "lines", "symmetry", "partition", "composite", "bar_model"].includes(v.kind)
+    )
+      return;
     const ns = "http://www.w3.org/2000/svg",
       svg = document.createElementNS(ns, "svg");
     svg.setAttribute("class", "math-visual" + (v.kind === "ruler" ? " ruler-visual" : ""));
@@ -286,6 +290,37 @@
       t.textContent = String(content);
       return t;
     };
+    if (v.kind === "bar_model") {
+      svg.classList.add("bar-visual");
+      svg.setAttribute("viewBox", `0 0 360 ${v.rows.length * 76}`);
+      svg.setAttribute(
+        "aria-label",
+        "Bar model. " + v.rows.map((row) => row.label + ": " + row.segments.map((part) => part.text).join(", ")).join(". ")
+      );
+      const maxSegments = Math.max(...v.rows.map((row) => row.segments.length));
+      const width = (336 - (maxSegments - 1) * 4) / maxSegments;
+      v.rows.forEach((row, index) => {
+        const top = index * 76;
+        text(row.label, 12, top + 20, "start");
+        row.segments.forEach((part, i) => {
+          const left = 12 + i * (width + 4);
+          node("rect", {
+            x: left,
+            y: top + 30,
+            width,
+            height: 32,
+            rx: 3,
+            fill: part.role === "extra" ? "#f4d8a5" : part.role === "known" ? "#c3e2dc" : "#edf4f0",
+            stroke: "#267c74",
+            "stroke-width": 1.5,
+          });
+          text(part.text, left + width / 2, top + 52);
+        });
+      });
+      parent.append(svg);
+      if (v.note) parent.append(el("p", "diagram-note", v.note));
+      return;
+    }
     if (v.kind === "clock") {
       svg.setAttribute("viewBox", "0 0 230 230");
       svg.setAttribute("aria-label", "Analog clock");
