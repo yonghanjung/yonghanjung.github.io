@@ -94,11 +94,13 @@
       "data_only_adapter_extension": true,
       "categorical_covariate_feature_view": "Explicit full K one-hot; lossless original data; selected estimator disclosed per request",
       "whole_node_data_binding": "Ordered source-column tuples and component domains/codebooks; public graph/dimension unchanged; data_id+binding_key guards; verified baseline BD/AC witnesses only",
-      "sample_reference": "Snapshot/source/query-validated original scalar reference; explicit-vector no-evidence mean contrasts delegate to existing paired sample_interventional calls with MCSE, cell/time bounds and no stored-sample mutation.",
+      "sample_reference": "APO one-world interventional mean/MCSE; ATE paired two-world mean difference; original scalar analytic/reference logic preserved",
       "random_baseline_adapter": "Validated observed continuous baseline vector1-50 injected only after public cap8 validation; public graph key, private schema and random_key bindings retained; existing SCM/registry preserved simulator/registry; learned conditional means deliberately changed; eligible estimate_data binary baseline requests dispatch to the separately documented additional balancing-weight routine.",
       "baseline_balancing_aipw": "Eligible binary scalar baseline BD/AC selected three-method branch imports actual XGBoost + hard scalar fitted-outcome minimum-variance solver. Both AIPW/IPW weights changed; OR and all learned conditional means now XGBoost. No former numerical-parity claim.",
       "explicit_estimation_method": "auto selects eligible minimum-variance AIPW; explicit legacy_knn is a compatibility alias for graph plug-in with actual XGBoost conditional means. No automatic fallback.",
-      "regression_extension": "_estimate_mean conditional means and _estimate_uca_mean terminal conditional means intentionally use fit_xgboost_mean, including zero/constant contexts. Nonterminal sampling, _uca_schedule, _reference, _paired_vector_reference, simulator/ID remain unchanged."
+      "regression_extension": "_estimate_mean conditional means and _estimate_uca_mean terminal conditional means intentionally use fit_xgboost_mean, including zero/constant contexts. Nonterminal sampling, _uca_schedule, _reference, _paired_vector_reference, simulator/ID remain unchanged.",
+      "estimand_extension": "Explicit ATE/APO validation; APO omits/rejects reference; binary action tuple bindings separate from baseline covariate witness guard",
+      "treatment_cluster": "Ordered binary source-column tuples; public Random dimension2..8 uses existing binary mechanisms with nodes.members aliases; CSV binding budget unchanged; member order included in public graph/sample guards"
     },
     "examples.py": {
       "relative_imports": false,
@@ -136,8 +138,8 @@
     },
     "balancing_aipw.py": {
       "additional_module": true,
-      "method": "Real XGBoost means plus minimum-variance scalar fitted-outcome balance for both AIPW/IPW; OR means only",
-      "source_sha256": "1c1c9719f25fb0691603976acf641c6ba1c2d842448b81fc4177d96d2d60da76",
+      "method": "AIPW prior minimum-variance scalar-mu balance and OR means preserved for scalar ATE; ATE/APO and ordered binary treatments supported; IPW actual XGBoost joint propensity with no outcome/direct balance fit",
+      "source_sha256": "e56ec6839f7b0b67e3b666bcdbcb829758b7a49165c59f58baf79c9ef94c209d",
       "new_dependency": "xgboost==2.1.4 explicitly requested by user",
       "truth_as_training_input": false,
       "xgboost": {
@@ -163,21 +165,36 @@
         "propensity_or_ratio_conversion": false
       },
       "score_denominator": "total original observed row count n",
-      "rights_note": "Original notice and caveats unchanged; no new rights-clearance claim"
+      "rights_note": "Original notice and caveats unchanged; no new rights-clearance claim",
+      "estimands": ["ATE mean contrast", "APO one intervention mean"],
+      "propensity": {
+        "method_id": "xgboost_propensity_ipw_v1",
+        "classifier": "XGBoost2.1.4 binary:logistic or multi:softprob",
+        "folds": 2,
+        "whole_tuple_classification": true,
+        "all_training_rows": true,
+        "outcome_fit": false,
+        "direct_weight_solver": false,
+        "max_observed_classes": 32,
+        "minimum_queried_probability": 1e-6,
+        "probability_clipping": false,
+        "normalization": "Raw total-n score; no stabilization or heldout normalization"
+      },
+      "scalar_preservation": "propensity-apo-old-scalar-parity.json four exact scalar AIPW/OR comparisons"
     }
   },
   "license_note": "Upstream repository MIT notice preserved verbatim; the notice credits the original site template author. No new ownership attribution is asserted.",
   "web_theme_source": "/tmp/causal-science-lab-preview-20261019/apps/causalengine/",
   "web_changes": "Deliberate changes: selected baseline three-method XGBoost/scalar-outcome balance; graph plug-in learned conditional means now XGBoost. Nonterminal conditional sampling kernels, analytic/MC references and ID algorithms unchanged. Prior adapters, explicit data bindings and display extensions retained. Other10 browser Python modules remain raw-upstream byte-identical.",
-  "web_ui_sha256": "fb2e437acd27141fdac267da66dde5f0fb5a8cec7fda19dd2280e15139f19b8a",
+  "web_ui_sha256": "5125f0ae0f8ec0163b765ef7fc601897f61023c3ab8790d35415622f4b5782c1",
   "benchmark_assets": "web/benchmarks/manifest.json records dataset-specific versions, sources, transforms, hashes and terms; not covered by engine MIT notice",
-  "benchmark_reference_assets": "web/benchmarks/ground-truth.json: separate aggregate mean(mu1-mu0) over unchanged released rows, source SHA/alignment/definition; factual CSV hashes unchanged; LaLonde unavailable. Never an estimation input.",
+  "benchmark_reference_assets": "Separate same-pinned-row conditional-mean ATE and APO aggregates only; factual CSVs unchanged and no reference used for estimation. LaLonde unavailable.",
   "method_documentation": {
     "path": "web/methods.html",
     "canonical_source": "preview/apps/causalengine/methods.html",
-    "sha256": "459575c619ec289355ac54085785560d6f56460d471b02446314e0f7fdebf8d9",
-    "numerical_source_sha256": "1c1c9719f25fb0691603976acf641c6ba1c2d842448b81fc4177d96d2d60da76",
-    "scope": "Exact minimum-variance scalar fitted-outcome objective, real XGBoost regressions, three score branches, unchanged sampling/reference distinction and limitations"
+    "sha256": "43dc53d61c5edb16e065ae7cdbcb93417c7b110d961043693a1765ae8abdf538",
+    "numerical_source_sha256": "e56ec6839f7b0b67e3b666bcdbcb829758b7a49165c59f58baf79c9ef94c209d",
+    "scope": "ATE/APO scores; actual XGBoost joint propensity IPW; prior AIPW balance/OR fits; scalar/vector treatment schema, guards, Copy and matching benchmark references"
   },
   "runtime_dependency": {
     "native": "xgboost==2.1.4",

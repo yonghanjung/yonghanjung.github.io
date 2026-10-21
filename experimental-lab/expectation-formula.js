@@ -7,7 +7,7 @@ window.CausalExpectation = (() => {
   };
   const list = (xs) => el("mrow", ...xs.flatMap((x, i) => (i ? [el("mo", ","), x] : [x])));
   const fence = (x, l = "(", r = ")") => el("mrow", el("mo", l), x, el("mo", r));
-  function render(result, target, actions, graphNodes) {
+  function renderMean(result, target, actions, graphNodes, options = {}) {
     if (result.identification.status !== "IDENTIFIABLE") return null;
     const candidate = formulaSource(result),
       source = ["BD", "AC", "FD", "SBD"].includes(candidate)
@@ -28,15 +28,25 @@ window.CausalExpectation = (() => {
     if (!node || node.dimension !== 1) throw Error("Expectation display currently requires a scalar outcome.");
     const used = new Set(graphNodes.map((n) => n.name)),
       names = new Map(graphNodes.map((n) => [n.name, n])),
-      symbols = new Map(actions.map((name, i) => [name, actions.length === 1 ? "a" : "a" + (i + 1)]));
-    for (const symbol of symbols.values()) used.add(symbol);
+      symbols = new Map();
+    let coordinate = 0;
+    const totalCoordinates = actions.reduce((n, a) => n + (Number(names.get(a)?.dimension) || 1), 0);
+    for (const action of actions) {
+      const width = Number(names.get(action)?.dimension) || 1,
+        aliases = Array.from({ length: width }, () => {
+          coordinate++;
+          return options.reference ? (totalCoordinates === 1 ? "a₀" : "a₀," + coordinate) : totalCoordinates === 1 ? "a" : "a" + coordinate;
+        });
+      symbols.set(action, width > 1 ? aliases : aliases[0]);
+    }
+    for (const symbol of [...symbols.values()].flat()) used.add(symbol);
     const fresh = (name) => {
       let x = name.toLowerCase();
       while (used.has(x)) x += "′";
       used.add(x);
       return x;
     };
-    const name = (x) => el("mi", x),
+    const name = (x) => (Array.isArray(x) ? fence(list(x.map((v) => el("mi", v)))) : el("mi", x)),
       assign = (v, x) => el("mrow", name(v), el("mo", "="), name(x));
     let count = 0;
     function arg(a, scope) {
@@ -163,6 +173,16 @@ window.CausalExpectation = (() => {
     math.setAttribute("aria-label", "Identified expectation for " + target);
     if (adjustment?.length > 1) math.dataset.adjustmentVariables = JSON.stringify(adjustment);
     return math;
+  }
+  function render(result, target, actions, graphNodes, options = {}) {
+    const primary = renderMean(result, target, actions, graphNodes, options);
+    if (!primary || options.estimand !== "ate") return primary;
+    const reference = renderMean(result, target, actions, graphNodes, { ...options, reference: true });
+    const [left, , right] = [...primary.childNodes],
+      [left0, , right0] = [...reference.childNodes];
+    primary.replaceChildren(left, el("mo", "−"), left0, el("mo", "="), fence(right), el("mo", "−"), fence(right0));
+    primary.setAttribute("aria-label", "Identified mean difference for " + target);
+    return primary;
   }
   return { render };
 })();

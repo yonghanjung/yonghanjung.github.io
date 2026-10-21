@@ -220,8 +220,8 @@ permalink: /experimental-lab/methods.html
     <main class="layout">
       <nav class="contents" aria-label="Methods contents">
         <a href="#overview">Target and meanings</a><a href="#dispatch">Which method runs?</a><a href="#data">Data and encoding</a
-        ><a href="#basis">Input coordinates</a><a href="#outcome">XGBoost means</a><a href="#weights">Minimum-variance weights</a
-        ><a href="#cross-fitting">Cross-fitting and seeds</a><a href="#score">Three actual scores</a
+        ><a href="#basis">Input coordinates</a><a href="#outcome">XGBoost means</a><a href="#weights">AIPW balance weights</a
+        ><a href="#propensity">IPW joint propensity</a><a href="#cross-fitting">Cross-fitting and seeds</a><a href="#score">Three actual scores</a
         ><a href="#diagnostics">Diagnostics and failures</a><a href="#legacy">Graph adjustment</a><a href="#uca">General-ID integration</a
         ><a href="#reference">Model reference</a><a href="#benchmark">Benchmark references</a><a href="#reproduce">Code and reproduction</a
         ><a href="#sources">Sources and limits</a>
@@ -229,11 +229,15 @@ permalink: /experimental-lab/methods.html
       <div class="body">
         <section id="overview">
           <h2>Target and meanings</h2>
-          <p class="brief">The main estimate compares the mean outcome if treatment were set to 1 with the mean outcome if it were set to 0.</p>
+          <p class="brief">
+            Choose the mean outcome under one intervention (APO) or a difference between two interventions (ATE). A treatment can be one binary
+            variable or an ordered cluster of binary members.
+          </p>
           <p>
-            Let <var>A</var> be the binary treatment, <var>Y</var> the scalar outcome, and <var>C</var> the covariate vector in the graph's verified
-            adjustment witness. <var>Y</var>(<var>a</var>) denotes the outcome under intervention <var>A</var> = <var>a</var>. The target is the
-            average treatment effect (ATE) for the population represented by the observed cohort:
+            Let <var>A</var> be the whole scalar or ordered treatment tuple, <var>Y</var> the scalar outcome, and <var>C</var> the covariate vector in
+            the verified adjustment witness. <var>Y</var>(<var>a</var>) is the outcome under intervention <var>A</var>=<var>a</var>. APO is E[Y(a)];
+            ATE is E[Y(a)]−E[Y(a0)], for the population represented by the observed cohort. The following1-versus0 formula is the scalar binary ATE
+            example:
           </p>
           <div class="equation">
             <math display="block" aria-label="tau equals expectation of Y of 1 minus Y of 0"
@@ -247,18 +251,18 @@ permalink: /experimental-lab/methods.html
             <strong>Estimate</strong> approximates an identified quantity from observed rows.
           </p>
           <p>
-            A <strong>nuisance function</strong> is an intermediate function learned to compute the final effect. All three baseline choices learn an
-            outcome mean for each arm; AIPW and IPW also learn weight functions. The target uses the whole cohort, not just treated rows. No rows are
-            trimmed to redefine the target.
+            A <strong>nuisance function</strong> is an intermediate function learned to compute the final effect. AIPW and Outcome Regression learn
+            outcome means; AIPW also fits balance weights. IPW learns treatment probabilities and derives their inverse weights, without outcome
+            fitting. The target uses the whole cohort, not just treated rows. No rows are trimmed to redefine the target.
           </p>
         </section>
 
         <section id="dispatch">
           <h2>Which method actually runs?</h2>
           <p>
-            The three baseline choices require one scalar binary treatment, one scalar observed outcome, no factual evidence, and a verified baseline
-            Back-door (BD) or Adjustment Criterion (AC) witness. The adjustment nodes must be observed non-descendants of the treatment. An
-            identification result for Front-door or Sequential does not itself enable these baseline methods.
+            The three baseline choices require one binary scalar or ordered binary-cluster treatment, one scalar observed outcome, no factual
+            evidence, and a verified baseline Back-door (BD) or Adjustment Criterion (AC) witness. The adjustment nodes must be observed
+            non-descendants of the treatment. An identification result for Front-door or Sequential does not itself enable these baseline methods.
           </p>
           <table>
             <tr>
@@ -276,8 +280,8 @@ permalink: /experimental-lab/methods.html
             <tr>
               <td><code>ipw</code></td>
               <td>
-                <code>minimum_variance_ipw_v1</code>: same XGBoost means used to fit the outcome-balance constraints; raw weighted outcome score, no
-                residual correction
+                <code>xgboost_propensity_ipw_v1</code>: actual XGBoost joint-treatment propensity; raw weighted outcomes, no outcome model or residual
+                correction
               </td>
             </tr>
             <tr>
@@ -301,9 +305,9 @@ permalink: /experimental-lab/methods.html
           <p class="brief">The estimators learn from the selected factual rows. Model references and benchmark truth never enter their fits.</p>
           <p>
             <code>load_data</code> accepts the graph, selected numeric rows and an explicit mapping from each observed node to a column or ordered
-            list of columns. A cluster binds a whole vector without changing the public node's name, dimension, arrows, positions or roles. A cluster
-            must belong to an actually verified baseline adjustment witness and cannot be a treatment descendant. Unsupported
-            mediator/time/action/outcome cluster bindings abstain.
+            list of columns. A cluster binds a whole vector without changing the public node's name, dimension, arrows, positions or roles. A
+            covariate cluster must belong to an actually verified baseline adjustment witness and cannot be a treatment descendant. Binary treatment
+            clusters are separately validated joint assignments; unsupported mediator/time/outcome cluster bindings abstain.
           </p>
           <p>
             Input limits are 1–5,000 rows, at most 100 selected physical columns and 500,000 cells. Duplicate/missing mappings, reused columns,
@@ -313,8 +317,9 @@ permalink: /experimental-lab/methods.html
           <p>
             Nominal covariates retain their codebooks. An explicit <code>categorical_encoding="one_hot"</code> creates every category indicator in a
             temporary fitting view. It does not impose distances on ordinal-looking codes or turn indicators into new causal nodes. Original data,
-            logical graph and codebooks remain intact. Dense temporary allocation is checked against 100 total columns and 500,000 cells. Categorical
-            actions/outcomes are not supported for these mean contrasts.
+            logical graph and codebooks remain intact. Dense temporary allocation is checked against 100 total columns and 500,000 cells. Continuous
+            or nominal treatment-cluster components and categorical outcomes are unsupported by the current joint-propensity baseline; binary
+            components must be declared explicitly.
           </p>
           <p>
             For example, a three-level covariate coded 0, 1 and 2 is represented by all three indicator coordinates.
@@ -363,9 +368,9 @@ base_score = mean(training_arm_outcome)</pre
             coordinate. Exact finite predictions, settings and training RMSE are returned.
           </p>
           <p>
-            All three baseline choices fit these four arm/fold regressions. AIPW and IPW reuse each fitted model for both their weight constraint and
-            heldout score. IPW therefore does use outcome learning for balancing, even though its score has no outcome-regression augmentation. OR
-            never fits weights.
+            AIPW and OR fit these models only for the requested assignment(s). ATE requires two regimes (four arm/fold fits); APO requires one (two
+            fits). AIPW reuses each fitted mean for its balance constraint and heldout score. IPW does not fit these outcome models; it fits the joint
+            classifier described below. OR never fits weights.
           </p>
           <p>
             Browser computation uses the official Pyodide <code>0.29.4</code> XGBoost <code>2.1.4</code> package on the user's device. Native Python
@@ -375,9 +380,7 @@ base_score = mean(training_arm_outcome)</pre
         </section>
         <section id="weights">
           <h2>Minimum-second-moment fitted-outcome balance</h2>
-          <p class="brief">
-            Both AIPW and IPW minimize weight variability while exactly matching the whole training cohort's fitted arm-specific outcome mean.
-          </p>
+          <p class="brief">AIPW minimizes weight variability while exactly matching the whole training cohort's fitted arm-specific outcome mean.</p>
           <p>
             For a fixed arm <var>a</var>, let <var>T</var> be the outer-training cohort, <var>N</var> its size, and <var>S</var> its rows with
             <var>A</var>=<var>a</var>. The fitted prediction <var>g</var><sub>i</sub>=<var>m</var><sub>a</sub>(<var>C</var><sub>i</sub>) is evaluated
@@ -444,52 +447,91 @@ w = max(epsilon, b0+b1*z)</pre
           </p>
           <h3 id="uca-ipw-weights">Previous UCA-style IPW implementation</h3>
           <p>
-            The former finite-dictionary quadratic RN fit is not the selected baseline weight routine anymore. General-ID kernel integration below is
-            a separate path; it has not been relabeled as these new weights.
+            The former finite-dictionary RN and later minimum-variance IPW weight fits are not the selected IPW routine anymore. General-ID kernel
+            integration below is a separate path; it has not been relabeled as these new weights.
+          </p>
+        </section>
+        <section id="propensity">
+          <h2>IPW: actual XGBoost joint propensity</h2>
+          <p>
+            For a requested whole treatment assignment <var>a</var>, the propensity is <code>p_a(c)=P(A_tuple=a | C=c)</code>. A scalar treatment is a
+            one-member tuple. All observed ordered tuples form one lexicographic class codebook. Correlated treatment members are learned jointly: the
+            code never multiplies independently fitted marginal probabilities.
+          </p>
+          <p>
+            Each outer fold trains one actual XGBoost 2.1.4 classifier on every original training row and its whole joint-assignment label, using the
+            same fixed64/depth3/eta.05/hist/nthread1/lambda1/min_child_weight5/subsample1/colsample1 settings. Two classes use
+            <code>binary:logistic</code> (the other probability is its complement); more than two use <code>multi:softprob</code> with the recorded
+            class count. Every stored class must occur in each training fold; no rare class is pooled or omitted. Class frequencies are not rebalanced
+            or oversampled, and no outcome values enter fitting. Binary base_score is training class1 prevalence; multiclass common initial score
+            is0.5. Actual parameters and class counts are recorded per fold.
+          </p>
+          <p>
+            The heldout probability matrix must match the stored class order/shape, contain finite probabilities in[0,1] and sum to1 per row
+            within1e-6. Every requested class probability is checked on the entire heldout cohort. A value below1e-6 returns <code>UNKNOWN</code> with
+            no estimate. There is no clipping, probability renormalization, prevalence stabilization or Hájek denominator. The inverse weight is
+            exactly <code>1/p_hat_a(c)</code>.
+          </p>
+          <p>
+            The implementation supports at most32 observed joint classes as a computation limit, not a causal-identification theorem. Requested
+            classes need32 training rows and8 heldout rows per fold; absent joint assignments return no value even if each member's marginal
+            assignment is observed. Finite discrete binary treatment coordinates are required; continuous observed values are never silently turned
+            into class labels. CSV tuples use the existing100physical-column/500000cell budget. Generated binary clusters use the existing public2–8
+            vector shape and actual binary mechanisms; <code>nodes[].members</code> names the ordered output columns.
           </p>
         </section>
         <section id="cross-fitting">
           <h2>Folds, seeds and isolation</h2>
           <p>
-            A seeded permutation within each treatment arm allocates rows alternately to two outer folds. Each heldout half uses only the opposite
-            half's XGBoost models, prediction scaling and weight duals. No heldout labels, Monte Carlo references or benchmark truths enter fitting.
-            The data adapter derives the split seed as <code>data_seed XOR 0x5A5A5A5A</code>. Model-fit seeds are
-            <code>(split_seed+104729*(heldout+1)+1009*(arm+1)) mod 2^32</code>. A complete baseline run makes outcome/weight attempts
-            <code>4/4</code> for AIPW, <code>4/0</code> for OR and <code>4/4</code> for IPW.
+            A seeded permutation within every observed joint treatment class allocates rows alternately to two outer folds. Class codebook, split and
+            propensity seed do not depend on which assignment is queried. The data adapter derives the split seed as
+            <code>data_seed XOR 0x5A5A5A5A</code>. Outcome-model seeds remain
+            <code>(split_seed+104729*(heldout+1)+1009*(class_index+1)) mod 2^32</code>; scalar binary AIPW/OR retain their previous arithmetic and
+            seed allocation exactly. Propensity-model seeds are <code>(split_seed+104729*(heldout+1)) mod 2^32</code>. No heldout outcomes or
+            benchmark/model truth enter learning.
           </p>
           <p>
-            <code>nuisance.used</code> marks required nuisance types. <code>fit_calls</code> counts actual attempts, <code>fit_completed</code> counts
-            completed fits and <code>fitted</code> becomes true after all four fits of that type complete. A failure can leave partial counts.
-            Identical 0/0 or 1/1 regimes return zero with no nuisance fits.
+            Complete ATE outcome/direct-weight fit counts are4/4 for AIPW and4/0 for OR; APO counts are2/2 and2/0. IPW makes0 outcome fits,0
+            direct-weight-solver fits and2 propensity-classifier fits for either estimand, always on all training classes.
+            <code>used.weights=true</code> for IPW means derived inverse propensities are consumed; <code>direct_weight_solver=false</code> and
+            <code>fit_calls.weights=0</code> explicitly distinguish them from fitted balance weights. <code>fit_calls</code> counts actual attempts,
+            <code>fit_completed</code> completed fits and <code>fitted</code> becomes true only when all required fits finish. An identical-regime ATE
+            returns zero without fitting; APO is not a contrast against a zero reference.
           </p>
         </section>
         <section id="score">
-          <h2>Three different actual scores</h2>
+          <h2>Choose ATE or APO before estimating</h2>
           <p>
-            Use heldout fitted means <code>m0,m1</code> and heldout fitted weights <code>w0,w1</code> for each original row. The estimate averages its
-            selected score over all original <code>n</code> rows:
+            <strong>Average Potential Outcome (APO)</strong> is the mean outcome under one requested intervention, <code>E[Y(a)]</code>.
+            <strong>Average Treatment Effect (ATE)</strong> is the contrast <code>E[Y(a)]-E[Y(a0)]</code>. The requested estimand is stored in the
+            result, options, query and copied code. It does not change the original target cohort or retained rows.
           </p>
           <pre>
-AIPW: s = m1-m0 + I(A=1)*w1*(Y-m1) - I(A=0)*w0*(Y-m0)
-Outcome Regression (Plug-in): s = m1-m0
-IPW: s = I(A=1)*w1*Y - I(A=0)*w0*Y
-estimate = mean(s) * (intervention-reference)</pre
+For one requested assignment a:
+OR:   s(a) = m_a(C)
+AIPW: s(a) = m_a(C) + I(A_tuple=a)*w_a(C)*(Y-m_a(C))
+IPW:  s(a) = I(A_tuple=a)*Y/p_hat_a(C)
+APO = mean_n(s(a))
+ATE = mean_n(s(a)-s(a0))</pre
           >
           <h3 id="outcome-regression">Outcome Regression (Plug-in)</h3>
           <p>
-            Uses the XGBoost prediction contrast only. It never invokes the weight solver or its feasibility, ESS, mass or concentration checks. Its
-            extrapolation or approximation can still be biased.
+            Fits XGBoost means only for the requested assignment(s). APO never requires a counterfactual reference class or its outcome fit/support.
+            It runs no weight feasibility, ESS or balancing solver checks.
           </p>
           <h3 id="ipw">IPW</h3>
           <p>
-            Uses raw weighted outcomes, without a residual correction. It fits outcome models because the user-selected weight constraint balances
-            their predictions. The heldout denominator is total <code>n</code>, not a separately normalized arm denominator: this is not Hájek
-            normalization.
+            Uses raw weighted outcomes, without a fitted outcome model or residual correction. The denominator is the original total n. Its classifier
+            still learns all training treatment classes when only one APO arm is requested, but score/support checks concern the requested arm(s). ATE
+            uses the same two fold classifiers as its two APO components. No independent-member probability product is substituted.
           </p>
           <p>
-            Reversing 1-versus-0 reverses the sign. Under <code>auto</code> or the compatibility graph-plug-in API, nonancestor actions can be removed
-            and two empty action maps yield the same observed-mean zero contrast. Explicit baseline methods can be unsupported when no applicable
-            binary action remains. No graph or data is rewritten to make a method eligible.
+            API: <code>estimand="ate", summary="mean_difference"</code> requires matching intervention/reference action names.
+            <code>estimand="apo", summary="mean"</code> omits reference; a stale non-null reference is rejected. Assignment arrays follow the explicit
+            stored member order. Explicit baseline methods on unsupported Front-door/Sequential/general graphs abstain, while compatible
+            <code>auto</code> graph-plug-in APO requests use the existing mean path. Nonancestor actions can still be pruned without editing
+            graph/data. Under auto/legacy dispatch two empty ATE action maps return the same observed-mean zero contrast; explicit baseline requests
+            may be unsupported when no applicable action remains.
           </p>
         </section>
         <section id="diagnostics">
@@ -502,20 +544,23 @@ estimate = mean(s) * (intervention-reference)</pre
             <tr>
               <td>Inputs</td>
               <td>
-                Finite numeric rows, binary scalar action, scalar outcome; at most 5,000 rows, 100 physical coordinates and 500,000 cells; at least
-                128 rows.
+                Finite numeric rows, binary scalar/ordered binary-tuple action, scalar outcome; at most 5,000 rows, 100 physical coordinates and
+                500,000 cells; at least 128 rows.
               </td>
             </tr>
             <tr>
               <td>Arm counts</td>
-              <td>Each training arm needs at least 32 rows. Weighted methods additionally need 8 heldout rows per arm.</td>
+              <td>
+                Each training arm needs at least 32 rows. AIPW/IPW additionally need8 heldout rows per requested joint class. APO checks only its
+                requested class.
+              </td>
             </tr>
             <tr>
               <td>XGBoost</td>
               <td>Actual version 2.1.4, fixed settings, finite predictions, training-only fitting, deadline callbacks and post-call checks.</td>
             </tr>
             <tr>
-              <td>Weights</td>
+              <td>AIPW balance weights</td>
               <td>
                 Floor-adjusted hull feasibility, finite weights at least 1e-8, valid affine active-set/KKT, actual normalized mass and standardized-μ
                 residual each at most 1e-8.
@@ -538,8 +583,9 @@ estimate = mean(s) * (intervention-reference)</pre
             </tr>
           </table>
           <p>
-            Returned arm diagnostics include the actual duals, training objective, mean/scale and target range, mass and μ residuals, KKT residual,
-            floor fractions, heldout mass/ESS/share and all actual XGBoost fit settings. ESS/share are engineering concentration diagnostics, not
+            AIPW arm diagnostics include actual duals, training objective, prediction mean/scale and range, mass/μ/KKT residuals and floor fractions.
+            IPW instead reports actual joint classifier parameters/counts and minimum/maximum queried probabilities. Both weighted methods report
+            heldout mass/ESS/share; no unused solver diagnostics are presented as fitted. ESS/share are engineering concentration diagnostics, not
             positivity or confidence certificates. Failed required fits return <code>UNKNOWN</code>; invalid/stale inputs raise validation errors.
           </p>
           <p>
@@ -630,17 +676,19 @@ estimate = mean(s) * (intervention-reference)</pre
             <code>approximate=False</code> and <code>reference_kind="exact_model_mean"</code> identify an analytic model answer. This is not a claim
             that the real-world causal effect is known.
           </p>
-          <h3>Explicit-vector paired simulation</h3>
+          <h3>Explicit-vector intervention sampling</h3>
           <p>
-            The bounded Random baseline-vector adapter uses the existing <code>sample_interventional</code> method for two action worlds of the same
-            model with the same per-variable exogenous random streams. It averages the rowwise outcome difference. Its Monte Carlo standard error
-            (MCSE) is the sample standard deviation of those paired differences, with <code>ddof=1</code>, divided by the square root of the reference
-            draws. <code>approximate=True</code> and <code>reference_kind="monte_carlo_model_mean"</code> distinguish this from an exact answer.
+            The bounded Random vector adapter uses the existing <code>sample_interventional</code> method. APO samples one requested intervention
+            world and averages Y; its Monte Carlo standard error (MCSE) is sd(Y)/sqrt(n), with ddof=1. ATE samples two intervention worlds of the same
+            model using the same per-variable exogenous random streams and averages their paired outcome differences; its MCSE is
+            sd(Y(a)−Y(a0))/sqrt(n). <code>approximate=True</code> and <code>reference_kind="monte_carlo_model_mean"</code> distinguish this from an
+            exact answer.
           </p>
           <p>
             Reference draws are 256–10,000 and separately requested from the observed Records count. Defaults are 512 when a random cluster exceeds
-            dimension 8; otherwise at least 2,048 or the observed row count, subject to request validation. Both vector reference frames together are
-            limited to 100 physical columns and 500,000 cells. Time/nonfinite/shape failures expose no partial reference value.
+            dimension 8; otherwise at least 2,048 or the observed row count, subject to request validation. The one APO frame or the two ATE frames
+            together are limited to100 physical columns and500,000 cells; the budget uses the actual world count. Time/nonfinite/shape failures expose
+            no partial reference value.
           </p>
           <h3>Advanced SCM query path</h3>
           <p>
@@ -690,9 +738,11 @@ estimate = mean(s) * (intervention-reference)</pre
           </table>
           <p>
             The first two are released-row averages of conditional-mean effects, not necessarily a population ATE or the average of noisy realized
-            potential-outcome differences. The UI checks source treatment/outcome bindings and the requested 1/0 contrast before displaying them;
-            reversing the contrast reverses the sign. Arbitrary uploads do not acquire benchmark truth by matching column names. A trial estimate is
-            never relabeled as known truth.
+            potential-outcome differences. ATE references require matching treatment/outcome bindings and1/0 contrast (reverse changes sign). APO uses
+            separate released-row mean(mu_a) metadata only for the selected scalar source arm; it never reuses an ATE difference. IHDP APO0/1
+            are2.4325133506634593/6.4485802467817965; ACIC APO0/1 are3.5949953715820055/5.723074629613047. LaLonde has no known APO truth. All values
+            derive from the same pinned source rows and do not enter estimation. Arbitrary uploads do not acquire benchmark truth by matching column
+            names. A trial estimate is never relabeled as known truth.
           </p>
         </section>
 
@@ -702,7 +752,7 @@ estimate = mean(s) * (intervention-reference)</pre
             Each result records the real method, source SHA256, callable, method selection, source-column/full-one-hot recipes, seed, contrast and
             fixed options. Copy verifies the fetched source SHA. Baseline standalone code contains the entire
             <a href="./balancing_aipw.py">actual numerical module</a>, including the XGBoost helper, and calls
-            <code>estimate_balancing_aipw(..., estimator=options.estimator)</code> on the retained factual CSV. It needs
+            <code>estimate_balancing_aipw(..., estimator=options.estimator, estimand=options.estimand)</code> on the retained factual CSV. It needs
             <code>pip install numpy scipy xgboost==2.1.4</code>. It never regenerates rows or uses a reference. A pasted notebook can run; unavailable
             source fingerprint is explicitly null.
           </p>
@@ -721,7 +771,8 @@ estimate = mean(s) * (intervention-reference)</pre
           </ul>
           <p>
             CSV replacements, edited graph/types/bindings, new models and generated samples invalidate old IDs/results. Head and Download reuse the
-            retained snapshot. A model reference never replaces a failed observed-data estimate.
+            retained snapshot. A model reference never replaces a failed observed-data estimate. APO Random references evaluate one intervention world
+            with its mean/MCSE; ATE uses the paired two-world contrast. Scalar analytic reference support remains separate.
           </p>
         </section>
         <section id="sources">

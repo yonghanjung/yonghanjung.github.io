@@ -35,18 +35,27 @@
   let stages = structuredClone(defaults.sequential.stages);
   const structure = () =>
     JSON.stringify({
-      nodes: nodes.map(({ name, observed, dimension, family, variable_type, category_levels }) => ({
+      nodes: nodes.map(({ name, observed, dimension, family, variable_type, category_levels, members }) => ({
         name,
         observed,
         dimension,
         family,
         variable_type,
         category_levels,
+        members,
       })),
       edges,
-      query: ["query-type", "query-x", "query-y", "query-z", "query-summary", "query-values", "query-reference", "query-evidence"].map(
-        (id) => $(id).value
-      ),
+      query: [
+        "estimate-query",
+        "query-type",
+        "query-x",
+        "query-y",
+        "query-z",
+        "query-summary",
+        "query-values",
+        "query-reference",
+        "query-evidence",
+      ].map((id) => $(id).value),
     });
   const signature = () =>
     JSON.stringify({
@@ -117,16 +126,18 @@
     const cov = (text) => ClusterSyntax.parse(text);
     if (current === "sequential")
       return stages.map((s) => {
-        const c = cov(s.c);
-        return { id: s.id, c: c.names, clusters: c.clusters, a: names(s.a), y: names(s.y), m: [] };
+        const c = cov(s.c),
+          a = cov(s.a);
+        return { id: s.id, c: c.names, clusters: { ...c.clusters, ...a.clusters }, a: a.names, y: names(s.y), m: [] };
       });
-    const c = cov($("role-c").value);
+    const c = cov($("role-c").value),
+      a = cov($("role-a").value);
     return [
       {
         id: 1,
-        a: names($("role-a").value),
+        a: a.names,
         c: c.names,
-        clusters: c.clusters,
+        clusters: { ...c.clusters, ...a.clusters },
         y: names($("role-y").value),
         m: current === "frontdoor" ? names($("role-m").value) : [],
       },
@@ -143,6 +154,8 @@
       if (seen.has(n)) throw Error("“" + n + "” is used more than once. Use a distinct name for every role and time (for example X1 and X2).");
       seen.add(n);
     }
+    for (const stage of fs)
+      for (const name of stage.a) if (stage.clusters[name]?.length > 8) throw Error("Treatment clusters support at most 8 members.");
     const clusters = Object.assign({}, ...fs.map((s) => s.clusters)),
       physical = flat.filter((n) => !clusters[n]);
     for (const members of Object.values(clusters)) physical.push(...members);
@@ -163,7 +176,16 @@
       es = [],
       metadata = {};
     const add = (n, key, t) => {
-      ns.push({ name: n, observed: true, dimension: 1, family: key === "a" ? "binary" : "linear", x: 100, y: 100 });
+      const members = key === "a" ? fs[t].clusters[n] : null;
+      ns.push({
+        name: n,
+        observed: true,
+        dimension: members?.length || 1,
+        family: key === "a" ? "binary" : "linear",
+        ...(members ? { members: [...members] } : {}),
+        x: 100,
+        y: 100,
+      });
       metadata[n] = {
         column: current === "sequential" ? t : { c: 0, a: 1, m: 2, y: current === "frontdoor" ? 3 : 2 }[key],
         role: key,
@@ -270,7 +292,8 @@
       !custom &&
       actions.length === 1 &&
       targets.length > 0 &&
-      action?.dimension === 1 &&
+      action?.dimension >= 1 &&
+      action.dimension <= 8 &&
       (action.variable_type === "binary" || action.family === "binary") &&
       targets.every((name) => nodes.find((n) => n.name === name)?.dimension === 1);
     $("estimation-method-wrap").hidden = !baseline;
@@ -278,6 +301,8 @@
     return baseline ? $("estimation-method").value : "auto";
   }
   function describe() {
+    if (["mean", "mean_difference"].includes($("query-summary").value))
+      $("estimate-query").value = $("query-summary").value === "mean" ? "apo" : "ate";
     methodChoice();
     refreshRandomDimensions();
     const legacy = $("dimension").closest("label");
@@ -287,22 +312,143 @@
       ["data-seed", "random-data-seed"],
     ])
       if (document.activeElement !== $(id)) $(id).value = $(k).value;
-    const a = queryNames("query-x");
-    for (const [id, field] of [
-      ["contrast-action", "query-values"],
-      ["contrast-reference", "query-reference"],
-    ]) {
-      let vals = [];
+    renderAssignments();
+  }
+  const estimand = () => ($("estimate-query").value === "apo" ? "apo" : "ate");
+  const querySummary = () => (estimand() === "apo" ? "mean" : "mean_difference");
+  function actionMembers(name) {
+    const n = nodes.find((n) => n.name === name),
+      width = Number(n?.dimension) || 1;
+    const known = boundMembers(name);
+    return known.length === width
+      ? known
+      : n?.members?.length === width
+        ? n.members
+        : width > 1
+          ? Array.from({ length: width }, (_, i) => name + "[" + i + "]")
+          : [known[0] || name];
+  }
+  function syncAssignmentWidths() {
+    for (const name of queryNames("query-x")) {
+      const node = nodes.find((n) => n.name === name);
+      if (node?.members && node.members.length !== node.dimension) node.members = [...actionMembers(name)];
+    }
+    for (const field of ["query-values", "query-reference"]) {
+      let values;
       try {
-        const obj = assignments(field);
-        vals = a.map((n) => obj[n]);
-      } catch {}
-      const same = vals.length && vals.every((v) => typeof v === "number" && Number.isFinite(v) && v === vals[0]);
-      $(id).disabled = running || (!!vals.length && !same);
-      $(id).value = same ? vals[0] : "";
-      $(id).placeholder = same ? "" : "Custom";
+        values = assignments(field);
+      } catch {
+        continue;
+      }
+      const fallback = field === "query-values" ? 1 : 0;
+      for (const name of queryNames("query-x")) {
+        const width = actionMembers(name).length,
+          old = values[name];
+        if (width > 1 && (!Array.isArray(old) || old.length !== width))
+          values[name] = Array.from({ length: width }, (_, i) => (Array.isArray(old) ? old[i] ?? fallback : Number.isFinite(old) ? old : fallback));
+        else if (width === 1 && Array.isArray(old)) values[name] = old[0] ?? fallback;
+      }
+      $(field).value = JSON.stringify(values);
     }
   }
+  function clearQueryResult() {
+    clearComputation();
+    $("easy-result").hidden = true;
+    $("outcome-results").replaceChildren();
+    window.causalEngineDataResults = null;
+    window.causalEngineDataSource = null;
+    groundTruthSignature = null;
+    progress.textContent = "";
+    baseline = structure();
+  }
+  function renderAssignments() {
+    syncAssignmentWidths();
+    const actions = queryNames("query-x"),
+      vector = actions.length > 1 || actions.some((a) => actionMembers(a).length > 1),
+      apo = estimand() === "apo";
+    $("scalar-assignments").hidden = vector;
+    $("contrast-reference-label").hidden = apo;
+    $("contrast-vs").hidden = apo;
+    $("estimate-query").disabled = running;
+    if (!vector) {
+      for (const [id, field] of [
+        ["contrast-action", "query-values"],
+        ["contrast-reference", "query-reference"],
+      ]) {
+        let value;
+        try {
+          value = assignments(field)[actions[0]];
+        } catch {}
+        $(id).disabled = running || !actions.length || (apo && id === "contrast-reference");
+        $(id).value = typeof value === "number" && Number.isFinite(value) ? value : "";
+      }
+    }
+    const box = $("treatment-components");
+    const key = JSON.stringify([actions.map((a) => [a, actionMembers(a)]), apo]);
+    if (box.dataset.assignments !== key) {
+      box.dataset.assignments = key;
+      box.replaceChildren();
+      if (vector)
+        for (const action of actions) {
+          const fieldset = document.createElement("fieldset"),
+            legend = document.createElement("legend");
+          legend.textContent = action + " · joint assignment";
+          fieldset.append(legend);
+          actionMembers(action).forEach((member, i) => {
+            const row = document.createElement("div");
+            row.className = "contrast-controls";
+            for (const [field, label] of [["query-values", "Treatment"], ...(!apo ? [["query-reference", "Reference"]] : [])]) {
+              const l = document.createElement("label"),
+                input = document.createElement("input");
+              l.textContent = member + " · " + label;
+              input.type = "number";
+              input.step = "any";
+              input.dataset.action = action;
+              input.dataset.member = i;
+              input.dataset.assignment = field;
+              input.setAttribute("aria-label", action + " · " + member + " · " + label + " value");
+              input.onchange = () => {
+                if (input.value === "" || !Number.isFinite(Number(input.value))) {
+                  $("role-error").textContent = "Enter finite numeric treatment values.";
+                  clearQueryResult();
+                  return;
+                }
+                try {
+                  const values = assignments(field),
+                    width = actionMembers(action).length;
+                  if (width > 1) {
+                    const tuple = Array.isArray(values[action]) ? [...values[action]] : Array(width).fill(field === "query-values" ? 1 : 0);
+                    tuple[i] = Number(input.value);
+                    values[action] = tuple;
+                  } else values[action] = Number(input.value);
+                  $(field).value = JSON.stringify(values);
+                  $("role-error").textContent = "";
+                  clearQueryResult();
+                } catch (error) {
+                  $("role-error").textContent = error.message;
+                }
+              };
+              l.append(input);
+              row.append(l);
+            }
+            fieldset.append(row);
+          });
+          box.append(fieldset);
+        }
+    }
+    for (const input of box.querySelectorAll("input")) {
+      input.disabled = running;
+      if (document.activeElement !== input) {
+        try {
+          const value = assignments(input.dataset.assignment)[input.dataset.action];
+          input.value = Array.isArray(value) ? value[Number(input.dataset.member)] : value ?? "";
+        } catch {
+          input.value = "";
+        }
+      }
+    }
+  }
+
   function applyFields() {
     CausalDataPreview.clear();
     try {
@@ -335,9 +481,17 @@
       ])
         $(id).value = g[k].join(", ");
       $("query-type").value = "interventional";
-      $("query-summary").value = "mean_difference";
-      $("query-values").value = JSON.stringify(Object.fromEntries(g.X.map((n) => [n, 1])));
-      $("query-reference").value = JSON.stringify(Object.fromEntries(g.X.map((n) => [n, 0])));
+      $("query-summary").value = querySummary();
+      $("query-values").value = JSON.stringify(
+        Object.fromEntries(
+          g.X.map((n) => [n, g.nodes.find((v) => v.name === n).dimension > 1 ? Array(g.nodes.find((v) => v.name === n).dimension).fill(1) : 1])
+        )
+      );
+      $("query-reference").value = JSON.stringify(
+        Object.fromEntries(
+          g.X.map((n) => [n, g.nodes.find((v) => v.name === n).dimension > 1 ? Array(g.nodes.find((v) => v.name === n).dimension).fill(0) : 0])
+        )
+      );
       $("query-evidence").value = "{}";
       $("model-seed").value = 7;
       $("data-seed").value = 5;
@@ -410,13 +564,14 @@
   }
   const dataGraphKey = () =>
     JSON.stringify({
-      nodes: nodes.map(({ name, observed, dimension, family, variable_type, category_levels }) => ({
+      nodes: nodes.map(({ name, observed, dimension, family, variable_type, category_levels, members }) => ({
         name,
         observed,
         dimension,
         family,
         variable_type,
         category_levels,
+        members,
       })),
       edges,
     });
@@ -517,10 +672,15 @@
       }
       const field = id === "contrast-action" ? "query-values" : "query-reference";
       $(field).value = JSON.stringify(Object.fromEntries(queryNames("query-x").map((n) => [n, value])));
-      clearComputation();
-      $("easy-result").hidden = true;
-      baseline = structure();
+      clearQueryResult();
     };
+  for (const box of [$("scalar-assignments"), $("treatment-components")]) box.addEventListener("input", clearQueryResult);
+  $("estimate-query").onchange = () => {
+    $("query-summary").value = querySummary();
+    updateQuery();
+    renderAssignments();
+    clearQueryResult();
+  };
   $("markov-order").onchange = () => {
     $("markov-k-label").hidden = $("markov-order").value !== "custom";
     pending();
@@ -545,7 +705,7 @@
     editor.inert = value;
     canvasBox.inert = value;
     for (const el of document.querySelectorAll(
-      "#role-fields input,#role-fields select,#role-fields button,.contrast-controls input,#random-options input,#csv-paste,#load-pasted-csv,#load-example-csv,#csv-mapping select,#csv-mapping input,#csv-file"
+      "#role-fields input,#role-fields select,#role-fields button,.contrast-controls input,#estimate-query,#random-options input,#csv-paste,#load-pasted-csv,#load-example-csv,#csv-mapping select,#csv-mapping input,#csv-file"
     ))
       el.disabled = value;
     for (const id of [
@@ -606,7 +766,7 @@
       actions = queryNames("query-x"),
       stamp = structure();
     setBusy(true, "Identify");
-    resultPanel("Identification");
+    resultPanel(estimand() === "apo" ? "Identification · APO" : "Identification · ATE");
     progress.textContent = "Checking the graph…";
     const output = [];
     try {
@@ -638,7 +798,10 @@
           const formula = document.createElement("div");
           formula.className = "outcome-formula";
           try {
-            const math = CausalExpectation.render(result, target, actions, nodes);
+            const math = CausalExpectation.render(result, target, actions, nodes, {
+              estimand: estimand(),
+              members: Object.fromEntries(actions.map((a) => [a, actionMembers(a)])),
+            });
             if (math) {
               formula.append(math);
               if (math.dataset.adjustmentVariables) {
@@ -719,6 +882,7 @@
   window.causalEngineActiveBindings = () =>
     (bindingActive && dataSource === "csv") ||
     Object.keys(declaredClusters).length > 0 ||
+    queryNames("query-x").some((name) => nodes.find((n) => n.name === name)?.dimension > 1) ||
     (dataSource === "random" && randomCandidates().some((n) => randomSize(n.name) > 1));
   function toggleView(name) {
     ClusterView.toggle(name);
@@ -727,18 +891,30 @@
   }
   function isCluster(name) {
     return Boolean(
-      (dataSource === "random" && randomSize(name) > 1) ||
+      (queryNames("query-x").includes(name) && nodes.find((n) => n.name === name)?.dimension > 1) ||
+        (dataSource === "random" && randomSize(name) > 1) ||
         declaredClusters[name] ||
         (bindingActive && dataSource === "csv" && Array.isArray(columnMapping[name]))
     );
   }
   function boundMembers(name) {
+    if (
+      dataSource === "random" &&
+      queryNames("query-x").includes(name) &&
+      model?.variables?.[name]?.columns?.length === nodes.find((n) => n.name === name)?.dimension
+    )
+      return [...model.variables[name].columns];
     if (dataSource === "random" && randomSize(name) > 1) {
       const p = randomSize(name),
         v = model?.variables?.[name];
       return v?.shape?.[0] === p ? [...v.columns] : randomNames(name, p);
     }
-    if (!(bindingActive && dataSource === "csv")) return declaredClusters[name] || [];
+    if (!(bindingActive && dataSource === "csv")) {
+      const node = nodes.find((n) => n.name === name);
+      if (queryNames("query-x").includes(name) && node?.dimension > 1)
+        return node.members?.length === node.dimension ? [...node.members] : Array.from({ length: node.dimension }, (_, i) => name + "[" + i + "]");
+      return declaredClusters[name] || [];
+    }
     const value = columnMapping[name];
     return Array.isArray(value) ? value : value ? [value] : [];
   }
@@ -760,6 +936,8 @@
     );
   }
 
+  const mappingEligible = (name) =>
+    clusterEligible(name) || (queryNames("query-x").includes(name) && (nodes.find((n) => n.name === name)?.dimension > 1 || declaredClusters[name]));
   function csvSnapshot() {
     if (csvTable)
       CausalDataPreview.set({ csv: csvRaw, table: csvTable, name: csvName, source: "csv", key: { graph: dataGraphKey(), file: fileGeneration } });
@@ -880,7 +1058,7 @@
     benchmarkNote();
     if (csvTable) {
       const sig = JSON.stringify({
-        names: nodes.filter((n) => n.observed).map((n) => [n.name, n.dimension, clusterEligible(n.name)]),
+        names: nodes.filter((n) => n.observed).map((n) => [n.name, n.dimension, mappingEligible(n.name)]),
         headers: csvTable.headers,
         mapping: columnMapping,
       });
@@ -898,7 +1076,7 @@
         if (declaredClusters[n.name]) columnMapping[n.name] = [...declaredClusters[n.name]];
         else if (csvTable.headers.includes(n.name)) columnMapping[n.name] = n.name;
       }
-      const eligible = clusterEligible(n.name),
+      const eligible = mappingEligible(n.name),
         members = boundMembers(n.name);
       if (eligible) {
         const details = document.createElement("details"),
@@ -915,7 +1093,35 @@
           input.checked = members.includes(h);
           input.dataset.binding = n.name;
           input.onchange = () => {
-            columnMapping[n.name] = [...choices.querySelectorAll("input:checked")].map((e) => e.value);
+            const checked = [...choices.querySelectorAll("input:checked")].map((e) => e.value),
+              prior = Array.isArray(columnMapping[n.name]) ? columnMapping[n.name] : [];
+            if (queryNames("query-x").includes(n.name) && checked.length > 8) {
+              input.checked = false;
+              $("data-error").textContent = "Treatment clusters support at most 8 members.";
+              return;
+            }
+            columnMapping[n.name] = [...prior.filter((h) => checked.includes(h)), ...checked.filter((h) => !prior.includes(h))];
+            if (queryNames("query-x").includes(n.name) && checked.length) {
+              const next = columnMapping[n.name],
+                changed = n.dimension !== next.length || JSON.stringify(n.members || prior) !== JSON.stringify(next);
+              if (changed) {
+                for (const field of ["query-values", "query-reference"]) {
+                  try {
+                    const values = assignments(field),
+                      old = Array.isArray(values[n.name]) ? values[n.name] : [values[n.name]],
+                      fallback = field === "query-values" ? 1 : 0;
+                    const tuple = next.map((member) => (prior.includes(member) ? old[prior.indexOf(member)] ?? fallback : fallback));
+                    values[n.name] = tuple.length > 1 ? tuple : tuple[0];
+                    $(field).value = JSON.stringify(values);
+                  } catch {}
+                }
+                n.dimension = next.length;
+                n.members = [...next];
+                originalInvalidate();
+                retainedRandomSignature = null;
+              }
+            }
+
             summary.textContent = n.name + " · " + columnMapping[n.name].length + " columns";
             mappingChanged();
           };
@@ -954,6 +1160,11 @@
     $("data-error").textContent = "";
     window.causalEngineDataResults = null;
     window.causalEngineDataSource = null;
+    syncAssignmentWidths();
+    describe();
+    csvBindingGraph = dataGraphKey();
+    baseline = structure();
+    csvSnapshot();
     refreshBinding();
   }
 
@@ -1261,7 +1472,20 @@
     return JSON.stringify({ graph: signature(), source: dataSource, file: fileGeneration, mapping: columnMapping });
   }
   let benchmarkTruth;
-  async function addTruth(section, target, source, sourceInfo, fullAction, fullReference, graphNodes, graphEdges, used, intervention, reference) {
+  async function addTruth(
+    section,
+    target,
+    source,
+    sourceInfo,
+    fullAction,
+    fullReference,
+    graphNodes,
+    graphEdges,
+    used,
+    intervention,
+    reference,
+    queryKind
+  ) {
     const stamp = truthStamp();
     let label = "Ground truth",
       value = null,
@@ -1277,10 +1501,11 @@
           nodes: graphNodes,
           edges: graphEdges,
           type: "interventional",
-          summary: "mean_difference",
+          estimand: queryKind,
+          summary: queryKind === "apo" ? "mean" : "mean_difference",
           targets: [target],
           intervention,
-          reference,
+          ...(queryKind === "ate" ? { reference } : {}),
           Z: [],
           n: Math.max(...Object.values(randomConfig().random_cluster_sizes || {}), 1) > 8 ? 512 : 2048,
           max_seconds: 10,
@@ -1289,7 +1514,8 @@
         value = ref?.values?.[target];
         status = ref?.status || "UNAVAILABLE";
         label = result.reference_kind === "exact_model_mean" ? "Ground truth (exact)" : "Model reference (Monte Carlo)";
-        detail = "Mean difference in this fixed simulated model, not an average of the generated rows.";
+        detail =
+          (queryKind === "apo" ? "Interventional mean" : "Mean difference") + " in this fixed simulated model, not an average of the generated rows.";
         if (result.reference_kind === "monte_carlo_model_mean")
           detail +=
             " Approximate result using " +
@@ -1303,8 +1529,8 @@
         if (actions.length !== 1 || columnMapping[actions[0]] !== d.treatment || columnMapping[target] !== d.outcome || sourceInfo.n !== d.rows)
           return;
         const a = fullAction[actions[0]],
-          b = fullReference[actions[0]];
-        if (![0, 1].includes(a) || ![0, 1].includes(b)) return;
+          b = fullReference?.[actions[0]];
+        if (![0, 1].includes(a) || (queryKind === "ate" && ![0, 1].includes(b))) return;
         const truth = await (benchmarkTruth ??= fetch("./benchmarks/ground-truth.json").then((r) => {
             if (!r.ok) throw Error("Benchmark reference is unavailable.");
             return r.json();
@@ -1312,12 +1538,17 @@
           row = truth.datasets[d.id];
         if (!row || (row.factual_sha256 && row.factual_sha256 !== d.sha256)) return;
         if (row.status === "AVAILABLE") {
-          value = (a - b) * row.value;
-          status = "OK";
+          const armMean = row.apo?.values?.[String(a)];
+          value = queryKind === "apo" ? armMean : (a - b) * row.value;
+          status = Number.isFinite(value) ? "OK" : "UNAVAILABLE";
           detail =
-            "Mean of supplied expected treatment effects across the " +
-            row.n.toLocaleString() +
-            " released rows. This is not a population ATE or an average of noisy realized differences.";
+            queryKind === "apo"
+              ? Number.isFinite(value)
+                ? "Mean of supplied expected outcomes under treatment " + a + " across the released rows; not a population mean."
+                : "An arm-specific benchmark reference is not available for this APO query."
+              : "Mean of supplied expected treatment effects across the " +
+                row.n.toLocaleString() +
+                " released rows. This is not a population ATE or an average of noisy realized differences.";
         } else detail = row.reason || "This dataset has no supplied unit-level ground truth.";
       }
     } catch (error) {
@@ -1411,6 +1642,7 @@
         "minimum_variance_aipw_v1",
         "xgboost_outcome_regression_v1",
         "minimum_variance_ipw_v1",
+        "xgboost_propensity_ipw_v1",
         "balancing_aipw_v1",
         "balancing_aipw_v2",
         "outcome_regression_v1",
@@ -1444,22 +1676,34 @@
   run.onclick = async () => {
     if (running) return;
     let projected, fullAction, fullReference;
+    const queryKind = estimand(),
+      summary = querySummary();
     try {
       validateQuestion();
-      for (const id of ["contrast-action", "contrast-reference"])
-        if (!$(id).disabled && ($(id).value === "" || !Number.isFinite(Number($(id).value))))
-          throw Error("Enter finite treatment and reference values.");
+      for (const input of document.querySelectorAll("#scalar-assignments input,#treatment-components input"))
+        if (!input.disabled && !input.closest("[hidden]") && (input.value === "" || !Number.isFinite(Number(input.value))))
+          throw Error("Enter finite treatment values.");
       fullAction = actionValues();
-      fullReference = checkedAssignments("query-reference");
-      if (![fullAction, fullReference].every((o) => Object.values(o).every((v) => typeof v === "number" && Number.isFinite(v))))
+      fullReference = queryKind === "ate" ? checkedAssignments("query-reference") : null;
+      if (
+        ![fullAction, ...(fullReference ? [fullReference] : [])].every((o) =>
+          Object.values(o).every((v) => (Array.isArray(v) ? v : [v]).every((x) => typeof x === "number" && Number.isFinite(x)))
+        )
+      )
         throw Error("Use finite numeric treatment and reference values.");
       if (!dataSource) throw Error("Choose Upload CSV or Random Data.");
       if ($("query-type").value !== "interventional" || Object.keys(queryEvidence()).length)
-        throw Error("Estimation supports interventional mean differences without factual evidence. Clear factual evidence in settings.");
+        throw Error("Estimation supports interventional means and mean differences without factual evidence. Clear factual evidence in settings.");
       if (dataSource === "csv") {
         if (csvReadPending) throw Error("Wait for the selected CSV file to finish reading.");
         if (!csvTable) throw Error("Choose a valid CSV file first.");
-        projected = CausalCSV.project(csvTable, columnMapping, nodes, window.causalEngineBenchmark?.node_types || {});
+        const columnTypes = { ...(window.causalEngineBenchmark?.node_types || {}) };
+        for (const action of queryNames("query-x")) {
+          const n = nodes.find((n) => n.name === action);
+          if (n?.family === "binary" || n?.variable_type === "binary")
+            for (const column of [columnMapping[action]].flat().filter(Boolean)) columnTypes[column] = "binary";
+        }
+        projected = CausalCSV.project(csvTable, columnMapping, nodes, columnTypes);
         if (window.causalEngineBenchmark?.category_levels)
           projected.column_codebooks = Object.fromEntries(
             Object.entries(window.causalEngineBenchmark.category_levels).filter(([name]) => projected.columns.includes(name))
@@ -1481,7 +1725,7 @@
       source = dataSource,
       requestedMethod = methodChoice();
     setBusy(true, "Estimate");
-    resultPanel("Mean difference");
+    resultPanel(queryKind === "apo" ? "APO · E[Y(a)]" : "ATE · Mean difference");
     $("data-error").textContent = "";
     progress.textContent = source === "csv" ? "Reading selected data on your device…" : "Estimating the current random records on your device…";
     const results = [];
@@ -1502,7 +1746,9 @@
       for (const target of targets) {
         if (revision !== version || draftDirty) throw Error("The graph changed. Estimate again.");
         const ancestors = ancestorsOf(target),
-          validKeys = [fullAction, fullReference].every((o) => Object.keys(o).length === actions.length && actions.every((n) => n in o)),
+          validKeys = [fullAction, ...(fullReference ? [fullReference] : [])].every(
+            (o) => Object.keys(o).length === actions.length && actions.every((n) => n in o)
+          ),
           used = actions.filter((n) => !validKeys || ancestors.has(n)),
           omitted = actions.filter((n) => !used.includes(n)),
           pick = (o) => (validKeys ? Object.fromEntries(Object.entries(o).filter(([n]) => used.includes(n))) : o);
@@ -1515,10 +1761,11 @@
           nodes: graphNodes,
           edges: graphEdges,
           type: "interventional",
-          summary: "mean_difference",
+          estimand: queryKind,
+          summary,
           targets: [target],
           intervention: pick(fullAction),
-          reference: pick(fullReference),
+          ...(queryKind === "ate" ? { reference: pick(fullReference) } : {}),
           Z: queryNames("query-z"),
           ...(source === "csv" && window.causalEngineBenchmark?.estimate_options ? window.causalEngineBenchmark.estimate_options : {}),
           max_seconds: 10,
@@ -1529,11 +1776,12 @@
           ...replay,
           query: {
             type: "interventional",
-            summary: "mean_difference",
+            estimand: queryKind,
+            summary,
             targets: [target],
             estimation_method: requestedMethod,
             intervention: pick(fullAction),
-            reference: pick(fullReference),
+            ...(queryKind === "ate" ? { reference: pick(fullReference) } : {}),
             Z: queryNames("query-z"),
             max_seconds: 10,
           },
@@ -1552,7 +1800,8 @@
           graphEdges,
           used,
           pick(fullAction),
-          pick(fullReference)
+          fullReference ? pick(fullReference) : undefined,
+          queryKind
         );
       }
       window.causalEngineDataResults = results;
@@ -1561,10 +1810,12 @@
         Object.entries(fullAction)
           .map(([n, v]) => n + "=" + JSON.stringify(v))
           .join(", ") +
-        " vs " +
-        Object.entries(fullReference)
-          .map(([n, v]) => n + "=" + JSON.stringify(v))
-          .join(", ");
+        (queryKind === "ate"
+          ? " vs " +
+            Object.entries(fullReference)
+              .map(([n, v]) => n + "=" + JSON.stringify(v))
+              .join(", ")
+          : "");
       $("easy-result").hidden = false;
       const completion = results.every((row) => row.result.data_estimate?.status === "OK") ? "Estimated from " : "Processed ";
       progress.textContent = completion + sourceInfo.n.toLocaleString() + (source === "csv" ? " CSV rows." : " random records.");

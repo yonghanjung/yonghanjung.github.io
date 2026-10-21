@@ -996,6 +996,27 @@ permalink: /experimental-lab/
       white-space: nowrap;
       border: 0;
     }
+    .query-choice {
+      display: block;
+      margin-top: 20px;
+      font-size: 13px;
+    }
+    .query-choice select {
+      display: block;
+      width: 100%;
+      margin-top: 6px;
+    }
+    #treatment-components fieldset {
+      margin: 14px 0;
+      padding: 10px;
+      min-width: 0;
+    }
+    #treatment-components .contrast-controls {
+      margin: 8px 0;
+    }
+    #treatment-components legend {
+      font-size: 13px;
+    }
     .contrast-controls {
       display: flex;
       align-items: end;
@@ -1623,10 +1644,17 @@ permalink: /experimental-lab/
             <p id="role-error" role="alert"></p>
             <p id="role-status" role="status"></p>
           </div>
-          <div class="contrast-controls">
-            <label>Treatment value<input id="contrast-action" type="number" step="any" value="1" /></label><span>vs</span
-            ><label>Reference value<input id="contrast-reference" type="number" step="any" value="0" /></label>
+          <label class="query-choice" for="estimate-query"
+            >Query<select id="estimate-query">
+              <option value="ate">ATE — mean difference</option>
+              <option value="apo">APO — E[Y(a)]</option>
+            </select></label
+          >
+          <div class="contrast-controls" id="scalar-assignments">
+            <label>Treatment value<input id="contrast-action" type="number" step="any" value="1" /></label><span id="contrast-vs">vs</span
+            ><label id="contrast-reference-label">Reference value<input id="contrast-reference" type="number" step="any" value="0" /></label>
           </div>
+          <div id="treatment-components"></div>
           <div class="action-buttons">
             <button id="easy-identify" type="button">Identify</button><button id="easy-estimate" class="primary" type="button">Estimate</button>
           </div>
@@ -2569,7 +2597,7 @@ permalink: /experimental-lab/
     let worker = null,
       requestId = 0;
     function request(action, payload) {
-      worker ||= new Worker("./scm-worker.js?runtime=xgboost-2.1.4-minimum-balance-v1", { type: "module" });
+      worker ||= new Worker("./scm-worker.js?runtime=xgboost-joint-propensity-query-v1", { type: "module" });
       const active = worker,
         id = ++requestId;
       return new Promise((resolve, reject) => {
@@ -3861,7 +3889,7 @@ permalink: /experimental-lab/
   <script src="./role-layout.js"></script>
   <script src="./csv-data.js"></script>
   <script src="./data-preview.js"></script>
-  <script src="./expectation-formula.js"></script>
+  <script src="./expectation-formula.js?query=ate-apo-joint-v1"></script>
   <script src="./cluster-view.js"></script>
   <script src="./method-help.js"></script>
   <script src="./estimation-details.js"></script>

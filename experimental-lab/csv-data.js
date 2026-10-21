@@ -74,11 +74,7 @@ window.CausalCSV = {
     const indices = selected.map((h) => table.headers.indexOf(h)),
       types = {};
     selected.forEach((h, k) => {
-      types[h] =
-        columnTypes[h] ||
-        (Array.isArray(mapping[owners[k].name])
-          ? "continuous"
-          : owners[k].variable_type || (owners[k].family === "binary" ? "binary" : "continuous"));
+      types[h] = columnTypes[h] || owners[k].variable_type || (owners[k].family === "binary" ? "binary" : "continuous");
     });
     const rows = table.rows.map((row, i) =>
       indices.map((j, k) => {

@@ -1,6 +1,51 @@
 /* Contextual explanations only. Estimation and data state are never modified. */
 (() => {
   const topics = {
+    estimand: [
+      "Query",
+      "APO is the interventional mean E[Y(a)] for one complete treatment assignment. ATE is E[Y(a)] − E[Y(a₀)] for two assignments, evaluated on the same retained rows. APO does not define or subtract a reference assignment. Its outcome fits use only the requested assignment; propensity IPW still trains on all observed joint classes.",
+      "score",
+    ],
+    jointTreatment: [
+      "Joint treatment assignment",
+      "A treatment cluster is one ordered tuple. For A(a1, a2), choose a value for each member in that order. Propensity IPW fits the probability of the whole observed tuple, never a product of separate marginal probabilities. The logical causal graph is unchanged.",
+      "data",
+    ],
+    propensityIPW: [
+      "IPW with XGBoost propensity",
+      "IPW fits an actual XGBoost classifier of the whole treatment assignment from the verified adjustment coordinates. It uses held-out probabilities to form inverse weights, with no outcome regression or fitted balancing function. For vector treatment the classes are ordered joint tuples.",
+      "ipw",
+    ],
+    propensity: [
+      "Joint propensity model",
+      "The propensity is the fitted probability of the entire treatment tuple conditional on the actual adjustment coordinates. One XGBoost classifier is fitted per outer training fold. The inverse is evaluated without clipping, stabilization or held-out renormalization; fitted probabilities do not establish true positivity.",
+      "ipw",
+    ],
+    propensityParameters: [
+      "Classifier settings",
+      "The actual fit records binary:logistic for two classes or multi:softprob for more classes, the joint class map, training base score, seed and fixed tree settings. It never multiplies separately fitted marginal propensities.",
+      "ipw",
+    ],
+    probabilityGuard: [
+      "Probability support guard",
+      "If a requested joint class is absent from training, or its evaluated probability is below 1e-6, this estimator returns unavailable. Probabilities are not clipped. At most 32 observed joint classes are supported; this is an engineering guard, not a positivity proof.",
+      "diagnostics",
+    ],
+    propensityScore: [
+      "IPW score",
+      "APO averages I(A=a)Y / p̂(a|C) over the total retained row count. ATE subtracts the reference-assignment score. There is no outcome model, residual correction or division by a held-out weight sum.",
+      "score",
+    ],
+    propensityNormalization: [
+      "Raw inverse probability weights",
+      "The estimator uses raw inverse joint probabilities. It does not clip or stabilize probabilities, multiply marginal probabilities, normalize held-out weights, or trim rows. Requested probabilities below the fixed support threshold produce no estimate.",
+      "ipw",
+    ],
+    propensityDiagnostics: [
+      "Propensity diagnostics",
+      "The actual classifier settings, ordered class map, held-out requested probabilities and inverse-weight concentration are reported. They diagnose numerical support and concentration, not causal positivity or observed-data confidence intervals.",
+      "diagnostics",
+    ],
     estimator: [
       "Estimator",
       "For eligible binary-treatment baseline questions, choose AIPW, Outcome Regression (Plug-in), or IPW. They use different held-out scores and fit only their required supporting functions. These choices require a supported baseline adjustment question. Other queries can be unavailable; their result reports the actual graph-specific method.",
@@ -13,7 +58,7 @@
     ],
     xgboostOR: [
       "Outcome Regression (Plug-in)",
-      "Each treatment arm fits an actual XGBoost outcome model using training rows only. Held-out arm predictions are subtracted and averaged. This estimator fits no weights and applies no residual correction; prediction error or extrapolation can leave bias.",
+      "Each treatment arm fits an actual XGBoost outcome model using training rows only. For APO the requested-arm predictions are averaged; ATE subtracts the reference-arm predictions on the same held-out rows. This estimator fits no weights and applies no residual correction; prediction error or extrapolation can leave bias.",
       "outcome-regression",
     ],
     minimumIPW: [
@@ -23,17 +68,17 @@
     ],
     xgboostOutcome: [
       "XGBoost outcome models",
-      "Each arm uses XGBoost 2.1.4 to predict its outcome from the actual verified adjustment coordinates. A model is fitted on that arm's outer-training rows, then predicts the training cohort and held-out rows. IPW also needs these predictions for its weight constraints; held-out outcomes and ground truth are never fitting inputs.",
+      "Each arm uses XGBoost 2.1.4 to predict its outcome from the actual verified adjustment coordinates. A model is fitted on that arm's outer-training rows, then predicts the training cohort and held-out rows. The current AIPW needs these predictions for its weight constraints; propensity-based IPW fits no outcome model. Held-out outcomes and ground truth are never fitting inputs.",
       "outcome",
     ],
     xgboostParameters: [
       "XGBoost parameters",
-      "The fixed implementation uses 64 boosting rounds, depth 3, learning rate 0.05, histogram trees, one thread, L2 regularization 1 and minimum child weight 5, with full row/column sampling. Each fit records its actual seed and training-mean base score in the diagnostics. The settings are fixed, without held-out tuning.",
+      "The fixed implementation uses 64 boosting rounds, depth 3, learning rate 0.05, histogram trees, one thread, L2 regularization 1 and minimum child weight 5, with full row/column sampling. Each fit records its actual seed and base score in the diagnostics. The settings are fixed, without held-out tuning.",
       "outcome",
     ],
     xgboostBasis: [
       "Regression coordinates",
-      "The outcome models receive the original verified adjustment-witness coordinates, including all recorded categorical indicator recipes. They do not use the former linear/squared or tanh/RBF dictionaries. For an empty feature set, the implementation explicitly supplies one constant-zero coordinate.",
+      "The XGBoost models receive the original verified adjustment-witness coordinates, including all recorded categorical indicator recipes. They do not use the former linear/squared or tanh/RBF dictionaries. For an empty feature set, the implementation explicitly supplies one constant-zero coordinate.",
       "basis",
     ],
     minimumWeights: [
@@ -133,12 +178,12 @@
     ],
     fitCalls: [
       "Actual nuisance fits",
-      "These are the numbers of outcome and inverse-weight fitting calls actually performed. A completed current two-fold run fits four XGBoost outcome models for every baseline method. AIPW and IPW also fit four weight functions; Outcome Regression fits none. Identical settings or an interrupted fit can use fewer.",
+      "The counts record calls actually performed. A two-fold ATE AIPW run fits four outcome models and four balancing functions; APO fits two of each. Outcome Regression fits only the corresponding outcome models. Current IPW fits two whole-treatment XGBoost classifiers, no outcome model or balancing function. Failures or identical ATE regimes can use fewer.",
       "diagnostics",
     ],
     orScore: [
       "Outcome-regression score",
-      "For each held-out row, subtract the reference-arm outcome prediction from the treatment-arm prediction. Average these differences over all retained rows. No fitted weights or observed-outcome residual correction are used.",
+      "For APO average the requested-arm prediction over all retained held-out rows. For ATE subtract the reference-arm prediction before averaging. No fitted weights or observed-outcome residual correction are used.",
       "score",
     ],
     ipwScore: [
@@ -248,7 +293,7 @@
     ],
     score: [
       "Augmented score",
-      "The held-out score combines the difference in arm-specific outcome predictions with inverse-weighted residual corrections for observed outcomes. The raw scores are averaged across all retained rows, without held-out weight renormalization.",
+      "For APO the held-out score is the requested-arm prediction plus its inverse-weighted observed-arm residual. ATE subtracts the corresponding reference-arm score. The raw scores are averaged across all retained rows, without held-out weight renormalization.",
       "score",
     ],
     normalization: [
@@ -283,22 +328,22 @@
     ],
     modelReference: [
       "Model reference",
-      "A model reference compares population means in the fixed simulated model. It is separate from the estimate fitted to generated rows and is not a training input. It is computed only where supported; its label distinguishes exact and Monte Carlo evaluation.",
+      "A model reference evaluates an interventional mean (APO) or mean contrast (ATE) in the fixed simulated model. It is separate from the estimate fitted to generated rows and is not a training input. It is computed only where supported; its label distinguishes exact and Monte Carlo evaluation.",
       "reference",
     ],
     exactReference: [
       "Exact model reference",
-      "This is the population mean contrast in the fixed simulated model, computed analytically where supported. It is separate from the estimate fitted to generated rows and is never a nuisance-training input.",
+      "This is the interventional mean (APO) or mean contrast (ATE) in the fixed simulated model, computed analytically where supported. It is separate from the estimate fitted to generated rows and is never a nuisance-training input.",
       "reference",
     ],
     mcReference: [
       "Monte Carlo model reference",
-      "This approximates the population contrast in the fixed simulated model using simulation draws. Its Monte Carlo standard error describes numerical simulation error, not uncertainty in the observed-data estimate.",
+      "This approximates the interventional mean (APO) or mean contrast (ATE) in the fixed simulated model using simulation draws. Its Monte Carlo standard error describes numerical simulation error, not uncertainty in the observed-data estimate.",
       "reference",
     ],
     benchmark: [
       "Benchmark ground truth",
-      "For supported releases, this is the mean of supplied expected treatment effects across the released rows for the matched treatment comparison. It is not a population ATE or a mean of noisy realized differences. LaLonde has no supplied paired truth.",
+      "For supported releases, this is the released-row mean of supplied expected outcomes (APO), or expected treatment effects (ATE), for the matched query. It is not a population ATE or a mean of noisy realized differences. LaLonde has no supplied paired truth.",
       "benchmark",
     ],
   };

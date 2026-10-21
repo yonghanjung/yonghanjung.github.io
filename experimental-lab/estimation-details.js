@@ -20,15 +20,17 @@
     if (value === undefined || value === null || value === "") return;
     const kind = list.dataset.method,
       direct = kind !== "legacy";
-    const ucaIPW = kind === "uca-ipw",
+    const propensity = kind === "propensity-ipw",
+      ucaIPW = kind === "uca-ipw",
       minimum = kind?.startsWith("minimum-"),
       xgboost = list.dataset.xgboost === "true";
     const aipw = kind?.startsWith("aipw") || kind === "minimum-aipw",
       bounded = kind === "aipw-v2" || kind === "ipw";
     const outcomeFit = list.dataset.outcomeFit !== "false",
       weightFit = list.dataset.weightFit !== "false";
-    const methodTopic =
-      kind === "minimum-aipw"
+    const methodTopic = propensity
+      ? "propensityIPW"
+      : kind === "minimum-aipw"
         ? "minimumAIPW"
         : kind === "minimum-ipw"
           ? "minimumIPW"
@@ -53,30 +55,50 @@
       "Adjustment variables": "adjustment",
       "AIPW (augmented inverse probability weighting)": methodTopic,
       "Outcome models": direct ? (outcomeFit ? (xgboost ? "xgboostOutcome" : "outcome") : "unused") : xgboost ? "xgboostGraph" : "legacyOutcome",
-      "Inverse weights": direct ? (weightFit ? (minimum ? "minimumWeights" : ucaIPW ? "ucaWeights" : "weights") : "unused") : "legacyWeights",
-      "Inverse-weight function": minimum ? "minimumLink" : ucaIPW ? "ucaLink" : bounded ? "link" : "actualSettings",
+      "Inverse weights": direct
+        ? weightFit
+          ? propensity
+            ? "propensity"
+            : minimum
+              ? "minimumWeights"
+              : ucaIPW
+                ? "ucaWeights"
+                : "weights"
+          : "unused"
+        : "legacyWeights",
+      "Inverse-weight function": propensity ? "propensity" : minimum ? "minimumLink" : ucaIPW ? "ucaLink" : bounded ? "link" : "actualSettings",
       "Fitted weight bound": "cap",
       "Cross-fitting": "crossfit",
       "Balance objective": minimum ? "minimumBalance" : ucaIPW ? "ucaBalance" : bounded ? "balance" : "actualSettings",
+      Query: "estimand",
+      "Treatment members": "jointTreatment",
+      "Propensity model": "propensity",
+      "Propensity parameters": "propensityParameters",
+      "Joint classes": "jointTreatment",
+      "Probability guard": "probabilityGuard",
       Score: ["outcome-regression", "xgboost-outcome"].includes(kind)
         ? "orScore"
-        : kind === "minimum-ipw"
-          ? "minimumIPWScore"
-          : ["ipw", "uca-ipw"].includes(kind)
-            ? "ipwScore"
-            : "score",
+        : propensity
+          ? "propensityScore"
+          : kind === "minimum-ipw"
+            ? "minimumIPWScore"
+            : ["ipw", "uca-ipw"].includes(kind)
+              ? "ipwScore"
+              : "score",
       Folds: direct ? "folds" : "legacyFolds",
       "Fold seed": "seed",
       "Outcome ridge penalty": "ridge",
       "Balance penalty": ucaIPW ? "ucaPenalty" : bounded ? "penalty" : "actualSettings",
       Basis: xgboost ? "xgboostBasis" : ucaIPW ? "ucaBasis" : "basis",
-      "Normalization / clipping": minimum
-        ? "minimumNormalization"
-        : ucaIPW
-          ? "ucaNormalization"
-          : weightFit && bounded
-            ? "normalization"
-            : "actualSettings",
+      "Normalization / clipping": propensity
+        ? "propensityNormalization"
+        : minimum
+          ? "minimumNormalization"
+          : ucaIPW
+            ? "ucaNormalization"
+            : weightFit && bounded
+              ? "normalization"
+              : "actualSettings",
       "Raw ratio projection": "ucaProjection",
       "RBF center budget": "ucaBasis",
       "RBF distance denominator": "ucaBasis",
@@ -84,8 +106,8 @@
       "Data uncertainty": "uncertainty",
       "Near-bound weights": "saturation",
       "Actual nuisance fits": "fitCalls",
-      "XGBoost version": "xgboostOutcome",
-      "XGBoost parameters": "xgboostParameters",
+      "XGBoost version": propensity ? "propensityParameters" : "xgboostOutcome",
+      "XGBoost parameters": propensity ? "propensityParameters" : "xgboostParameters",
       "Weight floor": "weightFloor",
       "Constraint tolerance": "muBalance",
       "Balanced training quantity": "muBalance",
@@ -94,15 +116,19 @@
     CausalMethodHelp.add(
       title,
       keys[label] ||
-        (/training mass residual/.test(label)
-          ? "mass"
-          : /near-bound fraction/.test(label)
-            ? "saturation"
-            : /fitted-outcome|dual slope|dual intercept|weight objective|reported KKT/.test(label)
-              ? "muBalance"
-              : /floor fraction/.test(label)
-                ? "weightFloor"
-                : undefined)
+        (/propensity parameters/.test(label)
+          ? "propensityParameters"
+          : /joint classes/.test(label)
+            ? "jointTreatment"
+            : /training mass residual/.test(label)
+              ? "mass"
+              : /near-bound fraction/.test(label)
+                ? "saturation"
+                : /fitted-outcome|dual slope|dual intercept|weight objective|reported KKT/.test(label)
+                  ? "muBalance"
+                  : /floor fraction/.test(label)
+                    ? "weightFloor"
+                    : undefined)
     );
     list.append(title, element("dd", typeof value === "string" ? value : JSON.stringify(value)));
   }
@@ -125,12 +151,19 @@
   function standalone(source, details) {
     const inputs = details.inputs,
       options = details.options;
-    const spec = { ...inputs, estimator: options.estimator || "aipw", seed: options.seed, max_seconds: options.max_seconds };
+    const spec = {
+      ...inputs,
+      estimand: options.estimand || inputs.estimand || "ate",
+      estimator: options.estimator || "aipw",
+      seed: options.seed,
+      max_seconds: options.max_seconds,
+    };
+    if (spec.estimand === "apo") delete spec.reference;
     return (
       source.trimEnd() +
       `\n\n# Reproduce this estimate using the same retained rows, not simulated truth.\n# Save Download data beside this script as causalengine-estimate.csv.\nif __name__ == "__main__":\n    import csv\n    import json\n    import numpy as np\n\n    spec = ${pythonJSON(
         spec
-      )}\n    with open("causalengine-estimate.csv", newline="", encoding="utf-8-sig") as f:\n        data = list(csv.DictReader(f))\n    def column(name):\n        return np.asarray([float(row[name]) for row in data], dtype=float)\n    features = []\n    for recipe in spec["covariates"]:\n        recipe = {"column": recipe} if isinstance(recipe, str) else recipe\n        values = column(recipe["column"])\n        features.append((values == recipe["equals"]).astype(float) if "equals" in recipe else values)\n    covariates = np.column_stack(features) if features else np.empty((len(data), 0))\n    result = estimate_balancing_aipw(\n        covariates, column(spec["treatment"]), column(spec["outcome"]),\n        seed=spec["seed"], intervention=spec["intervention"], reference=spec["reference"],\n        max_seconds=spec["max_seconds"], estimator=spec["estimator"],\n    )\n    print(json.dumps(result, indent=2))\n`
+      )}\n    with open("causalengine-estimate.csv", newline="", encoding="utf-8-sig") as f:\n        data = list(csv.DictReader(f))\n    def column(name):\n        return np.asarray([float(row[name]) for row in data], dtype=float)\n    features = []\n    for recipe in spec["covariates"]:\n        recipe = {"column": recipe} if isinstance(recipe, str) else recipe\n        values = column(recipe["column"])\n        features.append((values == recipe["equals"]).astype(float) if "equals" in recipe else values)\n    covariates = np.column_stack(features) if features else np.empty((len(data), 0))\n    treatment = np.column_stack([column(name) for name in spec["treatment"]]) if isinstance(spec["treatment"], list) else column(spec["treatment"])\n    query = {"estimand": spec["estimand"], "intervention": spec["intervention"]}\n    if spec["estimand"] == "ate":\n        query["reference"] = spec["reference"]\n    result = estimate_balancing_aipw(\n        covariates, treatment, column(spec["outcome"]),\n        seed=spec["seed"], **query,\n        max_seconds=spec["max_seconds"], estimator=spec["estimator"],\n    )\n    print(json.dumps(result, indent=2))\n`
     );
   }
   async function actualSource(implementation) {
@@ -150,13 +183,14 @@
     const metadata = estimate?.estimation_details;
     const minimumAIPW = metadata?.method_id === "minimum_variance_aipw_v1",
       minimumIPW = metadata?.method_id === "minimum_variance_ipw_v1";
+    const propensityIPW = metadata?.method_id === "xgboost_propensity_ipw_v1";
     const minimum = minimumAIPW || minimumIPW,
       xgboostOR = metadata?.method_id === "xgboost_outcome_regression_v1";
     const aipw = minimumAIPW || ["balancing_aipw_v1", "balancing_aipw_v2"].includes(metadata?.method_id);
     const outcomeRegression = xgboostOR || metadata?.method_id === "outcome_regression_v1",
       ucaIPW = metadata?.method_id === "uca_balancing_ipw_v1",
-      ipw = minimumIPW || ucaIPW || metadata?.method_id === "balancing_ipw_v1";
-    const xgboost = minimum || xgboostOR || /XGBoost/.test(metadata?.nuisance?.outcome || "");
+      ipw = propensityIPW || minimumIPW || ucaIPW || metadata?.method_id === "balancing_ipw_v1";
+    const xgboost = propensityIPW || minimum || xgboostOR || /XGBoost/.test(metadata?.nuisance?.outcome || "");
     const direct = aipw || outcomeRegression || ipw;
     const fitted = metadata?.nuisance?.used || metadata?.nuisance?.fitted || { outcome: aipw, weights: aipw };
     const method = estimate?.method || "Not available";
@@ -171,52 +205,63 @@
     const methodName = element("p", "Estimator: " + shownMethod, "estimator-name");
     CausalMethodHelp.add(
       methodName,
-      minimumAIPW
-        ? "minimumAIPW"
-        : minimumIPW
-          ? "minimumIPW"
-          : xgboostOR
-            ? "xgboostOR"
-            : aipw
-              ? "aipw"
-              : outcomeRegression
-                ? "outcomeRegression"
-                : ucaIPW
-                  ? "ipw"
-                  : ipw
-                    ? "actualSettings"
-                    : xgboost
-                      ? "xgboostGraph"
-                      : metadata?.method_id
-                        ? "legacy"
-                        : "estimator"
+      propensityIPW
+        ? "propensityIPW"
+        : minimumAIPW
+          ? "minimumAIPW"
+          : minimumIPW
+            ? "minimumIPW"
+            : xgboostOR
+              ? "xgboostOR"
+              : aipw
+                ? "aipw"
+                : outcomeRegression
+                  ? "outcomeRegression"
+                  : ucaIPW
+                    ? "ipw"
+                    : ipw
+                      ? "actualSettings"
+                      : xgboost
+                        ? "xgboostGraph"
+                        : metadata?.method_id
+                          ? "legacy"
+                          : "estimator"
     );
     section.append(methodName);
     const details = element("details", undefined, "estimation-details");
     details.append(element("summary", "Details"));
     const list = element("dl", undefined, "estimation-facts");
-    list.dataset.method = minimumAIPW
-      ? "minimum-aipw"
-      : minimumIPW
-        ? "minimum-ipw"
-        : xgboostOR
-          ? "xgboost-outcome"
-          : aipw
-            ? metadata.method_id === "balancing_aipw_v2"
-              ? "aipw-v2"
-              : "aipw-v1"
-            : outcomeRegression
-              ? "outcome-regression"
-              : ucaIPW
-                ? "uca-ipw"
-                : ipw
-                  ? "ipw"
-                  : "legacy";
+    list.dataset.method = propensityIPW
+      ? "propensity-ipw"
+      : minimumAIPW
+        ? "minimum-aipw"
+        : minimumIPW
+          ? "minimum-ipw"
+          : xgboostOR
+            ? "xgboost-outcome"
+            : aipw
+              ? metadata.method_id === "balancing_aipw_v2"
+                ? "aipw-v2"
+                : "aipw-v1"
+              : outcomeRegression
+                ? "outcome-regression"
+                : ucaIPW
+                  ? "uca-ipw"
+                  : ipw
+                    ? "ipw"
+                    : "legacy";
     list.dataset.xgboost = String(xgboost);
     list.dataset.outcomeFit = String(fitted.outcome);
     list.dataset.weightFit = String(fitted.weights);
     field(list, "Status", estimate?.status || "UNAVAILABLE");
     field(list, "Estimator", method);
+    const queryKind =
+      metadata?.options?.estimand || metadata?.inputs?.estimand || context?.query?.estimand || (context?.query?.summary === "mean" ? "apo" : "ate");
+    field(list, "Query", queryKind === "apo" ? "APO — E[Y(a)]" : "ATE — E[Y(a)] − E[Y(a₀)]");
+    field(list, "Intervention", metadata?.inputs?.intervention || context?.query?.intervention);
+    if (queryKind === "ate") field(list, "Reference intervention", metadata?.inputs?.reference || context?.query?.reference);
+    field(list, "Treatment members", metadata?.inputs?.treatment_members);
+    if (propensityIPW) field(list, "Joint classes", metadata?.treatment_encoding?.classes);
     const requestedLabels = {
       aipw: "AIPW",
       outcome_regression: "Outcome Regression (Plug-in)",
@@ -232,7 +277,7 @@
       "AIPW (augmented inverse probability weighting)",
       aipw
         ? metadata.fit_performed === false
-          ? "Not fitted: the treatment settings are identical."
+          ? "No nuisance fit was performed; see the recorded query and status."
           : estimate.status === "OK"
             ? "Yes — cross-fitted, with learned inverse weights."
             : "Attempted; no estimate was returned."
@@ -241,6 +286,21 @@
     if (direct) {
       field(list, "Outcome models", metadata.nuisance?.outcome);
       field(list, "Inverse weights", metadata.nuisance?.weights);
+      if (propensityIPW) {
+        field(list, "Propensity model", metadata.nuisance?.propensity);
+        field(
+          list,
+          "Probability guard",
+          metadata.options?.minimum_propensity ?? metadata.options?.propensity_floor ?? metadata.options?.probability_floor
+        );
+        for (const [i, fold] of (estimate?.diagnostics?.fold_details || []).entries()) {
+          const fit = fold.propensity_fit;
+          if (fit) {
+            field(list, "Fold " + (i + 1) + " propensity parameters", fit.params || fit);
+            field(list, "Fold " + (i + 1) + " joint classes", fit.classes || fit.class_mapping);
+          }
+        }
+      }
       field(list, "Inverse-weight function", metadata.nuisance?.inverse_weight);
       field(
         list,
@@ -295,7 +355,12 @@
     const diagnostics = metadata || estimate?.diagnostics ? { estimator: metadata, diagnostics: estimate?.diagnostics } : null;
     if (diagnostics) {
       const more = element("details");
-      more.append(element("summary", outcomeRegression ? "Outcome fit diagnostics" : "Fit, balance & overlap diagnostics"));
+      more.append(
+        element(
+          "summary",
+          outcomeRegression ? "Outcome fit diagnostics" : propensityIPW ? "Propensity & overlap diagnostics" : "Fit, balance & overlap diagnostics"
+        )
+      );
       if (direct && fitted.weights && Number.isFinite(metadata.options?.weight_cap)) {
         const fit = element("dl", undefined, "estimation-facts");
         fit.dataset.method = list.dataset.method;
@@ -347,7 +412,7 @@
       more.append(element("pre", JSON.stringify(diagnostics, null, 2), "estimation-code"));
       const diagnosticHeading = element("div", undefined, "method-help-heading");
       diagnosticHeading.append(more);
-      CausalMethodHelp.add(diagnosticHeading, outcomeRegression ? "outcomeDiagnostics" : "diagnostics");
+      CausalMethodHelp.add(diagnosticHeading, outcomeRegression ? "outcomeDiagnostics" : propensityIPW ? "propensityDiagnostics" : "diagnostics");
       details.append(diagnosticHeading);
     }
     for (const note of metadata?.limitations || []) details.append(element("p", note));

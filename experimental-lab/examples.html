@@ -34,14 +34,18 @@ permalink: /experimental-lab/examples.html
         <article>
           <h2>Inspect and reproduce an estimate</h2>
           <p>
-            A compatible single-binary-treatment baseline graph offers AIPW, Outcome Regression (Plug-in), and IPW. Every method uses actual
-            arm-specific XGBoost outcome models, two-fold cross-fitting and the same retained records. AIPW and IPW also learn positive weights that
-            minimize their training second moment subject to training mass and scalar fitted-outcome mean constraints. IPW uses the predictions to fit
-            these weights, but its final score contains weighted observed outcomes only; AIPW adds residual corrections. Outcome Regression uses only
-            the predicted outcome contrast and fits no weights. The weight floor is 1e-8, with no upper cap or held-out normalization. Only the fitted
-            prediction is balanced, not all covariate moments. Prediction error and extrapolation can leave bias. Details and Calculation code
-            identify the actual source, nuisance fits, XGBoost parameters, constraints, folds and diagnostics. No failed fit silently switches
-            methods.
+            A compatible baseline graph with a scalar or ordered binary-cluster treatment offers AIPW, Outcome Regression (Plug-in), and IPW. Choose
+            ATE to compare two complete assignments or APO for one interventional mean. AIPW retains XGBoost outcome predictions and scalar
+            fitted-outcome balancing weights. Outcome Regression uses only XGBoost outcome predictions. IPW fits an actual XGBoost classifier for the
+            whole observed treatment tuple, then averages raw inverse-probability-weighted outcomes; no outcome model or balancing-weight solver is
+            fitted. The requested probability guard is 1e-6, without clipping or held-out renormalization. Details and Calculation code record the
+            actual query, nuisance fits, classifier class map, original retained columns, folds and diagnostics. These fitted probabilities do not
+            prove positivity, and no failed fit silently switches methods.
+          </p>
+          <p>
+            For a treatment cluster, enter <code>A(a1, a2)</code> in Treatment and keep the two binary source columns in that order. Set each member’s
+            treatment value; ATE also has member-specific reference values. The causal graph retains one logical A. Switching ATE/APO, values or
+            method reuses the retained data; Random Data still requires Generate Data after model, dimension, seed or record changes.
           </p>
         </article>
         <article>

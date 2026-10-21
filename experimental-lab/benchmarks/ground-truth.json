@@ -43,7 +43,17 @@
         "mu1": 4,
         "indexing": "zero-based original headerless CSV"
       },
-      "alignment": "Every factual treatment/outcome/covariate cell equals the matching original row; no sorting, row selection or duplication."
+      "alignment": "Every factual treatment/outcome/covariate cell equals the matching original row; no sorting, row selection or duplication.",
+      "apo": {
+        "status": "AVAILABLE",
+        "values": {
+          "0": 2.4325133506634593,
+          "1": 6.4485802467817965
+        },
+        "target": "released_row_mean_conditional_outcome",
+        "definition": "(1/n)*sum_i mu_a_i over exactly the same released rows; not a population mean or realized potential-outcome average",
+        "source_sha256": "2bdc8b94fdf2f669b1d3d49325fd9359d88418566545003867841312a1653411"
+      }
     },
     "acic": {
       "status": "AVAILABLE",
@@ -87,7 +97,17 @@
         "mu0": "mu0",
         "mu1": "mu1"
       },
-      "alignment": "All treatment, factual outcome and 58 covariates matched original x.csv/zymu_1.csv rows exactly, including reversible nominal coding; no row selection."
+      "alignment": "All treatment, factual outcome and 58 covariates matched original x.csv/zymu_1.csv rows exactly, including reversible nominal coding; no row selection.",
+      "apo": {
+        "status": "AVAILABLE",
+        "values": {
+          "0": 3.5949953715820055,
+          "1": 5.723074629613047
+        },
+        "target": "released_row_mean_conditional_outcome",
+        "definition": "(1/n)*sum_i mu_a_i over exactly the same released rows; not a population mean or realized potential-outcome average",
+        "source_sha256": "002fad96bb55d54edec08a0af46ef4f8ad69e0cfe6294ab48f351f22976a6e76"
+      }
     },
     "lalonde": {
       "status": "UNAVAILABLE",
@@ -97,7 +117,7 @@
       "outcome": "re78",
       "factual_csv": "lalonde_nsw_dw.csv",
       "factual_sha256": "f57cc47825a9c7e48ff753fd45fb5243349229ebd2bc42c35e05170764b4d42f",
-      "source_versions": "Official Dehejia–Wahba NSW sample; source Last-Modified 1999-12-07; SHA256 pinned in manifest",
+      "source_versions": "Official Dehejia\u2013Wahba NSW sample; source Last-Modified 1999-12-07; SHA256 pinned in manifest",
       "sources": [
         {
           "url": "https://users.nber.org/~rdehejia/data/nswre74_treated.txt",

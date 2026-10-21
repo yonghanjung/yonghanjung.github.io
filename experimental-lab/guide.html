@@ -52,8 +52,11 @@ permalink: /experimental-lab/guide.html
             </ol>
             <p>
               You should see seven variables. Blank fields create no nodes: clearing Covariates leaves only A and your outcomes. The visible
-              <strong>Treatment value</strong> and <strong>Reference value</strong> start at 1 and 0. These values apply to all selected treatments;
-              the role template creates binary treatments, so use 0 or 1.
+              <strong>Treatment value</strong> and <strong>Reference value</strong> start at 1 and 0. The role template creates binary treatments, so
+              use 0 or 1. Choose <strong>ATE — mean difference</strong> to compare treatment and reference assignments, or
+              <strong>APO — E[Y(a)]</strong> for one interventional mean. APO has no reference assignment. Enter <code>A(a1, a2)</code> in Treatment
+              for one logical treatment cluster: each member gets its own value input, and the whole ordered tuple is one joint assignment. Treatment
+              clusters support up to eight binary members in Random Data; their actual CSV columns keep the declared order.
             </p>
             <p>
               To group CSV columns, enter <code>X (x1, x2, …, x25)</code> in Covariates. Both <code>…</code> and <code>...</code> expand an ascending
@@ -121,8 +124,9 @@ permalink: /experimental-lab/guide.html
               3, order 1 adds no arrow between them; order 2 allows one. Review the resulting graph.
             </p>
             <p>
-              A repeated measurement needs a distinct name, such as X1 and X2. The comparison uses the visible treatment and reference values and
-              reports each outcome separately. An arrow that runs backward through the entered timeline must be fixed before continuing.
+              A repeated measurement needs a distinct name, such as X1 and X2. The query uses the visible complete treatment assignment, and an ATE
+              also uses the reference assignment; each outcome is reported separately. An arrow that runs backward through the entered timeline must
+              be fixed before continuing.
             </p>
           </section>
           <section id="compare">
@@ -133,8 +137,9 @@ permalink: /experimental-lab/guide.html
               status for the supplied graph and question. <strong>Identifiable</strong> means the graph assumptions allow the requested effect to be
               determined from observed data. It does not validate those assumptions or promise an accurate estimate from your available rows. The
               identified expectation is shown directly as an expression using observed quantities, with sums for discrete variables and integrals for
-              continuous variables. It is a mean under one treatment setting, not the mean difference reported by Estimate. Details contains the
-              returned reason; an unfinished formula expansion is reported without changing the identification status.
+              continuous variables. It follows the chosen query: APO displays one identified interventional mean; ATE displays the difference of two
+              identified means. Formula symbols represent complete ordered joint assignments for treatment clusters. Details contains the returned
+              reason; an unfinished formula expansion is reported without changing the identification status.
             </p>
             <h3>Estimate: Upload CSV</h3>
             <p>
@@ -148,21 +153,23 @@ permalink: /experimental-lab/guide.html
                 Choose your CSV file and open <strong>Data columns</strong> below the graph. Each observed graph variable receives a column binding.
               </li>
               <li>
-                Match treatments and outcomes to individual numeric columns. A baseline covariate can contain several columns: expand its name in Data
-                columns and check its members. A column cannot be reused. Headers can differ from graph names; hidden roots need no column.
+                Match a scalar treatment and outcome to numeric columns. A declared treatment cluster binds its ordered binary member columns; a
+                baseline covariate can contain several columns: expand its name in Data columns and check its members. A column cannot be reused.
+                Headers can differ from graph names; hidden roots need no column.
               </li>
               <li>Check the visible treatment and reference values, then press <strong>Run estimate</strong>.</li>
             </ol>
             <p>
-              The same selected rows are used for every outcome. The app computes a data-only mean difference; it does not generate a substitute
-              sample or calculate a simulated-model reference for your CSV. CSV parsing and calculation stay on your device.
+              The same selected rows are used for every outcome. The app computes the selected data-only APO mean or ATE mean difference; it does not
+              generate a substitute sample or calculate a simulated-model reference for your CSV. CSV parsing and calculation stay on your device.
             </p>
             <p>
-              Use scalar treatment and outcome variables, at most 5,000 rows, 100 selected columns, and 500,000 selected cells. Baseline covariates
-              may group several columns when the current graph has a certified adjustment set. At least 128 rows are needed for estimation, and some
-              questions require more. Selected cells must contain finite numbers: no missing values, NaN, or infinity. Binary variables require 0/1.
-              Missing values, duplicate headers, reused columns, and invalid cells stop the calculation with an error; rows are not dropped or
-              imputed. Unused columns may contain text because only mapped columns are sent to the estimator.
+              Use a scalar outcome and a scalar or ordered binary-cluster treatment, at most 5,000 rows, 100 selected columns, and 500,000 selected
+              cells. Cluster assignment support depends on the actual graph and estimator. Baseline covariates may group several columns when the
+              current graph has a certified adjustment set. At least 128 rows are needed for estimation, and some questions require more. Selected
+              cells must contain finite numbers: no missing values, NaN, or infinity. Binary variables require 0/1. Missing values, duplicate headers,
+              reused columns, and invalid cells stop the calculation with an error; rows are not dropped or imputed. Unused columns may contain text
+              because only mapped columns are sent to the estimator.
             </p>
             <h3>Try an upload example</h3>
             <p>
@@ -223,19 +230,22 @@ permalink: /experimental-lab/guide.html
             <h2>5. Read each result and its warning</h2>
             <h3>Which estimator ran?</h3>
             <p>
-              For one binary treatment, scalar outcomes, and a verified baseline adjustment set, choose exactly one of <strong>AIPW</strong>,
-              <strong>Outcome Regression (Plug-in)</strong>, or <strong>IPW</strong>. All three fit actual arm-specific XGBoost outcome models with
-              two-fold cross-fitting and reuse the same retained records. <strong>AIPW</strong> combines predicted outcome differences with
-              inverse-weighted observed-outcome residuals. <strong>Outcome Regression (Plug-in)</strong> averages only the predicted differences and
-              fits no weights. <strong>IPW</strong> averages weighted observed outcomes; it also fits outcome predictions to define its weight
-              constraints, but adds no prediction difference or residual correction to its final score.
+              For one binary scalar or ordered binary-cluster treatment, scalar outcomes, and a verified baseline adjustment set, choose
+              <strong>AIPW</strong>, <strong>Outcome Regression (Plug-in)</strong>, or <strong>IPW</strong>. All use two-fold cross-fitting and the
+              same retained rows. AIPW fits arm-specific XGBoost outcome predictions and minimum-second-moment weights constrained by training mass
+              and the scalar fitted-outcome mean. Outcome Regression uses only XGBoost outcome predictions and fits no weights. IPW fits an actual
+              XGBoost joint-treatment classifier and uses raw inverse probabilities, with no outcome model or balancing-weight fit. For a cluster, the
+              classifier predicts the whole tuple; it never multiplies marginal propensities. Requested probabilities below 1e-6 return unavailable
+              rather than being clipped; at most 32 observed joint classes are supported. APO outcome models fit only its requested arm; ATE compares
+              two arms. IPW classifiers train on all observed joint classes for either query. Details and Calculation code record the actual query,
+              class map, nuisance fits, parameters, column recipes, diagnostics and exact implementation. No failed fit silently changes methods.
             </p>
             <p>
-              The fixed outcome learner is XGBoost 2.1.4: 64 rounds, depth 3, learning rate 0.05, histogram trees, one thread, L2 regularization 1 and
-              minimum child weight 5. It uses the actual verified adjustment coordinates and recorded categorical indicator recipes. Both weighted
-              methods minimize the training second moment of positive weights, subject to training mass and the scalar fitted-outcome mean matching
-              the full training cohort. The lower bound is 1e-8 and the constraint tolerance is 1e-8. There is no upper weight cap,
-              propensity-probability fit, former ratio/RBF dictionary, or post-hoc weight normalization.
+              The fixed XGBoost settings use version 2.1.4, 64 rounds, depth 3, learning rate 0.05, histogram trees, one thread, L2 regularization 1
+              and minimum child weight 5. Outcome models use a regression objective; IPW uses the actual binary or multiclass classification objective
+              and recorded ordered class map. The learner receives the verified adjustment coordinates and recorded categorical indicator recipes.
+              AIPW alone fits minimum-second-moment balancing weights with floor 1e-8, training mass and scalar fitted-outcome equality constraints at
+              tolerance 1e-8. IPW derives inverse weights from the joint classifier instead. Neither branch normalizes held-out weights or trims rows.
             </p>
             <p>
               Only the fitted-outcome prediction is constrained; raw covariate imbalance is a diagnostic, not an equality requirement or a positivity
@@ -294,11 +304,12 @@ permalink: /experimental-lab/guide.html
               unsupported outcome does not hide the others.
             </p>
             <p>
-              <strong>Ground truth (exact)</strong> is a separate analytic mean difference in the fixed simulated model, not the average of the
-              sampled rows. When analytic evaluation is unavailable, <strong>Model reference (Monte Carlo)</strong> identifies an approximate
-              simulation result and its draw count. Benchmark <strong>Ground truth</strong> for IHDP and ACIC averages their supplied expected
-              treatment effects over the released rows, not a population average or noisy realized differences. LaLonde has no supplied ground truth.
-              The reference is shown only when the selected treatment/outcome bindings and comparison match it; an ordinary upload has none.
+              <strong>Ground truth (exact)</strong> is a separate analytic query value in the fixed simulated model: one interventional mean for APO
+              or a mean difference for ATE, not the average of the sampled rows. When analytic evaluation is unavailable,
+              <strong>Model reference (Monte Carlo)</strong> identifies an approximate simulation result and its draw count. Benchmark
+              <strong>Ground truth</strong> for IHDP and ACIC uses supplied conditional means for APO or their difference for ATE, averaged over the
+              released rows; it is not a population average or an average of noisy realized differences. LaLonde has no supplied ground truth. The
+              reference is shown only when the selected treatment/outcome bindings and comparison match it; an ordinary upload has none.
             </p>
             <p>
               A positive mean difference means a larger outcome mean under the treatment setting than the reference setting; a negative number means a
@@ -309,7 +320,7 @@ permalink: /experimental-lab/guide.html
               The full action comparison appears above the results. Each outcome also names any actions omitted from its calculation because they are
               not ancestors of that outcome: no directed path leads from them to it in the graph. For example, later A2/A3 need not affect an earlier
               Y1. Only the query is reduced; the graph and dataset are unchanged. If no selected treatment can affect an outcome through the supplied
-              graph, both reduced settings are empty and their mean difference is zero under those graph assumptions.
+              graph, ATE is zero under those graph assumptions; APO remains the outcome’s observational mean.
             </p>
             <p>
               <strong>Approximate estimate: too few comparable records may make this result unreliable</strong> is a warning, not an accuracy
@@ -332,9 +343,10 @@ permalink: /experimental-lab/guide.html
             <p>
               <strong>Node &amp; model settings</strong> opens on the right. The left variable fields and source choices stay in place. Inspect
               observed/hidden status, dimension, functions, seeds, and detailed query settings there; select <strong>Close settings</strong> to
-              return. Simulated functions control Random Data and are not fitted to your uploaded CSV. Current data-only estimation supports scalar
-              treatments and outcomes with fixed interventional mean differences, without factual evidence. Random baseline covariates can contain
-              1–50 components; CSV clusters use their bound columns.
+              return. Simulated functions control Random Data and are not fitted to your uploaded CSV. Current data-only estimation supports
+              interventional APO means and ATE mean differences without factual evidence. Baseline methods support ordered binary treatment clusters
+              and a scalar outcome; other graph branches report their actual capabilities. Random baseline covariates can contain 1–50 components; CSV
+              clusters use their bound columns.
             </p>
           </section>
           <section id="help">

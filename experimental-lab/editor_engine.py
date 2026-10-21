@@ -49,9 +49,13 @@ def build_scm(payload, *, _random_clusters=None):
         observed = node.get("observed", True)
         if not dimension or type(observed) is not bool:
             raise ValueError("Dimension must be 1 to 8; observed must be boolean.")
+        members = node.get("members")
+        if members is not None and (not isinstance(members,list) or len(members)!=dimension or dimension<2
+                or len(set(members))!=len(members) or any(not isinstance(c,str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*",c) for c in members)):
+            raise ValueError("Vector members must be an ordered list of dimension unique valid column names.")
         graph.add_node(name, observed=observed, dimension=dimension,
                        shape=() if dimension == 1 else (dimension,),
-                       columns=[name] if dimension == 1 else [f"{name}[{i}]" for i in range(dimension)],
+                       columns=[name] if dimension == 1 else list(members) if members is not None else [f"{name}[{i}]" for i in range(dimension)],
                        pos=(node.get("x", 0), node.get("y", 0)))
         if observed:
             family = node.get("family") or "random"
@@ -663,61 +667,35 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
     return dict(result, status="OK", values=dict(zip(["Probability"] if event is not None else outcomes, values.tolist())))
 
 
-def _balancing_baseline(data, graph, schema, payload, seed, deadline, original_schema, feature_view):
-    """Narrow baseline adapter; None means the existing estimator owns this query.
-
-    A supported nuisance-fit failure is returned directly, never silently replaced
-    by kNN. Identification, legacy estimators and model references are unchanged.
-    """
-    actions, reference, targets = payload.get("intervention", {}), payload.get("reference", {}), payload.get("targets", [])
-    if (payload.get("type", "interventional") != "interventional" or payload.get("evidence")
-            or len(actions) != 1 or set(actions) != set(reference) or len(targets) != 1):
-        return None
-    action, target = next(iter(actions)), targets[0]
-    if (action not in schema or target not in schema or action == target
-            or schema[action]["type"] != "binary" or schema[action]["shape"] or schema[target]["shape"]
-            or schema[target]["type"] not in {"continuous", "binary"}
-            or actions[action] not in (0, 1) or reference[action] not in (0, 1)):
-        return None
-    from adjustment import construct_minimum_adjustment_set, check_adjustment_criterion, check_backdoor_criterion
-    try:
-        adjustment = construct_minimum_adjustment_set(graph, [action], [target])
-    except ValueError:
-        return None
-    if (not check_adjustment_criterion(graph, [action], [target], adjustment)
-            or any(v not in schema or v in nx.descendants(graph, action) for v in adjustment)
-            or any(schema[v]["type"] == "categorical" for v in adjustment)):
-        return None
-    from balancing_aipw import estimate_balancing_aipw, METHODS
-    columns = [c for v in adjustment for c in schema[v]["columns"]]
-    left, right = schema[action]["columns"][0], schema[target]["columns"][0]
-    estimator = payload.get("estimation_method", "auto")
-    estimator = "aipw" if estimator == "auto" else estimator
-    seconds = deadline-perf_counter()
-    if seconds <= 0:
-        return dict(status="UNKNOWN", method=METHODS[estimator],
-                    reason="Estimator deadline exhausted; no partial estimate is returned", n=len(data))
-    result = estimate_balancing_aipw(data[columns].to_numpy(dtype=float), data[left].to_numpy(dtype=float),
-        data[right].to_numpy(dtype=float), seed=seed, intervention=actions[action], reference=reference[action],
-        max_seconds=min(seconds, 30), estimator=estimator)
-    result.update(adjustment=list(adjustment), criterion="BD" if check_backdoor_criterion(graph, [action], [target], adjustment) else "AC")
-    recipes = []
-    encodings = (feature_view or {}).get("encodings", {})
+def _balancing_baseline(data,graph,schema,payload,seed,deadline,original_schema,feature_view):
+    """Verified baseline scalar/ordered binary-treatment ATE or APO adapter."""
+    estimand=_query_estimand(payload);actions=payload.get("intervention",{});reference=payload.get("reference",{});targets=payload.get("targets",[])
+    if payload.get("type","interventional")!="interventional"or payload.get("evidence")or len(actions)!=1 or len(targets)!=1:return None
+    action,target=next(iter(actions)),targets[0]
+    if action not in schema or target not in schema or action==target or schema[target]["shape"]or schema[target]["type"]not in{'continuous','binary'}:return None
+    spec=schema[action];types=spec.get('component_types',[spec['type']]*len(spec['columns']))
+    if any(t!='binary'for t in types):return None
+    from adjustment import construct_minimum_adjustment_set,check_adjustment_criterion,check_backdoor_criterion
+    try:adjustment=construct_minimum_adjustment_set(graph,[action],[target])
+    except ValueError:return None
+    if not check_adjustment_criterion(graph,[action],[target],adjustment)or any(v not in schema or v in nx.descendants(graph,action)for v in adjustment)or any(schema[v]['type']=='categorical'for v in adjustment):return None
+    from balancing_aipw import estimate_balancing_aipw,METHODS
+    columns=[c for v in adjustment for c in schema[v]['columns']];right=schema[target]['columns'][0]
+    estimator=payload.get('estimation_method','auto');estimator='aipw'if estimator=='auto'else estimator
+    seconds=deadline-perf_counter()
+    if seconds<=0:return dict(status='UNKNOWN',method=METHODS[estimator],reason='Estimator deadline exhausted; no partial estimate',n=len(data))
+    raw=data[spec['columns']].to_numpy(dtype=float);raw=raw[:,0]if not spec['shape']else raw
+    result=estimate_balancing_aipw(data[columns].to_numpy(dtype=float),raw,data[right].to_numpy(dtype=float),seed=seed,intervention=actions[action],reference=reference[action]if estimand=='ate'else None,max_seconds=min(seconds,30),estimator=estimator,estimand=estimand)
+    result.update(adjustment=list(adjustment),criterion='BD'if check_backdoor_criterion(graph,[action],[target],adjustment)else'AC')
+    recipes=[];encodings=(feature_view or{}).get('encodings',{})
     for name in adjustment:
-        spec = original_schema[name]
-        for old, source in zip(spec["columns"], spec.get("source_columns", spec["columns"])):
-            if old in encodings:
-                recipes.extend(dict(column=source, equals=code) for code in encodings[old]["codes"])
-            else:
-                recipes.append(dict(column=source))
-    result["estimation_details"]["inputs"] = dict(covariates=recipes, covariate_columns=columns,
-        treatment=original_schema[action].get("source_columns", original_schema[action]["columns"])[0],
-        outcome=original_schema[target].get("source_columns", original_schema[target]["columns"])[0],
-        intervention=actions[action], reference=reference[action],
-        logical_action=action, logical_outcome=target, adjustment=list(adjustment),
-        balance_target="whole training cohort (ATE target), not the treated cohort")
-    if result["status"] == "OK":
-        result["values"] = {right: result.pop("estimate")}
+        source_spec=original_schema[name]
+        for old,source in zip(source_spec['columns'],source_spec.get('source_columns',source_spec['columns'])):
+            if old in encodings:recipes.extend(dict(column=source,equals=code)for code in encodings[old]['codes'])
+            else:recipes.append(dict(column=source))
+    members=original_schema[action].get('source_columns',original_schema[action]['columns'])
+    result['estimation_details']['inputs']=dict(covariates=recipes,covariate_columns=columns,treatment=members[0]if not spec['shape']else list(members),treatment_members=list(members),outcome=original_schema[target].get('source_columns',original_schema[target]['columns'])[0],intervention=actions[action],reference=reference[action]if estimand=='ate'else None,estimand=estimand,logical_action=action,logical_outcome=target,adjustment=list(adjustment),balance_target='whole cohort, not treated cohort')
+    if result['status']=='OK':result['values']={right:result.pop('estimate')}
     return result
 
 
@@ -801,7 +779,7 @@ def _data_graph(payload):
     for node in payload["nodes"]:
         name = node["name"]
         dimension = node.get("dimension", 1)
-        graph.nodes[name].update(shape=() if dimension == 1 else (dimension,), columns=[name])
+        graph.nodes[name].update(shape=() if dimension == 1 else (dimension,), columns=[name], members=node.get("members"))
         if node.get("observed", True):
             kind = node.get("variable_type") or ("binary" if node.get("family") == "binary" else "continuous")
             if node.get("family") == "binary" and kind != "binary":
@@ -818,37 +796,45 @@ def _data_graph_key(graph, schema, include_types=True):
     # Positions and display metadata do not change an observational dataset.
     import hashlib
     nodes = [(name, bool(attrs.get("observed", True)), attrs.get("dimension", 1),
-              schema.get(name, {}).get("type") if include_types else None)
+              schema.get(name, {}).get("type") if include_types else None, attrs.get("members"))
              for name, attrs in sorted(graph.nodes(data=True))]
     value = [nodes, sorted(graph.edges())]
     return hashlib.sha256(json.dumps(value, separators=(",", ":")).encode()).hexdigest()
 
 
+def _query_estimand(payload):
+    summary=payload.get("summary", "mean_difference")
+    estimand=payload.get("estimand", "apo" if summary=="mean" else "ate")
+    if estimand not in {"ate","apo"} or summary != ("mean" if estimand=="apo" else "mean_difference"):
+        raise ValueError("Match estimand apo with summary mean, or ate with mean_difference.")
+    if estimand=="apo" and payload.get("reference") is not None:
+        raise ValueError("APO has no reference assignment; omit reference.")
+    return estimand
+
+
 def _data_query(payload, schema):
-    if payload.get("type", "interventional") != "interventional" or payload.get("summary", "mean_difference") != "mean_difference" or payload.get("evidence"):
-        return "Data-only estimation supports interventional Mean difference without factual evidence."
-    targets = payload.get("targets")
-    if not isinstance(targets, list) or len(targets) != 1 or targets[0] not in schema:
+    if payload.get("type","interventional")!="interventional" or payload.get("evidence"):
+        return "Data-only estimation supports interventional ATE or APO without factual evidence."
+    estimand=_query_estimand(payload)
+    targets=payload.get("targets")
+    if not isinstance(targets,list) or len(targets)!=1 or targets[0]not in schema or schema[targets[0]]["shape"]:
         return "Select one observed scalar outcome per data-only estimate."
-    if schema[targets[0]]["shape"]:
-        return "Data-only estimation currently requires a scalar outcome; clusters are covariates only."
-    if schema[targets[0]]["type"] == "categorical":
-        return "Categorical outcomes are not supported by data-only mean estimation."
-    actions, reference = payload.get("intervention"), payload.get("reference")
-    if not isinstance(actions, dict) or not isinstance(reference, dict) or set(actions) != set(reference):
+    if schema[targets[0]]["type"]=="categorical":return "Categorical outcomes are unsupported."
+    actions=payload.get("intervention")
+    if not isinstance(actions,dict):raise ValueError("Intervention must map observed whole action names to assignments.")
+    reference=payload.get("reference") if estimand=="ate" else None
+    if estimand=="ate" and (not isinstance(reference,dict) or set(reference)!=set(actions)):
         raise ValueError("Intervention and reference must contain the same observed action names.")
-    if any(name in schema and schema[name]["shape"] for name in actions):
-        return "Data-only estimation currently requires scalar actions; clusters are covariates only."
-    if any(name in schema and schema[name]["type"] == "categorical" for name in actions):
-        return "Categorical actions are not supported by this data-only adapter."
-    for label, values in (("Intervention", actions), ("Reference", reference)):
-        for name, value in values.items():
-            if name not in schema or type(value) not in (int, float) or not np.isfinite(value):
-                raise ValueError(f"{label}: use finite numeric values for observed scalar actions.")
-            if schema[name]["type"] == "binary" and value not in (0, 1):
-                raise ValueError(f"{label}: binary action values must be 0 or 1.")
-    if targets[0] in actions:
-        return "The outcome must differ from the intervention nodes."
+    for label,values in [("Intervention",actions)]+([("Reference",reference)] if estimand=="ate" else []):
+        for name,value in values.items():
+            if name not in schema:raise ValueError(label+": use observed action names.")
+            spec=schema[name];array=_array(value,spec["shape"])
+            types=spec.get("component_types",[spec["type"]]*len(spec["columns"]))
+            if spec["shape"] and any(t!="binary" for t in types):return "Treatment clusters currently require explicitly binary components; continuous values are not joint classes."
+            if spec["type"]=="categorical":return "Categorical scalar actions are not yet supported by this adapter."
+            if (spec["type"]=="binary" or spec["shape"]) and not np.isin(array,[0,1]).all():
+                raise ValueError(label+": binary action members must be0/1 in their stored order.")
+    if targets[0] in actions:return "The outcome must differ from the intervention nodes."
     return None
 
 
@@ -909,27 +895,23 @@ def _bound_columns(data, public_schema, mapping, column_types, codebooks):
                             cluster=cluster, source_columns=list(members),
                             component_types=[c["type"] for c in components])
         bindings[name] = dict(members=list(members), dimension=len(members),
-            kind="covariate_cluster" if cluster else "scalar", components=components)
+            kind="ordered_cluster" if cluster else "scalar", components=components)
     import pandas as pd
     return pd.DataFrame(selected), schema, bindings
 
 
-def _cluster_adjustment_guard(graph, schema, payload):
-    clusters = [v for v, spec in schema.items() if spec.get("cluster")]
-    if not clusters:
-        return None, None
-    actions, targets = list(payload.get("intervention", {})), payload["targets"]
-    if any(c in actions or c in targets or any(c in nx.descendants(graph, a) for a in actions) for c in clusters):
-        return "Covariate clusters must be separate baseline variables, not actions, outcomes or descendants of treatment.", None
-    from adjustment import construct_minimum_adjustment_set, check_adjustment_criterion, check_backdoor_criterion
-    try:
-        witness = construct_minimum_adjustment_set(graph, actions, targets)
-    except ValueError:
-        return "The current graph has no verified BD/AC adjustment witness for this covariate-cluster binding.", None
-    if not set(clusters) <= set(witness) or not check_adjustment_criterion(graph, actions, targets, witness):
-        return "Every covariate cluster must belong to the verified BD/AC adjustment witness for the unchanged graph.", None
-    return None, dict(criterion="BD" if check_backdoor_criterion(graph, actions, targets, witness) else "AC",
-                      adjustment=list(witness), clusters=clusters)
+def _cluster_adjustment_guard(graph,schema,payload):
+    actions=list(payload.get("intervention",{}));targets=payload["targets"]
+    clusters=[v for v,spec in schema.items()if spec.get("cluster")or spec["shape"]]
+    if not clusters:return None,None
+    if any(c in targets for c in clusters):return "Outcome clusters are not supported by scalar mean estimation.",None
+    covariates=[c for c in clusters if c not in actions]
+    if any(any(c in nx.descendants(graph,a)for a in actions)for c in covariates):return "Covariate clusters must be baseline non-descendants of every treatment.",None
+    from adjustment import construct_minimum_adjustment_set,check_adjustment_criterion,check_backdoor_criterion
+    try:witness=construct_minimum_adjustment_set(graph,actions,targets)
+    except ValueError:return "The cluster query has no verified baseline BD/AC adjustment witness.",None
+    if not set(covariates)<=set(witness)or not check_adjustment_criterion(graph,actions,targets,witness):return "Every covariate cluster must belong to the verified BD/AC adjustment witness.",None
+    return None,dict(criterion="BD" if check_backdoor_criterion(graph,actions,targets,witness)else"AC",adjustment=list(witness),clusters=covariates,treatment_clusters=[c for c in clusters if c in actions])
 
 
 def _categorical_feature_view(data, schema, payload):
@@ -1010,7 +992,7 @@ def _random_cluster_specs(payload):
             raise ValueError("The declared member list must contain exactly dimension unique valid column names.")
         specs[name] = dict(dimension=size, members=list(columns))
     columns = [c for name in schema for c in (specs[name]["members"] if name in specs else
-               ([name] if not schema[name]["shape"] else [f"{name}[{i}]" for i in range(schema[name]["shape"][0])]))]
+               ([name] if not schema[name]["shape"] else list(nodes[name].get("members", [f"{name}[{i}]" for i in range(schema[name]["shape"][0])]))))]
     if len(columns) > 100 or len(columns) != len(set(columns)):
         raise ValueError("Random Data requires at most 100 distinct physical output columns; member names cannot collide.")
     return specs
@@ -1049,49 +1031,36 @@ def _random_schema(model, specs):
             spec.update(cluster=True, source_columns=columns, component_types=[spec["type"]] * len(columns))
             bindings[name] = dict(kind="random_covariate_cluster", dimension=len(columns), members=columns,
                                  components=[dict(column=c, type=spec["type"]) for c in columns])
+        if spec["shape"] and spec["type"]=="binary":
+            spec.update(cluster=True,source_columns=columns,component_types=["binary"]*len(columns))
+            bindings[name]=dict(kind="random_binary_cluster",dimension=len(columns),members=columns,components=[dict(column=c,type="binary")for c in columns])
         schema[name] = spec
     return schema, bindings
 
 
-def _paired_vector_reference(model, schema, payload, n, seed, seconds):
-    """Bounded no-evidence reference using the existing interventional sampler."""
-    started = perf_counter()
-    result = dict(status="UNKNOWN", approximate=True,
-                  query=dict(type="interventional", summary="mean_difference", targets=list(payload["targets"]),
-                             intervention=payload["intervention"], reference=payload["reference"], evidence={}, n=n, data_seed=seed),
-                  diagnostics=dict(method="paired interventional sampling", n=n, conditioning="none",
-                                   binary_coupling="shared per-variable random streams", max_physical_cells=500000))
-    columns = [c for spec in schema.values() for c in spec["columns"]]
-    if len(columns) > 100 or 2 * n * len(columns) > 500000:
-        return dict(result, status="UNSUPPORTED", reason="The two reference frames exceed 100 physical columns or 500000 combined cells.")
-    targets = [c for name in payload["targets"] for c in schema[name]["columns"]]
-    worlds = []
-    for action in (payload["intervention"], payload["reference"]):
-        if perf_counter() - started >= seconds:
-            return dict(result, reason="Model reference deadline exhausted; no partial reference value is returned.")
-        try:
-            frame = model.sample_interventional(action, n, seed=seed)
-        except (ValueError, FloatingPointError, OverflowError) as error:
-            return dict(result, reason="Model reference sampling failed: " + str(error))
-        if list(frame.columns) != columns or len(frame) != n or not np.isfinite(frame.to_numpy(dtype=float)).all():
-            return dict(result, reason="Model reference sampling produced inconsistent or nonfinite rows.")
+def _paired_vector_reference(model,schema,payload,n,seed,seconds):
+    """APO one-world or ATE paired-world model sampling, no observed-data fit."""
+    started=perf_counter();estimand=_query_estimand(payload);contrast=estimand=='ate'
+    result=dict(status='UNKNOWN',estimand=estimand,approximate=True,query=dict(type='interventional',summary='mean_difference'if contrast else'mean',targets=list(payload['targets']),intervention=payload['intervention'],reference=payload.get('reference')if contrast else None,evidence={},n=n,data_seed=seed),diagnostics=dict(method='paired interventional sampling'if contrast else'interventional sampling',n=n,conditioning='none',binary_coupling='shared per-variable random streams'if contrast else'one intervention world',max_physical_cells=500000))
+    columns=[c for spec in schema.values()for c in spec['columns']];count=2 if contrast else 1
+    if len(columns)>100 or count*n*len(columns)>500000:return dict(result,status='UNSUPPORTED',reason='Reference frames exceed100physicalcolumns or500000combinedcells')
+    targets=[c for name in payload['targets']for c in schema[name]['columns']];worlds=[]
+    for action in [payload['intervention']]+([payload['reference']]if contrast else[]):
+        if perf_counter()-started>=seconds:return dict(result,reason='Model reference deadline exhausted; no partial value')
+        try:frame=model.sample_interventional(action,n,seed=seed)
+        except(ValueError,FloatingPointError,OverflowError)as error:return dict(result,reason='Model reference sampling failed: '+str(error))
+        if list(frame.columns)!=columns or len(frame)!=n or not np.isfinite(frame.to_numpy(dtype=float)).all():return dict(result,reason='Model reference produced inconsistent or nonfinite rows')
         worlds.append(frame[targets].to_numpy(dtype=float))
-    if perf_counter() - started >= seconds:
-        return dict(result, reason="Model reference deadline exhausted; no partial reference value is returned.")
-    difference = worlds[0] - worlds[1]
-    values, errors = difference.mean(axis=0), difference.std(axis=0, ddof=1) / np.sqrt(n)
-    if not np.isfinite(values).all() or not np.isfinite(errors).all():
-        return dict(result, reason="Model reference mean or Monte Carlo standard error is nonfinite.")
-    primary_mean, baseline_mean = worlds[0].mean(axis=0), worlds[1].mean(axis=0)
-    if not np.isfinite(primary_mean).all() or not np.isfinite(baseline_mean).all():
-        return dict(result, reason="Model reference arm means are nonfinite.")
-    elapsed = perf_counter() - started
-    if elapsed >= seconds:
-        return dict(result, reason="Model reference deadline exhausted; no partial reference value is returned.")
-    result["diagnostics"]["elapsed_seconds"] = elapsed
-    return dict(result, status="OK", values=dict(zip(targets, values.tolist())), standard_errors=dict(zip(targets, errors.tolist())),
-                intervention_values=dict(zip(targets, primary_mean.tolist())),
-                reference_values=dict(zip(targets, baseline_mean.tolist())))
+    if perf_counter()-started>=seconds:return dict(result,reason='Model reference deadline exhausted; no partial value')
+    draws=worlds[0]-worlds[1]if contrast else worlds[0];values=draws.mean(0);errors=draws.std(0,ddof=1)/np.sqrt(n)
+    means=[w.mean(0)for w in worlds]
+    if not np.isfinite([*values,*errors,*[v for mean in means for v in mean]]).all():return dict(result,reason='Model reference mean or MCSE is nonfinite')
+    elapsed=perf_counter()-started
+    if elapsed>=seconds:return dict(result,reason='Model reference deadline exhausted; no partial value')
+    result['diagnostics']['elapsed_seconds']=elapsed
+    answer=dict(result,status='OK',values=dict(zip(targets,values.tolist())),standard_errors=dict(zip(targets,errors.tolist())),intervention_values=dict(zip(targets,means[0].tolist())))
+    if contrast:answer['reference_values']=dict(zip(targets,means[1].tolist()))
+    return answer
 
 
 class Editor:
@@ -1191,14 +1160,14 @@ class Editor:
                 feature_view = None
             else:
                 fitting_data, fitting_schema, feature_view = _categorical_feature_view(data, schema, payload)
-                estimate_payload = dict(payload, type="interventional", summary="mean_difference")
+                estimate_payload = dict(payload, type="interventional", summary="mean" if _query_estimand(payload)=="apo" else "mean_difference")
                 deadline = perf_counter() + seconds
                 split_seed = seed ^ 0x5A5A5A5A
                 estimate = (_balancing_baseline(fitting_data, graph, fitting_schema,
                     estimate_payload, split_seed, deadline, schema, feature_view) if requested_method != "legacy_knn" else None)
                 if estimate is None and requested_method in {"aipw", "outcome_regression", "ipw"}:
                     estimate = dict(status="UNSUPPORTED", n=len(data), requested_method=requested_method,
-                        reason="The selected baseline estimator requires one scalar binary action, one scalar outcome, 0/1 regimes and a verified baseline BD/AC adjustment witness. No legacy fallback was run.")
+                        reason="The selected baseline estimator requires one binary scalar or ordered binary-cluster action, one scalar outcome, a requested 0/1 assignment and a verified baseline BD/AC adjustment witness. No legacy fallback was run.")
                 if estimate is None:
                     estimate = _estimate_mean(fitting_data, graph, fitting_schema,
                         estimate_payload, split_seed, deadline)
