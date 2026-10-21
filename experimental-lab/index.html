@@ -1421,6 +1421,7 @@ permalink: /experimental-lab/
       position: relative;
       z-index: 1;
       background: var(--bg);
+      min-width: 0;
     }
     .outcome-result .estimator-name {
       font-size: 14px;
@@ -1439,9 +1440,16 @@ permalink: /experimental-lab/
     }
     .estimation-facts dd {
       margin: 0;
+      min-width: 0;
       overflow-wrap: anywhere;
+      white-space: normal;
+    }
+    .calculation-code {
+      min-width: 0;
+      max-width: 100%;
     }
     .outcome-result .estimation-code {
+      min-width: 0;
       white-space: pre;
       overflow: auto;
       max-height: 440px;
@@ -1464,11 +1472,85 @@ permalink: /experimental-lab/
     }
     @media (max-width: 600px) {
       .estimation-facts {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
         gap: 4px;
       }
       .estimation-facts dd {
         margin-bottom: 10px;
+      }
+    }
+    .method-label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 6px;
+    }
+    .method-label label {
+      margin: 0;
+    }
+    .method-help-heading {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+    }
+    .method-help-heading > details {
+      min-width: 0;
+      flex: 1;
+    }
+    .method-help {
+      display: inline-grid;
+      place-items: center;
+      vertical-align: middle;
+      width: 24px;
+      min-width: 24px;
+      height: 24px;
+      margin: 0 0 0 6px;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      background: var(--surface);
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1;
+      cursor: help;
+      flex: none;
+    }
+    .method-help:hover,
+    .method-help[aria-expanded="true"] {
+      background: var(--soft);
+      border-color: var(--accent);
+    }
+    .method-help:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }
+    .method-tooltip {
+      position: fixed;
+      z-index: 100001;
+      box-sizing: border-box;
+      margin: 0;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface);
+      box-shadow: 0 6px 24px #193b3724;
+      color: var(--ink);
+      font:
+        14px/1.55 system-ui,
+        sans-serif;
+      overflow: auto;
+      overflow-wrap: anywhere;
+    }
+    .estimation-facts dt {
+      overflow-wrap: anywhere;
+    }
+    @media (pointer: coarse) {
+      .method-help {
+        width: 30px;
+        min-width: 30px;
+        height: 30px;
       }
     }
   </style>
@@ -1582,12 +1664,13 @@ permalink: /experimental-lab/
               </div>
               <button id="generate-data" type="button">Generate Data</button>
             </div>
-            <label id="estimation-method-wrap"
-              >Estimator<select id="estimation-method">
+            <div id="estimation-method-wrap">
+              <div class="method-label"><label for="estimation-method">Estimator</label><span id="estimation-method-help"></span></div>
+              <select id="estimation-method">
                 <option value="auto">Automatic (balancing AIPW)</option>
                 <option value="legacy_knn">Graph plug-in (legacy)</option>
-              </select></label
-            >
+              </select>
+            </div>
             <p id="data-error" role="alert"></p>
             <button id="run-estimate" class="primary" type="button" hidden>Run estimate</button>
           </div>
@@ -1637,7 +1720,7 @@ permalink: /experimental-lab/
           <p id="head-caption" role="status"></p>
         </div>
       </section>
-      <div class="easy-help"><a href="./guide.html">Guide</a><a href="./examples.html">Examples</a></div>
+      <div class="easy-help"><a href="./guide.html">Guide</a><a href="./examples.html">Examples</a><a href="./methods.html">Methods</a></div>
     </section>
     <section id="editor-view" hidden>
       <p id="status" role="status" aria-live="polite"></p>
@@ -3757,6 +3840,7 @@ permalink: /experimental-lab/
   <script src="./data-preview.js"></script>
   <script src="./expectation-formula.js"></script>
   <script src="./cluster-view.js"></script>
+  <script src="./method-help.js"></script>
   <script src="./estimation-details.js"></script>
   <script src="./role-ui.js"></script>
   <script src="./benchmark-ui.js"></script>

@@ -1,6 +1,8 @@
 # CausalEngine 0.1.0
 
 Browser beta: https://yonghanjung.me/experimental-lab/ . It computes on your device; Python installation is optional for the native package below.
+
+[Methods & nuisances](https://yonghanjung.me/experimental-lab/methods.html) is the canonical implementation reference: exact nuisance fits, graph-dependent legacy branches, failure rules, encoding, source code and uncertainty distinctions. The same `web/methods.html` is bundled with this package and opens at `/methods.html` when you run the local server. Hover/focus the app’s question-mark controls for brief definitions and follow the full-document links for the complete recipe.
 CausalEngine bundles the Causal Science Lab graph editor, simulation engine and graph identification tools. Draw a graph and check identification without data. Estimate a mean difference from a mapped numeric CSV or optional Random Data. Random Data examples are simulations, not evidence of an effect in a real school or hospital.
 
 ## Choose how to run it

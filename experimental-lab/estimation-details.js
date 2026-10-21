@@ -18,7 +18,38 @@
   }
   function field(list, label, value) {
     if (value === undefined || value === null || value === "") return;
-    list.append(element("dt", label), element("dd", typeof value === "string" ? value : JSON.stringify(value)));
+    const aipw = list.dataset.method?.startsWith("aipw"),
+      bounded = list.dataset.method === "aipw-v2";
+    const keys = {
+      Status: "status",
+      Estimator: aipw ? "aipw" : "legacy",
+      "Requested method": "estimator",
+      "Graph criterion": "criterion",
+      "Adjustment variables": "adjustment",
+      "AIPW (augmented inverse probability weighting)": aipw ? "aipw" : "legacy",
+      "Outcome models": aipw ? "outcome" : "legacyOutcome",
+      "Inverse weights": aipw ? "weights" : "legacyWeights",
+      "Inverse-weight function": bounded ? "link" : "actualSettings",
+      "Fitted weight bound": "cap",
+      "Cross-fitting": "crossfit",
+      "Balance objective": bounded ? "balance" : "actualSettings",
+      "Augmented score": "score",
+      Folds: aipw ? "folds" : "legacyFolds",
+      "Fold seed": "seed",
+      "Outcome ridge penalty": "ridge",
+      "Balance penalty": bounded ? "penalty" : "actualSettings",
+      Basis: "basis",
+      "Normalization / clipping": bounded ? "normalization" : "actualSettings",
+      "Covariate feature recipes": "adjustment",
+      "Data uncertainty": "uncertainty",
+      "Near-bound weights": "saturation",
+    };
+    const title = element("dt", label);
+    CausalMethodHelp.add(
+      title,
+      keys[label] || (/training mass residual/.test(label) ? "mass" : /near-bound fraction/.test(label) ? "saturation" : undefined)
+    );
+    list.append(title, element("dd", typeof value === "string" ? value : JSON.stringify(value)));
   }
   function legacyReplay(context) {
     const load = {
@@ -72,10 +103,13 @@
       ),
     ];
     const shownMethod = armMethods.length ? method + " — " + armMethods.join(" / ") : method;
-    section.append(element("p", "Estimator: " + shownMethod, "estimator-name"));
+    const methodName = element("p", "Estimator: " + shownMethod, "estimator-name");
+    CausalMethodHelp.add(methodName, aipw ? "aipw" : metadata?.method_id ? "legacy" : "estimator");
+    section.append(methodName);
     const details = element("details", undefined, "estimation-details");
     details.append(element("summary", "Details"));
     const list = element("dl", undefined, "estimation-facts");
+    list.dataset.method = aipw ? (metadata.method_id === "balancing_aipw_v2" ? "aipw-v2" : "aipw-v1") : "legacy";
     field(list, "Status", estimate?.status || "UNAVAILABLE");
     field(list, "Estimator", method);
     field(
@@ -132,12 +166,20 @@
     }
     if (estimate?.reason) field(list, "Reason", estimate.reason);
     details.append(list);
+    const documentLink = element("a", "Full methods documentation");
+    documentLink.href = "./methods.html#" + (aipw ? "score" : "dispatch");
+    documentLink.target = "_blank";
+    documentLink.rel = "noopener";
+    const documentRow = element("p");
+    documentRow.append(documentLink);
+    details.append(documentRow);
     const diagnostics = metadata || estimate?.diagnostics ? { estimator: metadata, diagnostics: estimate?.diagnostics } : null;
     if (diagnostics) {
       const more = element("details");
       more.append(element("summary", "Fit, balance & overlap diagnostics"));
       if (aipw && Number.isFinite(metadata.options?.weight_cap)) {
         const fit = element("dl", undefined, "estimation-facts");
+        fit.dataset.method = list.dataset.method;
         field(
           fit,
           "Near-bound weights",
@@ -156,7 +198,10 @@
         more.append(fit);
       }
       more.append(element("pre", JSON.stringify(diagnostics, null, 2), "estimation-code"));
-      details.append(more);
+      const diagnosticHeading = element("div", undefined, "method-help-heading");
+      diagnosticHeading.append(more);
+      CausalMethodHelp.add(diagnosticHeading, "diagnostics");
+      details.append(diagnosticHeading);
     }
     for (const note of metadata?.limitations || []) details.append(element("p", note));
     if (context?.csv) {
@@ -170,6 +215,7 @@
             : "The replay uses the retained data and the installed CausalEngine package. The actual implementation source is available below."
         )
       );
+      CausalMethodHelp.add(panel.querySelector("p"), "reproduce");
       const actions = element("div", undefined, "calculation-actions");
       const data = element("button", "Download data");
       data.type = "button";

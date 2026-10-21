@@ -156,7 +156,14 @@
   "license_note": "Upstream repository MIT notice preserved verbatim; the notice credits the original site template author. No new ownership attribution is asserted.",
   "web_theme_source": "/tmp/causal-science-lab-preview-20261019/apps/causalengine/",
   "web_changes": "Website preview/data download/benchmark UI and standalone guides; worker/editor data-only adapter, ordered covariate-cluster bindings and categorical feature view; identification API graph cap100 and bounded observational display metadata. Original estimator functions/identification algorithms preserved; additional balancing-weight AIPW routine and narrow estimate_data dispatch explicitly documented. Other10 browser Python modules byte-identical to upstream.",
-  "web_ui_sha256": "da5d4e06ab469332e0d20767d92c0284c7669b41549bfd4771606da2d52c7963",
+  "web_ui_sha256": "f3c7af82a4d6182967d84c214f892d27d064ef5a9ea3acd4d7c73b5d570d9885",
   "benchmark_assets": "web/benchmarks/manifest.json records dataset-specific versions, sources, transforms, hashes and terms; not covered by engine MIT notice",
-  "benchmark_reference_assets": "web/benchmarks/ground-truth.json: separate aggregate mean(mu1-mu0) over unchanged released rows, source SHA/alignment/definition; factual CSV hashes unchanged; LaLonde unavailable. Never an estimation input."
+  "benchmark_reference_assets": "web/benchmarks/ground-truth.json: separate aggregate mean(mu1-mu0) over unchanged released rows, source SHA/alignment/definition; factual CSV hashes unchanged; LaLonde unavailable. Never an estimation input.",
+  "method_documentation": {
+    "path": "web/methods.html",
+    "canonical_source": "preview/apps/causalengine/methods.html",
+    "sha256": "dae57e78feb4fcbc535ec7c09f6c2d8afa7ded843a07ff909ff0210e6de6b511",
+    "numerical_source_sha256": "e9556578f5528ce02001cf1845abc81b68e39decc175b5e0e46e4de9c01343d1",
+    "scope": "Exact implemented nuisance/branch/encoding/failure/reference/uncertainty recipe and related primary sources; documentation-only, no changes to algorithms, parameters, datasets or randomness."
+  }
 }

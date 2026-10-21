@@ -1,0 +1,749 @@
+---
+layout: null
+sitemap: false
+permalink: /experimental-lab/methods.html
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <title>Methods &amp; nuisances · CausalEngine</title>
+    <style>
+      :root {
+        --paper: #f7f5ee;
+        --ink: #1d342f;
+        --muted: #64706b;
+        --line: #d7ddd4;
+        --orange: #ad502f;
+        --green: #193b37;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+        scroll-padding-top: 24px;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font:
+          15px/1.8 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+      a {
+        color: inherit;
+        text-underline-offset: 3px;
+      }
+      a:hover {
+        color: var(--orange);
+      }
+      a:focus-visible {
+        outline: 3px solid var(--orange);
+        outline-offset: 4px;
+      }
+      header,
+      main,
+      footer {
+        max-width: 1140px;
+        margin: auto;
+        padding: 30px;
+      }
+      header {
+        padding-top: 45px;
+        border-bottom: 1px solid var(--line);
+      }
+      h1 {
+        font-size: 36px;
+        line-height: 1.2;
+        letter-spacing: -1px;
+        font-weight: 600;
+        margin: 20px 0;
+      }
+      h2 {
+        font-size: 25px;
+        line-height: 1.3;
+        letter-spacing: -0.5px;
+        font-weight: 600;
+        margin: 0 0 18px;
+      }
+      h3 {
+        font-size: 17px;
+        margin: 24px 0 8px;
+      }
+      p,
+      ul,
+      ol {
+        margin: 12px 0 18px;
+      }
+      .intro,
+      .muted,
+      footer {
+        color: var(--muted);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 200px minmax(0, 1fr);
+        gap: 45px;
+      }
+      .contents {
+        position: sticky;
+        top: 24px;
+        align-self: start;
+        font-size: 13px;
+      }
+      .contents a {
+        display: block;
+        margin: 7px 0;
+      }
+      .body {
+        min-width: 0;
+      }
+      section {
+        border-top: 1px solid var(--line);
+        padding: 28px 0;
+        scroll-margin-top: 24px;
+      }
+      section:first-child {
+        border-top: 0;
+        padding-top: 0;
+      }
+      .brief {
+        font-size: 16px;
+      }
+      .note {
+        background: #e9ede4;
+        border-left: 3px solid #7f9d84;
+        padding: 14px 18px;
+      }
+      .equation {
+        overflow-x: auto;
+        padding: 14px 0;
+        max-width: 100%;
+      }
+      math {
+        font-size: 1.12em;
+      }
+      pre {
+        background: #e9ede4;
+        border: 1px solid var(--line);
+        padding: 16px;
+        overflow-x: auto;
+        font:
+          12px/1.7 ui-monospace,
+          SFMono-Regular,
+          monospace;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, monospace;
+        font-size: 0.88em;
+        overflow-wrap: anywhere;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 13px;
+        line-height: 1.65;
+        margin: 20px 0;
+      }
+      th,
+      td {
+        text-align: left;
+        border-bottom: 1px solid var(--line);
+        padding: 10px 12px 10px 0;
+        vertical-align: top;
+      }
+      dt {
+        font-weight: 600;
+        margin-top: 14px;
+      }
+      dd {
+        margin: 4px 0 12px;
+      }
+      footer {
+        border-top: 1px solid var(--line);
+        font-size: 12px;
+        padding-bottom: 45px;
+      }
+      @media (max-width: 760px) {
+        header,
+        main,
+        footer {
+          padding: 24px 18px;
+        }
+        .layout {
+          display: block;
+        }
+        .contents {
+          position: static;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 2px 18px;
+          margin-bottom: 26px;
+          border-bottom: 1px solid var(--line);
+          padding-bottom: 20px;
+        }
+        h1 {
+          font-size: 30px;
+        }
+        h2 {
+          font-size: 23px;
+        }
+        table {
+          font-size: 12px;
+        }
+        .brief {
+          font-size: 15px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a href="./">← CausalEngine</a>
+      <h1>Methods &amp; nuisances</h1>
+      <p class="intro">
+        What the calculator learns, what it computes, and when it withholds a result. This document describes the actual implementation, including the
+        legacy branches.
+      </p>
+      <p class="muted">
+        Implementation reference · bounded calibration v2 · 21 October 2026<br />Numerical source SHA256:
+        <code>e9556578f5528ce02001cf1845abc81b68e39decc175b5e0e46e4de9c01343d1</code>
+      </p>
+    </header>
+    <main class="layout">
+      <nav class="contents" aria-label="Methods contents">
+        <a href="#overview">Target and meanings</a><a href="#dispatch">Which method runs?</a><a href="#data">Data and encoding</a
+        ><a href="#basis">Feature basis</a><a href="#outcome">Outcome nuisance</a><a href="#weights">Weight nuisance</a
+        ><a href="#cross-fitting">Cross-fitting and seeds</a><a href="#score">Augmented score</a><a href="#diagnostics">Diagnostics and failures</a
+        ><a href="#legacy">Legacy adjustment kNN</a><a href="#uca">General-ID kernel plug-in</a><a href="#reference">Generated-model reference</a
+        ><a href="#benchmark">Benchmark references</a><a href="#reproduce">Code and reproduction</a><a href="#sources">Sources and guarantees</a>
+      </nav>
+      <div class="body">
+        <section id="overview">
+          <h2>Target and meanings</h2>
+          <p class="brief">The main estimate compares the mean outcome if treatment were set to 1 with the mean outcome if it were set to 0.</p>
+          <p>
+            Let <var>A</var> be the binary treatment, <var>Y</var> the scalar outcome, and <var>C</var> the covariate vector in the graph's verified
+            adjustment witness. <var>Y</var>(<var>a</var>) denotes the outcome under intervention <var>A</var> = <var>a</var>. The target is the
+            average treatment effect (ATE) for the population represented by the observed cohort:
+          </p>
+          <div class="equation">
+            <math display="block" aria-label="tau equals expectation of Y of 1 minus Y of 0"
+              ><mi>τ</mi><mo>=</mo><mi mathvariant="double-struck">E</mi><mo>[</mo><mi>Y</mi><mo>(</mo><mn>1</mn><mo>)</mo><mo>−</mo><mi>Y</mi
+              ><mo>(</mo><mn>0</mn><mo>)</mo><mo>]</mo></math
+            >
+          </div>
+          <p>
+            The graph supplies the causal assumptions that make this target identifiable from observational data. <strong>Identify</strong> checks
+            those graph conditions without data. It does not verify that the supplied graph is true in the real world.
+            <strong>Estimate</strong> approximates an identified quantity from observed rows.
+          </p>
+          <p>
+            A <strong>nuisance function</strong> is an intermediate function learned to compute the final effect. The baseline method learns an
+            outcome mean and an inverse-weight function for each arm. The target uses the whole cohort, not just treated rows. No rows are trimmed to
+            redefine the target.
+          </p>
+        </section>
+        <section id="dispatch">
+          <h2>Which method actually runs?</h2>
+          <p class="brief">Read the result's actual <code>method</code>, rather than assuming every graph uses AIPW.</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Request and graph</th>
+                <th>Numerical branch</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  Automatic method; one scalar binary treatment, one scalar continuous/binary outcome; fixed 0/1 regimes; no factual evidence;
+                  verified baseline Back-door (BD) / Adjustment-criterion (AC) witness
+                </td>
+                <td>Bounded-calibration augmented inverse probability weighting (AIPW), <code>balancing_aipw_v2</code></td>
+              </tr>
+              <tr>
+                <td>Explicit <code>estimation_method="legacy_knn"</code>, or a supported query outside that AIPW scope</td>
+                <td>
+                  Original graph plug-in estimator: adjustment k-nearest neighbors (kNN) where a witness exists, otherwise a supported general
+                  identification (ID) kernel plug-in
+                </td>
+              </tr>
+              <tr>
+                <td>Unsupported graph/query/domain, stale dataset, or failed numerical diagnostics</td>
+                <td>Reason/status, without a fabricated estimate or substituted model reference</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            AIPW eligibility additionally requires every adjustment variable to be a treatment non-descendant. The actual witness is selected by
+            <code>construct_minimum_adjustment_set</code> and checked by <code>check_adjustment_criterion</code>; the result records
+            <code>BD</code> or <code>AC</code> and its adjustment variables. Only that witness's columns enter the nuisance functions. A vector
+            witness node retains every ordered component.
+          </p>
+          <p>
+            An AIPW fit failure stays <code>UNKNOWN</code>. There is no automatic fallback to the legacy estimator. The browser processes multiple
+            outcomes separately on the same data snapshot. A Front-door or Sequential identification result does not itself enable baseline AIPW. The
+            legacy <code>compare</code>, native <code>run_demo</code> and CLI <code>demo</code> retain their original plug-in/reference workflow.
+          </p>
+        </section>
+        <section id="data">
+          <h2>Observed data and encoding</h2>
+          <p class="brief">The estimators learn from the selected factual rows. Model references and benchmark truth never enter their fits.</p>
+          <p>
+            <code>load_data</code> accepts the graph, selected numeric rows and an explicit mapping from each observed node to a column or ordered
+            list of columns. A cluster binds a whole vector without changing the public node's name, dimension, arrows, positions or roles. A cluster
+            must belong to an actually verified baseline adjustment witness and cannot be a treatment descendant. Unsupported
+            mediator/time/action/outcome cluster bindings abstain.
+          </p>
+          <p>
+            Input limits are 1–5,000 rows, at most 100 selected physical columns and 500,000 cells. Duplicate/missing mappings, reused columns,
+            missing values, nonnumeric/nonfinite selected cells and incompatible scalar/binary domains are rejected. Unused text columns can remain in
+            the original file and are excluded before numerical loading. Rows are not silently dropped or imputed.
+          </p>
+          <p>
+            Nominal covariates retain their codebooks. An explicit <code>categorical_encoding="one_hot"</code> creates every category indicator in a
+            temporary fitting view. It does not impose distances on ordinal-looking codes or turn indicators into new causal nodes. Original data,
+            logical graph and codebooks remain intact. Dense temporary allocation is checked against 100 total columns and 500,000 cells. Categorical
+            actions/outcomes are not supported for these mean contrasts.
+          </p>
+          <p>
+            For example, a three-level covariate coded 0, 1 and 2 is represented by all three indicator coordinates.
+            <code>estimation_details.inputs.covariates</code> records the exact source-column/equality recipes. AIPW uses only coordinates of its
+            verified witness, not every variable drawn in the graph.
+          </p>
+        </section>
+        <section id="basis">
+          <h2>Feature basis</h2>
+          <p class="brief">The baseline nuisance models use linear features and each feature's square, fitted with training-fold scaling.</p>
+          <p>
+            For each outer training set, each supplied covariate coordinate is centered by its training mean and divided by its training standard
+            deviation. A scale at most <code>1e-12</code> is replaced by 1. The standardized coordinates and their coordinatewise squares are
+            concatenated; each resulting basis coordinate is again centered/scaled with training-fold statistics. The same transformation is applied
+            to the heldout fold. Coordinates constant in training map to zero on the training fold; heldout rows still use that same transformation
+            and need not be zero. There are no pairwise interactions, tree fit, neural network, automatic feature selection or truth-based tuning in
+            these nuisance models.
+          </p>
+          <p>
+            Write this transformed basis as <var>B</var>(<var>c</var>). Both nuisance fits use it, with separate arm-specific parameters. Outcome
+            centering is additionally arm-specific. The basis retains every fitting coordinate of the witness, including every one-hot indicator; the
+            twofold split does not discard features.
+          </p>
+        </section>
+        <section id="outcome">
+          <h2>Outcome nuisance</h2>
+          <p class="brief">For each treatment arm, a ridge regression predicts the mean outcome at the covariate values being evaluated.</p>
+          <p>
+            The ideal outcome nuisance is <code>m_a^*(c) = E[Y | A=a, C=c]</code>, the mean outcome conditional on the treatment arm and covariates.
+            The fitted <code>m_a(c)</code> approximates that ideal; fixed-basis ridge fitting need not equal it. For arm <var>a</var>, use only its
+            rows in the outer training fold. Center the basis by that arm's basis mean and the outcome by that arm's outcome mean. Fit slopes by least
+            squares with a fixed ridge penalty of <code>0.001</code>; the intercept is unpenalized.
+          </p>
+          <pre aria-label="Exact ridge calculation">
+X = B_train_arm - mean(B_train_arm, axis=0)
+y_centered = Y_train_arm - mean(Y_train_arm)
+beta = solve(X.T @ X / n_arm + 0.001 * I,
+             X.T @ y_centered / n_arm)
+m_a(c) = mean(Y_train_arm) + (B(c) - mean(B_train_arm)) @ beta</pre
+          >
+          <p>
+            This minimizes half the mean squared residual plus <code>0.001 / 2 * ||beta||²</code>. It is an unweighted arm-specific regression. Binary
+            outcomes use the same least-squares nuisance, not logistic regression. Its predictions are not clipped. <code>train_outcome_rmse</code> is
+            training fit error, not heldout validation accuracy or an uncertainty interval.
+          </p>
+        </section>
+        <section id="weights">
+          <h2>Weight nuisance</h2>
+          <p class="brief">
+            For each arm, calibration learns positive correction weights that approximately match the whole training cohort's selected moments.
+          </p>
+          <p>
+            The ideal inverse-weight nuisance is <code>alpha_a^*(c) = 1 / P(A=a | C=c)</code>, the reciprocal of the conditional probability of
+            receiving that arm. The fitted, constrained <code>alpha_a(c)</code> approximates this ideal; the two are not assumed equal. These are two
+            separately learned inverse-weight functions, <var>α</var><sub>0</sub> and <var>α</var><sub>1</sub>. The code does not separately fit a
+            propensity probability <var>e</var>(<var>c</var>), and the two fitted functions need not be reciprocals of a single coherent probability
+            model.
+          </p>
+          <p>
+            Let <var>T</var> denote the outer training rows, <var>n</var><sub>T</sub> their count, and <var>I</var><sub>ia</sub> equal 1 when row
+            <var>i</var> has treatment <var>a</var>, otherwise 0. Let <var>s</var><sub>a</sub>(<var>c</var>) = <var>b</var><sub>a</sub> +
+            <var>B</var>(<var>c</var>)<sup>T</sup><var>θ</var><sub>a</sub>. The fitted link is globally bounded:
+          </p>
+          <div class="equation">
+            <math display="block" aria-label="alpha a of c equals 1 plus 19 sigmoid of b a plus B c transpose theta a"
+              ><msub><mi>α</mi><mi>a</mi></msub
+              ><mo>(</mo><mi>c</mi><mo>)</mo><mo>=</mo><mn>1</mn><mo>+</mo><mn>19</mn><mi>σ</mi><mo>(</mo><msub><mi>b</mi><mi>a</mi></msub
+              ><mo>+</mo
+              ><msup
+                ><mrow><mi>B</mi><mo>(</mo><mi>c</mi><mo>)</mo></mrow
+                ><mi>T</mi></msup
+              ><msub><mi>θ</mi><mi>a</mi></msub
+              ><mo>)</mo><mo>,</mo><mspace width="1em" /><mn>1</mn><mo>≤</mo><msub><mi>α</mi><mi>a</mi></msub
+              ><mo>≤</mo><mn>20</mn></math
+            >
+          </div>
+          <p>
+            Here <var>σ</var> is the logistic sigmoid, implemented by stable <code>expit</code>. The cap 20 defines the fitted function class; weights
+            are not clipped after fitting. For each arm the code minimizes this convex objective, with slope penalty fixed at <code>0.01</code>:
+          </p>
+          <pre aria-label="Exact bounded calibration objective">
+s_i = intercept + B_i @ slopes
+loss = 19 / n_train * sum_train_arm(logaddexp(0, s_i))
+       - 1 / n_train * sum_train_other_arm(s_i)
+       + 0.01 / 2 * (slopes @ slopes)</pre
+          >
+          <p>
+            The intercept has no penalty. With <var>φ</var> = (1, <var>B</var>), the gradient is the training mean of
+            <code>(I_arm * alpha_arm - 1) * phi</code>, plus <code>0.01 * slopes</code> on slope coordinates only. The intercept's first-order
+            equation learns weighted arm mass <var>n</var><sub>T</sub>. The slope equations balance selected moments against the full training cohort
+            up to regularization and solver residuals. The actual mass residual is reported; no normalization is imposed afterward.
+          </p>
+          <p>
+            A finite intercept requires the training-arm prevalence <var>π</var><sub>a</sub> to satisfy <code>1/20 &lt; pi_a &lt; 1</code>. Slopes
+            start at zero; the intercept starts at <code>log((1/pi_a - 1) / (20 - 1/pi_a))</code>. The numerical solver is SciPy’s limited-memory
+            Broyden–Fletcher–Goldfarb–Shanno routine with box-constraint support (L-BFGS-B); no explicit coefficient bounds are passed here. It uses
+            <code>maxiter=400</code>, <code>ftol=1e-12</code>, <code>gtol=1e-7</code>; the accepted final maximum absolute gradient must be at most
+            <code>1e-5</code>. The fixed cap, penalties and basis are not selected using model truth or benchmark references.
+          </p>
+          <p class="note">
+            The bound prevents the former exponential-quadratic extension from exploding on a heldout outlier. It can also exclude true inverse
+            weights above 20, creating weight-nuisance misspecification. Neither bounded weights nor good moment balance proves real-world overlap or
+            causal correctness.
+          </p>
+        </section>
+        <section id="cross-fitting">
+          <h2>Cross-fitting and seeds</h2>
+          <p class="brief">Each row's score uses functions fitted without that row.</p>
+          <p>
+            A seeded permutation within each treatment arm allocates rows alternately to two outer folds. For each heldout fold, preprocessing, the
+            two outcome regressions and the two calibration fits use only the other fold. The resulting functions are evaluated on the heldout rows.
+            This is treatment-stratified twofold cross-fitting; there is no inner cross-validation or fitted hyperparameter selection.
+          </p>
+          <p>
+            The actual split seed is the dataset seed XOR <code>0x5A5A5A5A</code>, recorded in <code>estimation_details.options.seed</code>. Changing
+            the dataset seed can change generated rows and/or fold allocation; copying the retained CSV plus its recorded split seed reproduces the
+            fit without rebuilding a model. A model seed fixes the generated mechanisms and is separate from the observed-data seed. Model-reference
+            simulation uses a separately derived seed.
+          </p>
+        </section>
+        <section id="score">
+          <h2>Augmented score and final average</h2>
+          <p class="brief">The estimate combines predicted outcomes with weighted observed prediction errors.</p>
+          <p>For each row <var>i</var>, evaluate the heldout nuisance functions at <var>C</var><sub>i</sub>. The 1-versus-0 row score is:</p>
+          <pre aria-label="Raw AIPW row score and final estimate">
+score_i = m_1(C_i) - m_0(C_i)
+          + I(A_i == 1) * alpha_1(C_i) * (Y_i - m_1(C_i))
+          - I(A_i == 0) * alpha_0(C_i) * (Y_i - m_0(C_i))
+estimate = sum(score_i) / n</pre
+          >
+          <p>
+            The denominator is the total number of observed rows, not the number in one arm or the sum of heldout weights. There is no heldout weight
+            renormalization, score clipping, trimming or model-truth correction. The result separates <code>outcome_contrast_mean</code> from
+            <code>augmentation_mean</code>. A 0-versus-1 request reverses the sign. Identical requested levels return zero without nuisance fitting
+            after the minimum-row check; this is the contrast of the same regime with itself.
+          </p>
+          <p>
+            In the browser, selected actions that are not ancestors of an individual outcome can be removed from that outcome's request without
+            changing the graph or data. If both resulting action maps are empty, the original observed-mean calculation returns the same-data zero
+            contrast. This graph-dependent conclusion is separate from learning nuisance functions.
+          </p>
+        </section>
+        <section id="diagnostics">
+          <h2>Diagnostics, warnings and failures</h2>
+          <p class="brief">A failed fit has no estimate. A warning accompanies a finite approximation and explains its limits.</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Baseline AIPW check</th>
+                <th>Actual rule</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Data and arm counts</td>
+                <td>At least 128 total rows; each outer training arm at least 32 rows; each heldout arm at least 8</td>
+              </tr>
+              <tr>
+                <td>Finite calibration feasibility</td>
+                <td>Each training-arm prevalence strictly greater than 1/20 and less than 1</td>
+              </tr>
+              <tr>
+                <td>Numerical fit</td>
+                <td>Successful solver; finite objective/gradient/weights/predictions/score; final gradient maximum ≤ 1e-5</td>
+              </tr>
+              <tr>
+                <td>Heldout effective sample size (ESS)</td>
+                <td>Fail below max(10, 0.05 × heldout arm count); warn below 0.25 × that count</td>
+              </tr>
+              <tr>
+                <td>Heldout concentration</td>
+                <td>Fail if largest observed-arm weight share &gt; 0.20; warn above 0.05</td>
+              </tr>
+              <tr>
+                <td>Training imbalance</td>
+                <td>Fail if maximum absolute moment residual &gt; 0.5; warn above 0.1</td>
+              </tr>
+              <tr>
+                <td>Heldout mass</td>
+                <td>Warn if observed-arm weight sum / heldout fold size is outside [0.5, 2]</td>
+              </tr>
+              <tr>
+                <td>Cap saturation</td>
+                <td>Report the fraction of observed-arm weights ≥ 0.99 × 20 in training and heldout arms; warn if heldout fraction &gt; 0.05</td>
+              </tr>
+              <tr>
+                <td>Deadline</td>
+                <td>Request budget is positive and ≤ 30 seconds; on exhaustion return no partial value</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            For positive observed-arm heldout weights <var>w</var>, ESS is <code>sum(w)² / sum(w²)</code> and maximum share is
+            <code>max(w) / sum(w)</code>. These describe concentration, not a new physical sample size or an accuracy guarantee. Mass uses the full
+            heldout-fold denominator; the arm's raw inverse weights should represent the whole cohort. Logit ranges and training mass residuals help
+            diagnose the fitted link.
+          </p>
+          <p>
+            Thresholds are engineering safeguards, not a positivity test or a statistical confidence guarantee. The code supplies
+            <strong>no standard error or confidence interval for the observed-data AIPW, kNN or UCA estimate</strong>. Approximation,
+            misspecification, fixed regularization and finite samples can leave bias even when status is <code>OK</code>. Failed supported fits return
+            <code>UNKNOWN</code>; unsupported query/compiler/domain branches return <code>UNSUPPORTED</code>. Invalid input or stale IDs raise a
+            validation error.
+          </p>
+        </section>
+        <section id="legacy">
+          <h2>Legacy adjustment kNN g-computation</h2>
+          <p class="brief">
+            This branch predicts an outcome mean from nearby observed training rows, then averages those predictions over the other fold.
+          </p>
+          <p>
+            <code>_estimate_mean</code> first obtains and validates an adjustment witness. It uses a seeded twofold permutation of all rows,
+            <strong>not treatment-stratified folds</strong>. Binary/categorical interventions and finite adjustment strata are matched exactly.
+            Continuous interventions and continuous adjustment coordinates form the distance features. For each heldout stratum, the eligible
+            opposite-fold source rows determine:
+          </p>
+          <pre>
+k = max(8, floor(sqrt(n_eligible_training_rows)))
+required: n_eligible_training_rows &gt;= 2 * k</pre
+          >
+          <p>
+            Features are standardized by the eligible training rows' means and standard deviations; zero standard deviations become 1. Squared
+            Euclidean distances choose <var>k</var> neighbors by <code>argpartition</code>. The conditional prediction is their uniform mean, not a
+            Gaussian kernel or learned outcome ridge. If there are no varying continuous features, the eligible arm/stratum mean is used. Constant
+            features that cannot cover the requested values fail.
+          </p>
+          <p>
+            Each heldout row keeps its own adjustment covariates while continuous action coordinates are replaced by the requested intervention.
+            Requested continuous actions must be inside observed global and training-stratum action ranges. Too few exact-match rows, nonfinite
+            scales/distances/values or deadline exhaustion yield no estimate. A warning appears if more than 5% of rows need a neighbor radius greater
+            than three times their factual-query radius (squared-radius ratio &gt; 9). This cannot diagnose every form of bias.
+          </p>
+          <p>
+            The branch averages heldout predictions over all rows. With no action, it uses the observed mean directly. A mean difference computes the
+            two interventional means with the same split seed and subtracts them; the first receives half the initially remaining time budget. For a
+            supported event probability, target-row comparison indicators replace outcomes and joint-event hits are averaged. Events combine selected
+            coordinate comparisons with logical AND. Continuous targets allow inequalities; <code>==</code> and <code>!=</code> require a
+            binary/categorical observed-data target.
+          </p>
+          <p>
+            No inverse-probability nuisance, balancing fit, residual augmentation or data standard error is present in this branch. Read each arm's
+            actual method: when a conventional adjustment witness cannot be constructed, the code tries the general-ID compiler described next.
+          </p>
+        </section>
+        <section id="uca">
+          <h2>General-ID normalized-kernel plug-in</h2>
+          <p class="brief">This is a separate, approximate integration procedure for supported identified formulas. It is not baseline AIPW.</p>
+          <p>
+            <code>_estimate_uca_mean</code> calls the graph analyzer with up to 2 seconds of the remaining budget, <code>max_orders=256</code> and
+            <code>max_mc_unions=256</code>. The query must be marked identifiable. Tian, WMC and MC are the implementation’s identification-producer
+            labels; <code>MC</code> here is not a Monte Carlo sampler. It tries accepted complete producers in the order Tian, WMC, MC; MC also
+            requires a complete indexed formula. Identification alone is insufficient: the estimator's compiler must support the particular formula.
+          </p>
+          <p>
+            <code>_uca_schedule</code> freshens summed slots and requires a directed acyclic schedule of normalized observational kernels. It accepts
+            sums, products, observational probability kernels and the number 1. It rejects ratios, unexpanded Q kernels, extraction operators,
+            addition, unresolved/cyclic slots or duplicate suppliers. Limits are 2,000 visited expression nodes, depth 96 and 64 kernels. A formula
+            may be available for display but unavailable for this numerical compiler.
+          </p>
+          <p>
+            There are two seeded, unstratified folds. Conditional kernels use exact discrete context matching in the opposite training fold, with the
+            same <code>k=max(8,floor(sqrt(n_source)))</code> and <code>n_source≥2k</code> rule. Continuous context features use source-group
+            means/standard deviations; values with standard deviation ≤ 1e-12 are treated as constant and must match the query. Neighborhood weights
+            are uniform and normalized to sum to one.
+          </p>
+          <p>
+            <strong>Unconditional kernels use the heldout evaluation fold's empirical marginal.</strong> They do not fit a conditional regression on
+            the opposite fold. For a terminal mean stage, the code uses the source/neighbor mean. If a generated head is used as a later context, or
+            the request is an event probability, it draws an entire source/neighbor row uniformly, preserving coordinates of that head. Later kernels
+            consume those generated values. The final targets or joint-event indicators are averaged across both folds, using the observed number of
+            integration rows rather than the model-reference draw count.
+          </p>
+          <p>
+            For continuous contexts, the code records off-range queries and neighbor-radius coverage. A fixed intervention outside its training
+            context range is allowed by default via <code>allow_continuous_extrapolation=True</code>, flagged as extrapolated. Setting it false
+            withholds the approximation. Constant-context mismatch still fails. Coverage warns if any kernel/fold has more than 5% off-range queries
+            or a radius above three times its median matched-factual radius. Nonfinite values, magnitude above 1e150 in checked matrices, sparse exact
+            contexts and time/compilation limits withhold results.
+          </p>
+          <p>
+            There is no fitted propensity model, inverse-weight correction, balancing loss, AIPW augmentation or observed-data uncertainty estimate
+            here. Bias and integration/smoothing error remain possible.
+          </p>
+        </section>
+        <section id="reference">
+          <h2>Generated-model reference and Monte Carlo error</h2>
+          <p class="brief">
+            A Random Data reference evaluates the fixed simulated Structural Causal Model (SCM), a collection of generated mechanisms and noise laws.
+            It is not learned from the observed sample.
+          </p>
+          <p>
+            <code>sample_reference</code> is a separate action requiring a current Random Data model token, sample ID, public graph and any active
+            random-binding key. It is unavailable for uploaded CSVs. It uses the same fixed mechanisms without replacing or modifying stored observed
+            rows. Its seed is the observed data seed XOR <code>0xA5A5A5A5</code>, distinct from the nuisance split seed.
+          </p>
+          <h3>Verified scalar linear expectation</h3>
+          <p>
+            <code>_reference</code> can propagate analytic means through eligible scalar linear mechanisms without factual evidence. It checks the
+            actual generated function identity, coefficients, parent set and supported Normal/Uniform noise mean. If every required ancestor passes,
+            <code>approximate=False</code> and <code>reference_kind="exact_model_mean"</code> identify an analytic model answer. This is not a claim
+            that the real-world causal effect is known.
+          </p>
+          <h3>Explicit-vector paired simulation</h3>
+          <p>
+            The bounded Random baseline-vector adapter uses the existing <code>sample_interventional</code> method for two action worlds of the same
+            model with the same per-variable exogenous random streams. It averages the rowwise outcome difference. Its Monte Carlo standard error
+            (MCSE) is the sample standard deviation of those paired differences, with <code>ddof=1</code>, divided by the square root of the reference
+            draws. <code>approximate=True</code> and <code>reference_kind="monte_carlo_model_mean"</code> distinguish this from an exact answer.
+          </p>
+          <p>
+            Reference draws are 256–10,000 and separately requested from the observed Records count. Defaults are 512 when a random cluster exceeds
+            dimension 8; otherwise at least 2,048 or the observed row count, subject to request validation. Both vector reference frames together are
+            limited to 100 physical columns and 500,000 cells. Time/nonfinite/shape failures expose no partial reference value.
+          </p>
+          <h3>Advanced SCM query path</h3>
+          <p>
+            Outside the verified analytic branch, the original <code>SCM.query</code> uses generated-model Monte Carlo. With factual equality evidence
+            it uses sequential residual likelihood weighting and shared binary innovation thresholds; it does not learn nuisance regressions from the
+            CSV. It normalizes particle evidence weights, requires ESS ≥ 100 and maximum particle share ≤ 0.1, and can reject unsupported custom
+            mechanisms/densities or unresolved event thresholds. Those particle weights are different from AIPW's learned correction weights.
+          </p>
+          <p>
+            The original SCM path reports simulation standard errors from its actual particle calculations. The paired-vector path reports MCSE for
+            its paired draws. Neither is a confidence interval or standard error for the observed-data effect estimate. A larger simulation draw count
+            reduces simulation error; it does not repair confounding, nuisance bias or sparse observed support.
+          </p>
+        </section>
+        <section id="benchmark">
+          <h2>Benchmark evaluation references</h2>
+          <p class="brief">These values are held out for comparison and never supplied to estimation.</p>
+          <p>
+            Factual benchmark CSVs contain treatment, factual outcome and released baseline covariates. Counterfactual/potential-outcome mean columns
+            are excluded from their mappings. Provenance and transformations are recorded in the
+            <a href="./benchmarks/manifest.json">dataset manifest</a>; aggregate evaluation references are kept in a
+            <a href="./benchmarks/ground-truth.json">separate JSON asset</a>.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Released selection</th>
+                <th>Evaluation reference</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>IHDP, first released realization, 747 rows / 25 covariates</td>
+                <td>4.016066896118338: mean of source mu1−mu0 over those released covariate rows</td>
+              </tr>
+              <tr>
+                <td>
+                  ACIC2016 released causallib <code>zymu_1</code> selection, 4,802 rows / all 58 logical covariates, full nominal one-hot fit view
+                </td>
+                <td>2.1280792580310415: same released-row conditional-mean contrast definition</td>
+              </tr>
+              <tr>
+                <td>LaLonde NSW experimental selection, 445 rows / 8 covariates</td>
+                <td>Unavailable: factual randomized records do not give known unit-level potential-outcome truth</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            The first two are released-row averages of conditional-mean effects, not necessarily a population ATE or the average of noisy realized
+            potential-outcome differences. The UI checks source treatment/outcome bindings and the requested 1/0 contrast before displaying them;
+            reversing the contrast reverses the sign. Arbitrary uploads do not acquire benchmark truth by matching column names. A trial estimate is
+            never relabeled as known truth.
+          </p>
+        </section>
+        <section id="reproduce">
+          <h2>Actual source and exact-data reproduction</h2>
+          <p class="brief">Use the current retained CSV and the code copied from that result's Details.</p>
+          <p>
+            Details records the actual method, source SHA256, callable, requested method, split seed, contrast, current source-column/one-hot recipes
+            and fixed options. The source-copy action verifies the fetched implementation's SHA against the run. The standalone script contains the
+            actual implementation and constructs the same numerical inputs from the retained factual CSV. It calls
+            <code>estimate_balancing_aipw</code> directly; it does not regenerate data or consult a reference. Floating-point optimizer results can
+            vary slightly across numerical runtimes.
+          </p>
+          <p>
+            For a legacy result, replay uses the actual graph, mapping, encoding, data seed, query and <code>estimation_method</code> with
+            <code>Editor.request("load_data", …)</code>/<code>Editor.request("estimate_data", …)</code>. Its implementation source is the original
+            graph estimator, not the bounded AIPW module. The native wheel bundles the same source and this document. A pasted notebook/exec context
+            can compute without a source file; its unverifiable source fingerprint is explicitly <code>null</code>.
+          </p>
+          <ul>
+            <li><a href="./balancing_aipw.py">Bounded AIPW implementation</a>: <code>estimate_balancing_aipw</code></li>
+            <li>
+              <a href="./editor_engine.py">Data adapter and legacy methods</a>: <code>_balancing_baseline</code>, <code>_estimate_mean</code>,
+              <code>_estimate_uca_mean</code>, <code>_uca_schedule</code>, <code>_reference</code>, <code>_paired_vector_reference</code>
+            </li>
+            <li><a href="./SCM.py">Generated-model simulation and queries</a></li>
+            <li><a href="./identification_engine.py">Graph-only identification and formula metadata</a></li>
+            <li><a href="./scm_registry.py">Generated mechanism families</a></li>
+          </ul>
+          <p>
+            CSV replacements, edited graph/types, changed column bindings, new models or new generated samples invalidate the associated results/IDs.
+            Head and Download CSV reuse the stored data snapshot. A model reference never replaces a failed observed-data estimate.
+          </p>
+        </section>
+        <section id="sources">
+          <h2>Source grounding and limits of guarantees</h2>
+          <p>These primary research sources explain related calibration, augmented-score and cross-fitting ideas:</p>
+          <ul>
+            <li><a href="https://doi.org/10.1093/pan/mpr025">Hainmueller (2012), Entropy Balancing for Causal Effects</a></li>
+            <li>
+              <a href="https://doi.org/10.1093/biomet/asz059"
+                >Tan (2020), Regularized calibrated estimation of propensity scores with model misspecification and high-dimensional data</a
+              >
+            </li>
+            <li>
+              <a href="https://doi.org/10.1111/ectj.12097"
+                >Chernozhukov et al. (2018), Double/debiased machine learning for treatment and structural parameters</a
+              >
+            </li>
+          </ul>
+          <p>
+            The bounded-logistic link, fixed L2 penalties, chosen basis and engineering gates here are the actual implementation choices. This code is
+            not presented as the exact algorithm or theorem implementation from the entropy-balancing or calibrated-propensity papers.
+            Double-robustness and double/debiased-machine-learning inference require conditions on causal assumptions, overlap, nuisance
+            approximation/convergence and empirical processes; this tool does not certify them from the dataset.
+          </p>
+          <p>
+            In particular, a fixed basis or weight cap can misspecify the nuisance functions, fixed regularization can leave bias, and a successful
+            solver does not establish a causal model. There is no unconditional finite-sample unbiasedness, root-n inference, universal accuracy
+            improvement or confidence-interval guarantee. Read the returned diagnostics, assumptions and actual computation for each query.
+          </p>
+        </section>
+      </div>
+    </main>
+    <footer>
+      Canonical implementation document, bundled unchanged with CausalEngine's browser and Python package. Numerical source is unchanged by this
+      documentation update. <a href="./">Return to the app</a>
+    </footer>
+  </body>
+</html>

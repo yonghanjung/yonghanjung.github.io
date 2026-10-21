@@ -1276,6 +1276,16 @@
     box.dataset.value = status === "OK" && Number.isFinite(value) ? value : "";
     const strong = document.createElement("strong");
     strong.textContent = label;
+    CausalMethodHelp.add(
+      strong,
+      source === "random"
+        ? label.includes("Monte Carlo")
+          ? "mcReference"
+          : label.includes("(exact)")
+            ? "exactReference"
+            : "modelReference"
+        : "benchmark"
+    );
     const result = document.createElement("span");
     result.textContent = status === "OK" && Number.isFinite(value) ? value.toFixed(3) : "Not available";
     box.append(strong, result);
