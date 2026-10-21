@@ -560,6 +560,7 @@
         (draftDirty && ["easy-identify", "easy-estimate", "run-estimate"].includes(id)) ||
         (["benchmark-estimate", "benchmark-download"].includes(id) && !$("benchmark-select").value);
     identifyButton.textContent = value && label === "Identify" ? "Identifying…" : "Identify";
+    estimateButton.textContent = value && ["Estimate", "Benchmark"].includes(label) ? "Estimating…" : "Estimate";
     run.textContent = value && label === "Estimate" ? "Estimating…" : "Run estimate";
     if (!value) describe();
   }
@@ -664,11 +665,23 @@
       checkChanges();
     }
   };
-  estimateButton.onclick = () => {
+  estimateButton.onclick = async () => {
+    if (running) return;
     try {
       validateQuestion();
       $("estimate-options").hidden = false;
-      progress.textContent = "";
+      if ($("choose-benchmark").getAttribute("aria-pressed") === "true") {
+        await window.CausalBenchmarkUI.estimateSelected();
+      } else if (dataSource === "random" || (dataSource === "csv" && csvTable)) {
+        await run.onclick();
+        if (!$("easy-result").hidden) $("easy-result").scrollIntoView({ block: "start", behavior: "smooth" });
+        else if ($("data-error").textContent) $("data-error").scrollIntoView({ block: "nearest" });
+      } else {
+        progress.textContent = dataSource === "csv" ? "Choose a CSV file to estimate." : "Choose data to estimate.";
+        const next = $(dataSource === "csv" ? "csv-file" : "choose-csv");
+        next.focus();
+        next.scrollIntoView({ block: "nearest" });
+      }
     } catch (e) {
       progress.textContent = e.message;
     }
@@ -1352,7 +1365,9 @@
     if (raw) {
       const warning = document.createElement("p");
       warning.className = "easy-warning";
-      warning.textContent = ["balancing_aipw_v1", "balancing_aipw_v2"].includes(e?.estimation_details?.method_id)
+      warning.textContent = ["balancing_aipw_v1", "balancing_aipw_v2", "outcome_regression_v1", "balancing_ipw_v1"].includes(
+        e?.estimation_details?.method_id
+      )
         ? raw
         : /weak|coverage|overlap/i.test(raw)
           ? "Approximate estimate: too few comparable records may make this result unreliable."

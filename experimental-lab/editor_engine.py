@@ -646,16 +646,18 @@ def _balancing_baseline(data, graph, schema, payload, seed, deadline, original_s
             or any(v not in schema or v in nx.descendants(graph, action) for v in adjustment)
             or any(schema[v]["type"] == "categorical" for v in adjustment)):
         return None
-    from balancing_aipw import estimate_balancing_aipw
+    from balancing_aipw import estimate_balancing_aipw, METHODS
     columns = [c for v in adjustment for c in schema[v]["columns"]]
     left, right = schema[action]["columns"][0], schema[target]["columns"][0]
+    estimator = payload.get("estimation_method", "auto")
+    estimator = "aipw" if estimator == "auto" else estimator
     seconds = deadline-perf_counter()
     if seconds <= 0:
-        return dict(status="UNKNOWN", method="2-fold balancing-weight AIPW (bounded calibration)",
+        return dict(status="UNKNOWN", method=METHODS[estimator],
                     reason="Estimator deadline exhausted; no partial estimate is returned", n=len(data))
     result = estimate_balancing_aipw(data[columns].to_numpy(dtype=float), data[left].to_numpy(dtype=float),
         data[right].to_numpy(dtype=float), seed=seed, intervention=actions[action], reference=reference[action],
-        max_seconds=min(seconds, 30))
+        max_seconds=min(seconds, 30), estimator=estimator)
     result.update(adjustment=list(adjustment), criterion="BD" if check_backdoor_criterion(graph, [action], [target], adjustment) else "AC")
     recipes = []
     encodings = (feature_view or {}).get("encodings", {})
@@ -1101,8 +1103,8 @@ class Editor:
                         n=len(rows), columns=list(schema), data_columns=list(columns), bindings=bindings)
         if action == "estimate_data":
             requested_method = payload.get("estimation_method", "auto")
-            if not isinstance(requested_method, str) or requested_method not in {"auto", "legacy_knn"}:
-                raise ValueError("estimation_method must be auto or legacy_knn")
+            if not isinstance(requested_method, str) or requested_method not in {"auto", "aipw", "outcome_regression", "ipw", "legacy_knn"}:
+                raise ValueError("estimation_method must be auto, aipw, outcome_regression, ipw or legacy_knn")
             source = payload.get("source")
             requested_graph, requested_schema = _data_graph(payload)
             if source == "csv":
@@ -1151,7 +1153,10 @@ class Editor:
                 deadline = perf_counter() + seconds
                 split_seed = seed ^ 0x5A5A5A5A
                 estimate = (_balancing_baseline(fitting_data, graph, fitting_schema,
-                    estimate_payload, split_seed, deadline, schema, feature_view) if requested_method == "auto" else None)
+                    estimate_payload, split_seed, deadline, schema, feature_view) if requested_method != "legacy_knn" else None)
+                if estimate is None and requested_method in {"aipw", "outcome_regression", "ipw"}:
+                    estimate = dict(status="UNSUPPORTED", n=len(data), requested_method=requested_method,
+                        reason="The selected baseline estimator requires one scalar binary action, one scalar outcome, 0/1 regimes and a verified baseline BD/AC adjustment witness. No legacy fallback was run.")
                 if estimate is None:
                     estimate = _estimate_mean(fitting_data, graph, fitting_schema,
                         estimate_payload, split_seed, deadline)

@@ -6,12 +6,13 @@ permalink: /experimental-lab/examples.html
 
 <!doctype html>
 <html lang="en">
-  <meta name="robots" content="noindex, nofollow, noarchive" /><head>
+  <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>CausalEngine examples</title>
     <link rel="icon" href="./lab-logo.png" />
     <link rel="stylesheet" href="./guide.css" />
+    <meta name="robots" content="noindex, nofollow, noarchive" />
   </head>
   <body class="examples-body">
     <main id="main">
@@ -33,12 +34,11 @@ permalink: /experimental-lab/examples.html
         <article>
           <h2>Inspect and reproduce an estimate</h2>
           <p>
-            A compatible single-binary-treatment baseline graph uses cross-fitted balancing-weight AIPW. The No unmeasured confounding template also
-            offers an explicit Graph plug-in (legacy) choice; an unstable balancing fit is never silently replaced. Details identifies the actual
-            outcome regression, bounded inverse-weight calibration, folds, options, training mass residuals, near-bound fractions, balance and overlap
-            diagnostics. The fitted inverse weights stay between 1 and 20 without trimming rows; the bound and fixed basis can leave bias. Calculation
-            code provides the real implementation and a script for the retained data. Download data and Download .py, then run them in the same
-            folder. A model reference is never a fitting input. Other structures keep their own named estimator and are not labelled AIPW.
+            A compatible single-binary-treatment baseline graph uses cross-fitted balancing-weight AIPW. The No unmeasured confounding template offers
+            AIPW, Outcome Regression (Plug-in), and IPW. AIPW fits outcome regressions and bounded inverse weights; Outcome Regression fits only the
+            outcome models; IPW fits only the weights. All three reuse the same retained records. Details and Calculation code identify the actual
+            selected method, nuisance fits, folds, settings and diagnostics. Where weights are used, their fitted class is bounded between 1 and 20;
+            finite features and regularization can leave bias. No failed fit silently switches methods.
           </p>
         </article>
         <article>

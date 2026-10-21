@@ -6,9 +6,9 @@ permalink: /experimental-lab/
 
 <!doctype html>
 <html lang="en">
-  <meta name="robots" content="noindex, nofollow, noarchive" />
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow, noarchive" />
   <title>CausalEngine · Causal Science Lab</title>
   <link rel="icon" href="./lab-logo.png" type="image/png" />
   <style>
@@ -1667,8 +1667,9 @@ permalink: /experimental-lab/
             <div id="estimation-method-wrap">
               <div class="method-label"><label for="estimation-method">Estimator</label><span id="estimation-method-help"></span></div>
               <select id="estimation-method">
-                <option value="auto">Automatic (balancing AIPW)</option>
-                <option value="legacy_knn">Graph plug-in (legacy)</option>
+                <option value="aipw">AIPW</option>
+                <option value="outcome_regression">Outcome Regression (Plug-in)</option>
+                <option value="ipw">IPW</option>
               </select>
             </div>
             <p id="data-error" role="alert"></p>

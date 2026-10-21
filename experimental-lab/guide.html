@@ -6,12 +6,13 @@ permalink: /experimental-lab/guide.html
 
 <!doctype html>
 <html lang="en">
-  <meta name="robots" content="noindex, nofollow, noarchive" /><head>
+  <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>CausalEngine guide</title>
     <link rel="icon" href="./lab-logo.png" />
     <link rel="stylesheet" href="./guide.css" />
+    <meta name="robots" content="noindex, nofollow, noarchive" />
   </head>
   <body class="tutorial-page">
     <main id="main">
@@ -222,26 +223,28 @@ permalink: /experimental-lab/guide.html
             <h2>5. Read each result and its warning</h2>
             <h3>Which estimator ran?</h3>
             <p>
-              Every estimate names its actual estimator. For one binary treatment, a scalar outcome, and a verified baseline adjustment set,
-              CausalEngine uses <strong>2-fold balancing-weight AIPW (augmented inverse probability weighting)</strong>. Each training fold fits
-              separate ridge outcome regressions and direct inverse weights in a bounded calibration class. The fitted inverse-weight function stays
-              between 1 and 20; this is a fitting constraint, not post-hoc clipping. The basis contains training-standardized covariates and their
-              coordinatewise squares. No separate propensity-probability model is fitted. The augmented score is evaluated on held-out rows without
-              clipping or held-out weight renormalization.
+              For one binary treatment, scalar outcomes, and a verified baseline adjustment set, choose exactly one of <strong>AIPW</strong>,
+              <strong>Outcome Regression (Plug-in)</strong>, or <strong>IPW</strong>. <strong>AIPW</strong> combines arm-specific ridge outcome
+              predictions with inverse-weighted residual corrections. <strong>Outcome Regression (Plug-in)</strong> averages the predicted outcome
+              difference and fits no inverse weights. <strong>IPW</strong> averages weighted observed outcomes and fits no outcome regression. Each
+              method uses two-fold cross-fitting and the same retained records; changing the method does not generate new data.
             </p>
             <p>
-              Open <strong>Details</strong> for the actual columns, fold seed, penalties, fitted weight function and bound, training mass residuals,
-              near-bound fractions, solver results, effective sample sizes, balance diagnostics, and warnings. The weight bound, fixed regularization,
-              and finite basis can leave bias; an available estimate is not an accuracy or positivity certificate. Front-door, sequential,
-              continuous-treatment, and other unsupported-for-AIPW questions retain their existing estimator or an explicit unavailable result. Their
-              Details says AIPW is not used; a failed balancing fit is not silently replaced by kNN.
+              Where weights are fitted, their learned function stays between 1 and 20. This is a fitting constraint, not post-hoc clipping. Outcome
+              regression uses the fixed ridge penalty 0.001; weight calibration uses the fixed slope penalty 0.01. Learned preprocessing and the
+              selected nuisance functions use training rows only. The held-out scores are averaged across all rows without weight-sum renormalization.
+              These fixed classes can leave bias. No separate propensity-probability model is fitted.
             </p>
             <p>
-              For the single-binary-treatment No unmeasured confounding template, Estimate offers <strong>Automatic (balancing AIPW)</strong> and
-              <strong>Graph plug-in (legacy)</strong>. The default keeps the balancing method’s fixed safeguards. Selecting legacy explicitly runs the
-              earlier graph plug-in (kNN g-computation for baseline adjustment); it is not AIPW and can retain substantial smoothing bias. No
-              automatic fallback occurs after an unstable balancing fit. Both choices reuse the retained records, and Details and replay code record
-              the actual selection.
+              Open <strong>Details</strong> to see the actual method, fitted nuisance functions and fit counts, columns, fold seed, settings,
+              diagnostics and warnings. An unused nuisance is explicitly marked as not fitted. A failed calculation does not silently switch
+              estimators. Front-door and sequential structures retain their supported graph-specific estimator; the baseline-method menu is hidden
+              there.
+            </p>
+            <p>
+              Select <strong>Estimate</strong> to run the chosen method on the current data. If no source is chosen, it opens and focuses the data
+              choices. With Random Data selected, it reuses the current generation when unchanged, or prepares data using the visible settings. With a
+              benchmark selected, the top Estimate button runs that benchmark with the selected method. Errors appear beside the data controls.
             </p>
             <p>
               Use the <strong>?</strong> beside an estimator or Details label for a short definition. Read <a href="./methods.html">Methods</a> for
@@ -255,13 +258,13 @@ permalink: /experimental-lab/guide.html
                 model reference is generated.
               </li>
               <li>
-                Select <strong>Copy code</strong> or <strong>Download .py</strong>. The balancing-AIPW script includes the actual implementation plus
-                the exact column recipes, comparison, fold seed, and options used for this result.
+                Select <strong>Copy code</strong> or <strong>Download .py</strong>. The script includes the actual implementation plus the selected
+                estimator, exact column recipes, comparison, fold seed, and options used for this result.
               </li>
               <li>
                 Put the CSV and <code>reproduce_estimate.py</code> in one folder, then run <code>python reproduce_estimate.py</code>. Use the Python
-                environment prepared in Code &amp; install. The standalone balancing implementation needs NumPy and SciPy; legacy graph-estimator
-                replay uses the installed CausalEngine package.
+                environment prepared in Code &amp; install. The three baseline estimators run standalone with NumPy and SciPy. Graph-specific
+                estimator replay uses the installed CausalEngine package.
               </li>
             </ol>
             <p>

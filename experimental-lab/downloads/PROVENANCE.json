@@ -135,7 +135,7 @@
     },
     "balancing_aipw.py": {
       "additional_module": true,
-      "method": "v2 two-fold cross-fitted ridge outcome + fitted bounded-calibration inverse weights in [1,20] + raw augmented score",
+      "method": "Shared two-fold baseline routine: default v2 bounded-calibration AIPW unchanged; selected ridge outcome-regression plug-in or raw bounded-calibration IPW fit only their required nuisance functions",
       "fixed_penalties": {
         "outcome": 0.001,
         "balance": 0.01
@@ -150,20 +150,27 @@
         "finite_intercept_feasibility": "train arm prevalence > 1/20",
         "basis_outcome_and_guards_unchanged": true
       },
-      "source_sha256": "e9556578f5528ce02001cf1845abc81b68e39decc175b5e0e46e4de9c01343d1"
+      "source_sha256": "9f1d9fe712dfa0e29a2ebb71386578b388c3e3cf79559de308dcd2770b4a28b2",
+      "selected_scores": {
+        "aipw": "m1-m0+I1*alpha1*(Y-m1)-I0*alpha0*(Y-m0)",
+        "outcome_regression": "m1-m0",
+        "ipw": "I1*alpha1*Y-I0*alpha0*Y"
+      },
+      "score_denominator": "total observed row count n; no H\u00e1jek normalization, trimming or posthoc clipping",
+      "default_aipw_numerical_parity": "Exact estimate and diagnostics on three recorded e955 baseline fixtures; three-methods-default-parity-report.json"
     }
   },
   "license_note": "Upstream repository MIT notice preserved verbatim; the notice credits the original site template author. No new ownership attribution is asserted.",
   "web_theme_source": "/tmp/causal-science-lab-preview-20261019/apps/causalengine/",
-  "web_changes": "Website preview/data download/benchmark UI and standalone guides; worker/editor data-only adapter, ordered covariate-cluster bindings and categorical feature view; identification API graph cap100 and bounded observational display metadata. Original estimator functions/identification algorithms preserved; additional balancing-weight AIPW routine and narrow estimate_data dispatch explicitly documented. Other10 browser Python modules byte-identical to upstream.",
-  "web_ui_sha256": "f3c7af82a4d6182967d84c214f892d27d064ef5a9ea3acd4d7c73b5d570d9885",
+  "web_changes": "Website preview/data download/benchmark UI and standalone guides; worker/editor data-only adapter, ordered covariate-cluster bindings and categorical feature view; identification API graph cap100 and bounded observational display metadata. Original estimator functions/identification algorithms preserved; additional selected baseline AIPW/outcome-regression/IPW routine and narrow estimate_data dispatch explicitly documented. Other10 browser Python modules byte-identical to upstream.",
+  "web_ui_sha256": "94b51de7a5f7fe9cc79597e8369fd67d961d824b6f7c2163ff6164d54b6a850e",
   "benchmark_assets": "web/benchmarks/manifest.json records dataset-specific versions, sources, transforms, hashes and terms; not covered by engine MIT notice",
   "benchmark_reference_assets": "web/benchmarks/ground-truth.json: separate aggregate mean(mu1-mu0) over unchanged released rows, source SHA/alignment/definition; factual CSV hashes unchanged; LaLonde unavailable. Never an estimation input.",
   "method_documentation": {
     "path": "web/methods.html",
     "canonical_source": "preview/apps/causalengine/methods.html",
-    "sha256": "dae57e78feb4fcbc535ec7c09f6c2d8afa7ded843a07ff909ff0210e6de6b511",
-    "numerical_source_sha256": "e9556578f5528ce02001cf1845abc81b68e39decc175b5e0e46e4de9c01343d1",
-    "scope": "Exact implemented nuisance/branch/encoding/failure/reference/uncertainty recipe and related primary sources; documentation-only, no changes to algorithms, parameters, datasets or randomness."
+    "sha256": "f8dbf20b47a9e9c0c9d8a5cf84278311348e5c3b0d8ce57529f4c8a435cdf26e",
+    "numerical_source_sha256": "9f1d9fe712dfa0e29a2ebb71386578b388c3e3cf79559de308dcd2770b4a28b2",
+    "scope": "Exact implemented selected-score/nuisance/branch/encoding/failure/reference/uncertainty recipe and related primary sources. Optional OR/IPW score branches added with only required nuisance fits; default AIPW, penalties, basis, data, randomness and legacy algorithms preserved."
   }
 }

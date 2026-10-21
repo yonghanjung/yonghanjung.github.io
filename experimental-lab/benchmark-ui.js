@@ -44,6 +44,16 @@
       if (value) close();
       list.inert = value || loading;
     },
+    async estimateSelected() {
+      if (loading) return;
+      if (!selected) {
+        $("benchmark-status").textContent = "Choose a dataset to estimate.";
+        trigger.focus();
+        open();
+        return;
+      }
+      return action(true);
+    },
   };
   function choose(id) {
     ++generation;

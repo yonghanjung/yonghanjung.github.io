@@ -18,31 +18,37 @@
   }
   function field(list, label, value) {
     if (value === undefined || value === null || value === "") return;
-    const aipw = list.dataset.method?.startsWith("aipw"),
-      bounded = list.dataset.method === "aipw-v2";
+    const kind = list.dataset.method,
+      direct = kind !== "legacy";
+    const aipw = kind?.startsWith("aipw"),
+      bounded = kind === "aipw-v2" || kind === "ipw";
+    const outcomeFit = list.dataset.outcomeFit !== "false",
+      weightFit = list.dataset.weightFit !== "false";
+    const methodTopic = kind === "outcome-regression" ? "outcomeRegression" : kind === "ipw" ? "ipw" : aipw ? "aipw" : "legacy";
     const keys = {
       Status: "status",
-      Estimator: aipw ? "aipw" : "legacy",
+      Estimator: methodTopic,
       "Requested method": "estimator",
       "Graph criterion": "criterion",
       "Adjustment variables": "adjustment",
-      "AIPW (augmented inverse probability weighting)": aipw ? "aipw" : "legacy",
-      "Outcome models": aipw ? "outcome" : "legacyOutcome",
-      "Inverse weights": aipw ? "weights" : "legacyWeights",
+      "AIPW (augmented inverse probability weighting)": methodTopic,
+      "Outcome models": direct ? (outcomeFit ? "outcome" : "unused") : "legacyOutcome",
+      "Inverse weights": direct ? (weightFit ? "weights" : "unused") : "legacyWeights",
       "Inverse-weight function": bounded ? "link" : "actualSettings",
       "Fitted weight bound": "cap",
       "Cross-fitting": "crossfit",
       "Balance objective": bounded ? "balance" : "actualSettings",
-      "Augmented score": "score",
-      Folds: aipw ? "folds" : "legacyFolds",
+      Score: kind === "outcome-regression" ? "orScore" : kind === "ipw" ? "ipwScore" : "score",
+      Folds: direct ? "folds" : "legacyFolds",
       "Fold seed": "seed",
       "Outcome ridge penalty": "ridge",
       "Balance penalty": bounded ? "penalty" : "actualSettings",
       Basis: "basis",
-      "Normalization / clipping": bounded ? "normalization" : "actualSettings",
+      "Normalization / clipping": weightFit && bounded ? "normalization" : "actualSettings",
       "Covariate feature recipes": "adjustment",
       "Data uncertainty": "uncertainty",
       "Near-bound weights": "saturation",
+      "Actual nuisance fits": "fitCalls",
     };
     const title = element("dt", label);
     CausalMethodHelp.add(
@@ -70,12 +76,12 @@
   function standalone(source, details) {
     const inputs = details.inputs,
       options = details.options;
-    const spec = { ...inputs, seed: options.seed, max_seconds: options.max_seconds };
+    const spec = { ...inputs, estimator: options.estimator || "aipw", seed: options.seed, max_seconds: options.max_seconds };
     return (
       source.trimEnd() +
       `\n\n# Reproduce this estimate using the same retained rows, not simulated truth.\n# Save Download data beside this script as causalengine-estimate.csv.\nif __name__ == "__main__":\n    import csv\n    import json\n    import numpy as np\n\n    spec = ${pythonJSON(
         spec
-      )}\n    with open("causalengine-estimate.csv", newline="", encoding="utf-8-sig") as f:\n        data = list(csv.DictReader(f))\n    def column(name):\n        return np.asarray([float(row[name]) for row in data], dtype=float)\n    features = []\n    for recipe in spec["covariates"]:\n        recipe = {"column": recipe} if isinstance(recipe, str) else recipe\n        values = column(recipe["column"])\n        features.append((values == recipe["equals"]).astype(float) if "equals" in recipe else values)\n    covariates = np.column_stack(features) if features else np.empty((len(data), 0))\n    result = estimate_balancing_aipw(\n        covariates, column(spec["treatment"]), column(spec["outcome"]),\n        seed=spec["seed"], intervention=spec["intervention"], reference=spec["reference"],\n        max_seconds=spec["max_seconds"],\n    )\n    print(json.dumps(result, indent=2))\n`
+      )}\n    with open("causalengine-estimate.csv", newline="", encoding="utf-8-sig") as f:\n        data = list(csv.DictReader(f))\n    def column(name):\n        return np.asarray([float(row[name]) for row in data], dtype=float)\n    features = []\n    for recipe in spec["covariates"]:\n        recipe = {"column": recipe} if isinstance(recipe, str) else recipe\n        values = column(recipe["column"])\n        features.append((values == recipe["equals"]).astype(float) if "equals" in recipe else values)\n    covariates = np.column_stack(features) if features else np.empty((len(data), 0))\n    result = estimate_balancing_aipw(\n        covariates, column(spec["treatment"]), column(spec["outcome"]),\n        seed=spec["seed"], intervention=spec["intervention"], reference=spec["reference"],\n        max_seconds=spec["max_seconds"], estimator=spec["estimator"],\n    )\n    print(json.dumps(result, indent=2))\n`
     );
   }
   async function actualSource(implementation) {
@@ -94,6 +100,10 @@
   function attach(section, estimate, context) {
     const metadata = estimate?.estimation_details;
     const aipw = ["balancing_aipw_v1", "balancing_aipw_v2"].includes(metadata?.method_id);
+    const outcomeRegression = metadata?.method_id === "outcome_regression_v1",
+      ipw = metadata?.method_id === "balancing_ipw_v1";
+    const direct = aipw || outcomeRegression || ipw;
+    const fitted = metadata?.nuisance?.used || metadata?.nuisance?.fitted || { outcome: aipw, weights: aipw };
     const method = estimate?.method || "Not available";
     const armMethods = [
       ...new Set(
@@ -104,23 +114,35 @@
     ];
     const shownMethod = armMethods.length ? method + " — " + armMethods.join(" / ") : method;
     const methodName = element("p", "Estimator: " + shownMethod, "estimator-name");
-    CausalMethodHelp.add(methodName, aipw ? "aipw" : metadata?.method_id ? "legacy" : "estimator");
+    CausalMethodHelp.add(
+      methodName,
+      aipw ? "aipw" : outcomeRegression ? "outcomeRegression" : ipw ? "ipw" : metadata?.method_id ? "legacy" : "estimator"
+    );
     section.append(methodName);
     const details = element("details", undefined, "estimation-details");
     details.append(element("summary", "Details"));
     const list = element("dl", undefined, "estimation-facts");
-    list.dataset.method = aipw ? (metadata.method_id === "balancing_aipw_v2" ? "aipw-v2" : "aipw-v1") : "legacy";
+    list.dataset.method = aipw
+      ? metadata.method_id === "balancing_aipw_v2"
+        ? "aipw-v2"
+        : "aipw-v1"
+      : outcomeRegression
+        ? "outcome-regression"
+        : ipw
+          ? "ipw"
+          : "legacy";
+    list.dataset.outcomeFit = String(fitted.outcome);
+    list.dataset.weightFit = String(fitted.weights);
     field(list, "Status", estimate?.status || "UNAVAILABLE");
     field(list, "Estimator", method);
-    field(
-      list,
-      "Requested method",
-      metadata?.requested_method === "legacy_knn"
-        ? "Graph plug-in (legacy)"
-        : metadata?.requested_method === "auto"
-          ? "Automatic (balancing AIPW where supported)"
-          : undefined
-    );
+    const requestedLabels = {
+      aipw: "AIPW",
+      outcome_regression: "Outcome Regression (Plug-in)",
+      ipw: "IPW",
+      legacy_knn: "Graph plug-in (legacy API)",
+      auto: "Automatic graph dispatch (API)",
+    };
+    field(list, "Requested method", requestedLabels[metadata?.requested_method]);
     field(list, "Graph criterion", estimate?.criterion);
     field(list, "Adjustment variables", estimate?.adjustment || metadata?.inputs?.adjustment);
     field(
@@ -134,7 +156,7 @@
             : "Attempted; no estimate was returned."
         : "No — this result uses the estimator named above."
     );
-    if (aipw) {
+    if (direct) {
       field(list, "Outcome models", metadata.nuisance?.outcome);
       field(list, "Inverse weights", metadata.nuisance?.weights);
       field(list, "Inverse-weight function", metadata.nuisance?.inverse_weight);
@@ -145,7 +167,8 @@
       );
       field(list, "Cross-fitting", metadata.nuisance?.cross_fitting);
       field(list, "Balance objective", metadata.nuisance?.weight_objective);
-      field(list, "Augmented score", metadata.nuisance?.score);
+      field(list, "Score", metadata.nuisance?.score);
+      field(list, "Actual nuisance fits", metadata.fit_calls || metadata.nuisance?.fit_calls);
       field(list, "Folds", metadata.options?.folds);
       field(list, "Fold seed", metadata.options?.seed);
       field(list, "Outcome ridge penalty", metadata.options?.ridge);
@@ -167,7 +190,7 @@
     if (estimate?.reason) field(list, "Reason", estimate.reason);
     details.append(list);
     const documentLink = element("a", "Full methods documentation");
-    documentLink.href = "./methods.html#" + (aipw ? "score" : "dispatch");
+    documentLink.href = "./methods.html#" + (direct ? "score" : "dispatch");
     documentLink.target = "_blank";
     documentLink.rel = "noopener";
     const documentRow = element("p");
@@ -176,10 +199,12 @@
     const diagnostics = metadata || estimate?.diagnostics ? { estimator: metadata, diagnostics: estimate?.diagnostics } : null;
     if (diagnostics) {
       const more = element("details");
-      more.append(element("summary", "Fit, balance & overlap diagnostics"));
-      if (aipw && Number.isFinite(metadata.options?.weight_cap)) {
+      more.append(element("summary", outcomeRegression ? "Outcome fit diagnostics" : "Fit, balance & overlap diagnostics"));
+      if (direct && fitted.weights && Number.isFinite(metadata.options?.weight_cap)) {
         const fit = element("dl", undefined, "estimation-facts");
         fit.dataset.method = list.dataset.method;
+        fit.dataset.outcomeFit = list.dataset.outcomeFit;
+        fit.dataset.weightFit = list.dataset.weightFit;
         field(
           fit,
           "Near-bound weights",
@@ -200,7 +225,7 @@
       more.append(element("pre", JSON.stringify(diagnostics, null, 2), "estimation-code"));
       const diagnosticHeading = element("div", undefined, "method-help-heading");
       diagnosticHeading.append(more);
-      CausalMethodHelp.add(diagnosticHeading, "diagnostics");
+      CausalMethodHelp.add(diagnosticHeading, outcomeRegression ? "outcomeDiagnostics" : "diagnostics");
       details.append(diagnosticHeading);
     }
     for (const note of metadata?.limitations || []) details.append(element("p", note));
@@ -210,7 +235,7 @@
       panel.append(
         element(
           "p",
-          aipw
+          direct
             ? "The implementation below is the code used by this estimate. Run it with the retained data; the model reference is not an input. Requires NumPy and SciPy."
             : "The replay uses the retained data and the installed CausalEngine package. The actual implementation source is available below."
         )
@@ -241,7 +266,7 @@
         try {
           const implementation = metadata?.implementation || { file: "editor_engine.py" };
           const source = await actualSource(implementation);
-          if (aipw) script = standalone(source, metadata);
+          if (direct) script = standalone(source, metadata);
           else {
             script = legacyReplay(context);
             const impl = element("details");

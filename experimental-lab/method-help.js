@@ -3,13 +3,48 @@
   const topics = {
     estimator: [
       "Estimator",
-      "Automatic uses balancing AIPW for eligible binary-treatment baseline questions. Other questions keep their supported graph estimator. Graph plug-in (legacy) explicitly selects the earlier estimator. The method reported with the result is the one that actually ran.",
+      "For eligible binary-treatment baseline questions, choose AIPW, Outcome Regression (Plug-in), or IPW. They use different held-out scores and fit only their required supporting functions. These choices require a supported baseline adjustment question. Other queries can be unavailable; their result reports the actual graph-specific method.",
       "dispatch",
     ],
     aipw: [
       "Balancing AIPW",
       "A nuisance is a supporting prediction or weight function used to estimate the requested effect. AIPW combines separate outcome predictions and learned inverse weights with an observed-outcome correction on held-out rows. Its fixed fitted class can still leave bias.",
       "score",
+    ],
+    outcomeRegression: [
+      "Outcome Regression (Plug-in)",
+      "This fits a separate ridge outcome model for each treatment arm on training rows, then averages their predicted difference on held-out rows. It fits no inverse weights and uses no residual correction. A wrong outcome model can leave bias.",
+      "outcome",
+    ],
+    ipw: [
+      "IPW",
+      "Inverse probability weighting uses learned, bounded inverse-weight functions to weight the observed outcomes. It fits no outcome regression. Raw held-out scores are averaged over all rows, without dividing by the held-out weight sum; approximate balance and the weight bound can leave bias.",
+      "weights",
+    ],
+    unused: [
+      "Not fitted",
+      "This selected estimator does not fit or use this nuisance function. The actual nuisance-fit counts and recorded method identify what was computed.",
+      "dispatch",
+    ],
+    fitCalls: [
+      "Actual nuisance fits",
+      "These are the numbers of outcome and inverse-weight fitting calls actually performed. A completed two-fold run normally fits four outcome models for Outcome Regression, four weight functions for IPW, and both for AIPW. Identical settings or an interrupted fit can use fewer.",
+      "diagnostics",
+    ],
+    orScore: [
+      "Outcome-regression score",
+      "For each held-out row, subtract the reference-arm outcome prediction from the treatment-arm prediction. Average these differences over all retained rows. No fitted weights or observed-outcome residual correction are used.",
+      "score",
+    ],
+    ipwScore: [
+      "IPW score",
+      "For each held-out row, take the observed treatment-arm weighted outcome minus the observed reference-arm weighted outcome. Average these scores over the total retained row count, not the held-out weight sum. No outcome model is fitted.",
+      "score",
+    ],
+    outcomeDiagnostics: [
+      "Outcome-fit diagnostics",
+      "These diagnostics describe the outcome regressions that actually ran, including training RMSE and training/held-out arm counts where returned. This estimator fits no inverse weights, so weight balance, bound saturation and weight effective sample size are not its fitted diagnostics.",
+      "diagnostics",
     ],
     legacy: [
       "Graph plug-in estimator",
@@ -83,7 +118,7 @@
     ],
     crossfit: [
       "Cross-fitting",
-      "Two treatment-stratified folds are used. Learned preprocessing, outcome models and inverse-weight functions are fitted on one fold, then evaluated on the other. Each row contributes one held-out augmented score.",
+      "Two treatment-stratified folds are used. Learned preprocessing and the nuisance functions required by the selected estimator are fitted on one fold, then evaluated on the other. Each row contributes one held-out score.",
       "cross-fitting",
     ],
     folds: [
@@ -113,7 +148,7 @@
     ],
     normalization: [
       "Mass and normalization",
-      "An unpenalized calibration intercept learns training arm weight mass up to solver tolerance. There is no post-hoc weight normalization, clipping or row trimming. The estimate uses the raw held-out augmented-score average.",
+      "An unpenalized calibration intercept learns training arm weight mass up to solver tolerance. There is no post-hoc weight normalization, clipping or row trimming. The selected weighted estimator uses the raw held-out score average.",
       "weights",
     ],
     diagnostics: [
@@ -138,7 +173,7 @@
     ],
     reproduce: [
       "Reproduce this calculation",
-      "Download data retains the same selected rows. The balancing-AIPW script contains the actual SHA-checked numerical implementation, original column recipes, treatment comparison and fold seed. Model reference values are not fitting inputs.",
+      "Download data retains the same selected rows. The script contains the actual SHA-checked numerical implementation, selected estimator, original column recipes, treatment comparison and fold seed. Model reference values are not fitting inputs.",
       "reproduce",
     ],
     modelReference: [

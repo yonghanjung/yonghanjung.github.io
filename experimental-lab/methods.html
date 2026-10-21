@@ -246,9 +246,9 @@ permalink: /experimental-lab/methods.html
             <strong>Estimate</strong> approximates an identified quantity from observed rows.
           </p>
           <p>
-            A <strong>nuisance function</strong> is an intermediate function learned to compute the final effect. The baseline method learns an
-            outcome mean and an inverse-weight function for each arm. The target uses the whole cohort, not just treated rows. No rows are trimmed to
-            redefine the target.
+            A <strong>nuisance function</strong> is an intermediate function learned to compute the final effect. The three baseline choices use an
+            outcome mean, an inverse-weight function, or both for each arm. The target uses the whole cohort, not just treated rows. No rows are
+            trimmed to redefine the target.
           </p>
         </section>
         <section id="dispatch">
@@ -263,14 +263,24 @@ permalink: /experimental-lab/methods.html
             </thead>
             <tbody>
               <tr>
+                <td><code>estimation_method="aipw"</code>, or <code>"auto"</code> within the baseline scope below</td>
                 <td>
-                  Automatic method; one scalar binary treatment, one scalar continuous/binary outcome; fixed 0/1 regimes; no factual evidence;
-                  verified baseline Back-door (BD) / Adjustment-criterion (AC) witness
+                  Bounded-calibration augmented inverse probability weighting (AIPW), <code>balancing_aipw_v2</code>; outcome and weight nuisances
                 </td>
-                <td>Bounded-calibration augmented inverse probability weighting (AIPW), <code>balancing_aipw_v2</code></td>
               </tr>
               <tr>
-                <td>Explicit <code>estimation_method="legacy_knn"</code>, or a supported query outside that AIPW scope</td>
+                <td><code>estimation_method="outcome_regression"</code></td>
+                <td>Outcome Regression (Plug-in), <code>outcome_regression_v1</code>; arm-specific ridge outcome nuisances only</td>
+              </tr>
+              <tr>
+                <td><code>estimation_method="ipw"</code></td>
+                <td>
+                  Inverse probability weighting (IPW), <code>balancing_ipw_v1</code>; bounded calibration weight nuisances only; raw mean, not a
+                  normalized ratio
+                </td>
+              </tr>
+              <tr>
+                <td>Explicit <code>estimation_method="legacy_knn"</code>, or an <code>"auto"</code> query outside that baseline scope</td>
                 <td>
                   Original graph plug-in estimator: adjustment k-nearest neighbors (kNN) where a witness exists, otherwise a supported general
                   identification (ID) kernel plug-in
@@ -283,14 +293,16 @@ permalink: /experimental-lab/methods.html
             </tbody>
           </table>
           <p>
-            AIPW eligibility additionally requires every adjustment variable to be a treatment non-descendant. The actual witness is selected by
-            <code>construct_minimum_adjustment_set</code> and checked by <code>check_adjustment_criterion</code>; the result records
+            All three explicit baseline choices require one scalar binary treatment, one scalar continuous/binary outcome, fixed 0/1 regimes, no
+            factual evidence and a verified baseline BD/AC witness. Every adjustment variable must be a treatment non-descendant. The actual witness
+            is selected by <code>construct_minimum_adjustment_set</code> and checked by <code>check_adjustment_criterion</code>; the result records
             <code>BD</code> or <code>AC</code> and its adjustment variables. Only that witness's columns enter the nuisance functions. A vector
             witness node retains every ordered component.
           </p>
           <p>
-            An AIPW fit failure stays <code>UNKNOWN</code>. There is no automatic fallback to the legacy estimator. The browser processes multiple
-            outcomes separately on the same data snapshot. A Front-door or Sequential identification result does not itself enable baseline AIPW. The
+            A fit failure of the selected baseline method stays <code>UNKNOWN</code>. An explicit baseline choice on an ineligible graph/query returns
+            <code>UNSUPPORTED</code>. There is no automatic fallback to the legacy estimator. The browser processes multiple outcomes separately on
+            the same data snapshot. A Front-door or Sequential identification result does not itself enable any of these three baseline choices. The
             legacy <code>compare</code>, native <code>run_demo</code> and CLI <code>demo</code> retain their original plug-in/reference workflow.
           </p>
         </section>
@@ -316,8 +328,8 @@ permalink: /experimental-lab/methods.html
           </p>
           <p>
             For example, a three-level covariate coded 0, 1 and 2 is represented by all three indicator coordinates.
-            <code>estimation_details.inputs.covariates</code> records the exact source-column/equality recipes. AIPW uses only coordinates of its
-            verified witness, not every variable drawn in the graph.
+            <code>estimation_details.inputs.covariates</code> records the exact source-column/equality recipes. Each baseline choice uses only
+            coordinates of its verified witness, not every variable drawn in the graph.
           </p>
         </section>
         <section id="basis">
@@ -332,9 +344,9 @@ permalink: /experimental-lab/methods.html
             these nuisance models.
           </p>
           <p>
-            Write this transformed basis as <var>B</var>(<var>c</var>). Both nuisance fits use it, with separate arm-specific parameters. Outcome
-            centering is additionally arm-specific. The basis retains every fitting coordinate of the witness, including every one-hot indicator; the
-            twofold split does not discard features.
+            Write this transformed basis as <var>B</var>(<var>c</var>). Every nuisance required by the selected method uses it, with separate
+            arm-specific parameters. Outcome Regression fits no weights; IPW fits no outcome model. Outcome centering is additionally arm-specific.
+            The basis retains every fitting coordinate of the witness, including every one-hot indicator; the twofold split does not discard features.
           </p>
         </section>
         <section id="outcome">
@@ -422,9 +434,11 @@ loss = 19 / n_train * sum_train_arm(logaddexp(0, s_i))
           <h2>Cross-fitting and seeds</h2>
           <p class="brief">Each row's score uses functions fitted without that row.</p>
           <p>
-            A seeded permutation within each treatment arm allocates rows alternately to two outer folds. For each heldout fold, preprocessing, the
-            two outcome regressions and the two calibration fits use only the other fold. The resulting functions are evaluated on the heldout rows.
-            This is treatment-stratified twofold cross-fitting; there is no inner cross-validation or fitted hyperparameter selection.
+            A seeded permutation within each treatment arm allocates rows alternately to two outer folds. For each heldout fold, preprocessing, only
+            the nuisance fits needed by the selected method use the other fold. AIPW fits two arm-specific outcome regressions and two calibration
+            functions per fold; Outcome Regression fits only the regressions; IPW fits only calibration functions. The resulting functions are
+            evaluated on the heldout rows. This is treatment-stratified twofold cross-fitting; there is no inner cross-validation or fitted
+            hyperparameter selection.
           </p>
           <p>
             The actual split seed is the dataset seed XOR <code>0x5A5A5A5A</code>, recorded in <code>estimation_details.options.seed</code>. Changing
@@ -434,8 +448,11 @@ loss = 19 / n_train * sum_train_arm(logaddexp(0, s_i))
           </p>
         </section>
         <section id="score">
-          <h2>Augmented score and final average</h2>
-          <p class="brief">The estimate combines predicted outcomes with weighted observed prediction errors.</p>
+          <h2>Three scores and their final averages</h2>
+          <p class="brief">
+            AIPW combines predicted outcomes with weighted observed prediction errors. Outcome Regression averages predictions; IPW averages weighted
+            observed outcomes.
+          </p>
           <p>For each row <var>i</var>, evaluate the heldout nuisance functions at <var>C</var><sub>i</sub>. The 1-versus-0 row score is:</p>
           <pre aria-label="Raw AIPW row score and final estimate">
 score_i = m_1(C_i) - m_0(C_i)
@@ -443,16 +460,41 @@ score_i = m_1(C_i) - m_0(C_i)
           - I(A_i == 0) * alpha_0(C_i) * (Y_i - m_0(C_i))
 estimate = sum(score_i) / n</pre
           >
+          <h3 id="outcome-regression">Outcome Regression (Plug-in)</h3>
+          <pre>
+score_i = m_1(C_i) - m_0(C_i)
+estimate = sum(score_i) / n</pre
+          >
+          <p>
+            This uses the same cross-fitted ridge outcome nuisance and witness coordinates as AIPW. It does not call the calibration solver or compute
+            weight feasibility, ESS, weight mass, concentration or balancing diagnostics. It requires at least 128 rows and 32 training rows in each
+            arm. Predictions can extrapolate; the absence of weight diagnostics is not evidence of overlap or correct outcome modeling.
+          </p>
+          <h3 id="ipw">Inverse probability weighting (IPW)</h3>
+          <pre>
+score_i = I(A_i == 1) * alpha_1(C_i) * Y_i
+          - I(A_i == 0) * alpha_0(C_i) * Y_i
+estimate = sum(score_i) / n</pre
+          >
+          <p>
+            This uses the same bounded-calibration weight nuisance, cohort target and weight safeguards as AIPW. It does not solve an outcome
+            regression or report outcome-fit RMSE. It is raw IPW: there is no division by an arm's sum of weights (Hájek normalization). The
+            separately fitted inverse weights need not define a single coherent propensity probability model. Fixed basis, regularization and the
+            fitted bound can bias IPW.
+          </p>
           <p>
             The denominator is the total number of observed rows, not the number in one arm or the sum of heldout weights. There is no heldout weight
-            renormalization, score clipping, trimming or model-truth correction. The result separates <code>outcome_contrast_mean</code> from
-            <code>augmentation_mean</code>. A 0-versus-1 request reverses the sign. Identical requested levels return zero without nuisance fitting
-            after the minimum-row check; this is the contrast of the same regime with itself.
+            renormalization, score clipping, trimming or model-truth correction. AIPW separates <code>outcome_contrast_mean</code> from
+            <code>augmentation_mean</code>; Outcome Regression reports only the former, and IPW reports
+            <code>raw_weighted_outcome_contrast_mean</code>. A 0-versus-1 request reverses the sign. Identical requested levels return zero without
+            nuisance fitting after the minimum-row check; this is the contrast of the same regime with itself.
           </p>
           <p>
             In the browser, selected actions that are not ancestors of an individual outcome can be removed from that outcome's request without
-            changing the graph or data. If both resulting action maps are empty, the original observed-mean calculation returns the same-data zero
-            contrast. This graph-dependent conclusion is separate from learning nuisance functions.
+            changing the graph or data. Under <code>auto</code> or <code>legacy_knn</code> API dispatch, if both resulting action maps are empty, the
+            original observed-mean calculation returns the same-data zero contrast. An explicit <code>aipw</code>, <code>outcome_regression</code> or
+            <code>ipw</code> request can instead be <code>UNSUPPORTED</code> when no applicable baseline action remains. This graph-dependent
+            conclusion is separate from learning nuisance functions.
           </p>
         </section>
         <section id="diagnostics">
@@ -461,14 +503,17 @@ estimate = sum(score_i) / n</pre
           <table>
             <thead>
               <tr>
-                <th>Baseline AIPW check</th>
+                <th>Baseline check</th>
                 <th>Actual rule</th>
               </tr>
             </thead>
             <tbody>
               <tr>
                 <td>Data and arm counts</td>
-                <td>At least 128 total rows; each outer training arm at least 32 rows; each heldout arm at least 8</td>
+                <td>
+                  All three: at least 128 total rows and each outer training arm at least 32. AIPW/IPW additionally require at least 8 rows per
+                  heldout arm.
+                </td>
               </tr>
               <tr>
                 <td>Finite calibration feasibility</td>
@@ -505,6 +550,14 @@ estimate = sum(score_i) / n</pre
             </tbody>
           </table>
           <p>
+            Calibration feasibility, solver, ESS, concentration, imbalance, weight mass and cap-saturation checks apply only to AIPW/IPW. Outcome
+            Regression does not fit weights and does not run those checks. Its finite-input, arm-count, ridge-solve, score and deadline checks still
+            apply. <code>nuisance.used</code> states which nuisance types the method requires. <code>fitted</code> becomes true only after all four
+            required arm/fold fits of that type complete; identical regimes leave both false. <code>fit_calls</code> records actual attempts
+            (including partial attempts on failure), while <code>fit_completed</code> counts completed fits. A complete fit has outcome/weight call
+            counts 4/4 for AIPW, 4/0 for Outcome Regression and 0/4 for IPW. Identical regimes make 0/0 calls.
+          </p>
+          <p>
             For positive observed-arm heldout weights <var>w</var>, ESS is <code>sum(w)² / sum(w²)</code> and maximum share is
             <code>max(w) / sum(w)</code>. These describe concentration, not a new physical sample size or an accuracy guarantee. Mass uses the full
             heldout-fold denominator; the arm's raw inverse weights should represent the whole cohort. Logit ranges and training mass residuals help
@@ -512,10 +565,10 @@ estimate = sum(score_i) / n</pre
           </p>
           <p>
             Thresholds are engineering safeguards, not a positivity test or a statistical confidence guarantee. The code supplies
-            <strong>no standard error or confidence interval for the observed-data AIPW, kNN or UCA estimate</strong>. Approximation,
-            misspecification, fixed regularization and finite samples can leave bias even when status is <code>OK</code>. Failed supported fits return
-            <code>UNKNOWN</code>; unsupported query/compiler/domain branches return <code>UNSUPPORTED</code>. Invalid input or stale IDs raise a
-            validation error.
+            <strong>no standard error or confidence interval for the observed-data AIPW, Outcome Regression, IPW, kNN or UCA estimate</strong>.
+            Approximation, misspecification, fixed regularization and finite samples can leave bias even when status is <code>OK</code>. Failed
+            supported fits return <code>UNKNOWN</code>; unsupported query/compiler/domain branches return <code>UNSUPPORTED</code>. Invalid input or
+            stale IDs raise a validation error.
           </p>
         </section>
         <section id="legacy">
@@ -687,8 +740,9 @@ required: n_eligible_training_rows &gt;= 2 * k</pre
             Details records the actual method, source SHA256, callable, requested method, split seed, contrast, current source-column/one-hot recipes
             and fixed options. The source-copy action verifies the fetched implementation's SHA against the run. The standalone script contains the
             actual implementation and constructs the same numerical inputs from the retained factual CSV. It calls
-            <code>estimate_balancing_aipw</code> directly; it does not regenerate data or consult a reference. Floating-point optimizer results can
-            vary slightly across numerical runtimes.
+            <code>estimate_balancing_aipw(..., estimator=options.estimator)</code> directly; the recorded value is <code>aipw</code>,
+            <code>outcome_regression</code> or <code>ipw</code>, so replay selects the same score and nuisances; it does not regenerate data or
+            consult a reference. Floating-point optimizer results can vary slightly across numerical runtimes.
           </p>
           <p>
             For a legacy result, replay uses the actual graph, mapping, encoding, data seed, query and <code>estimation_method</code> with
@@ -697,7 +751,7 @@ required: n_eligible_training_rows &gt;= 2 * k</pre
             can compute without a source file; its unverifiable source fingerprint is explicitly <code>null</code>.
           </p>
           <ul>
-            <li><a href="./balancing_aipw.py">Bounded AIPW implementation</a>: <code>estimate_balancing_aipw</code></li>
+            <li><a href="./balancing_aipw.py">Actual three-method baseline implementation</a>: <code>estimate_balancing_aipw</code></li>
             <li>
               <a href="./editor_engine.py">Data adapter and legacy methods</a>: <code>_balancing_baseline</code>, <code>_estimate_mean</code>,
               <code>_estimate_uca_mean</code>, <code>_uca_schedule</code>, <code>_reference</code>, <code>_paired_vector_reference</code>
