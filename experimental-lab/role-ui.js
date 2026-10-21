@@ -1342,12 +1342,11 @@
     if (raw) {
       const warning = document.createElement("p");
       warning.className = "easy-warning";
-      warning.textContent =
-        e?.estimation_details?.method_id === "balancing_aipw_v1"
-          ? raw
-          : /weak|coverage|overlap/i.test(raw)
-            ? "Approximate estimate: too few comparable records may make this result unreliable."
-            : raw;
+      warning.textContent = ["balancing_aipw_v1", "balancing_aipw_v2"].includes(e?.estimation_details?.method_id)
+        ? raw
+        : /weak|coverage|overlap/i.test(raw)
+          ? "Approximate estimate: too few comparable records may make this result unreliable."
+          : raw;
       section.append(warning);
     }
     if (omitted.length) {

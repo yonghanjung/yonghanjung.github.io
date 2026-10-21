@@ -651,7 +651,7 @@ def _balancing_baseline(data, graph, schema, payload, seed, deadline, original_s
     left, right = schema[action]["columns"][0], schema[target]["columns"][0]
     seconds = deadline-perf_counter()
     if seconds <= 0:
-        return dict(status="UNKNOWN", method="2-fold balancing-weight AIPW (regularized entropy calibration)",
+        return dict(status="UNKNOWN", method="2-fold balancing-weight AIPW (bounded calibration)",
                     reason="Estimator deadline exhausted; no partial estimate is returned", n=len(data))
     result = estimate_balancing_aipw(data[columns].to_numpy(dtype=float), data[left].to_numpy(dtype=float),
         data[right].to_numpy(dtype=float), seed=seed, intervention=actions[action], reference=reference[action],

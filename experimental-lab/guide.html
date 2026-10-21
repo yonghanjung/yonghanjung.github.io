@@ -6,8 +6,7 @@ permalink: /experimental-lab/guide.html
 
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta name="robots" content="noindex, nofollow, noarchive" />
+  <meta name="robots" content="noindex, nofollow, noarchive" /><head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>CausalEngine guide</title>
@@ -22,7 +21,9 @@ permalink: /experimental-lab/guide.html
         <p>Name your variables, review the graph, and check identification. Then estimate from your CSV or try Random Data on your own device.</p>
         <div class="work-links">
           <a class="primary-link" href="./" target="_blank" rel="noopener">Launch app</a><a href="./examples.html">Examples &amp; support</a
-          ><a href="./code.html">Code &amp; install</a>
+          ><a href="https://github.com/yonghanjung/yonghanjung.github.io/tree/d3d36fb7f5d9f14e4eaa29df085c55becd553788/experiment-lab/causalpy"
+            >Code &amp; install</a
+          >
         </div>
       </header>
       <div class="container tutorial-layout">
@@ -223,16 +224,17 @@ permalink: /experimental-lab/guide.html
             <p>
               Every estimate names its actual estimator. For one binary treatment, a scalar outcome, and a verified baseline adjustment set,
               CausalEngine uses <strong>2-fold balancing-weight AIPW (augmented inverse probability weighting)</strong>. Each training fold fits
-              separate ridge outcome regressions and positive inverse weights by regularized entropy calibration. The basis contains
-              training-standardized covariates and their coordinatewise squares. No separate propensity-probability model is fitted. The augmented
-              score is evaluated on held-out rows without clipping or held-out weight renormalization.
+              separate ridge outcome regressions and direct inverse weights in a bounded calibration class. The fitted inverse-weight function stays
+              between 1 and 20; this is a fitting constraint, not post-hoc clipping. The basis contains training-standardized covariates and their
+              coordinatewise squares. No separate propensity-probability model is fitted. The augmented score is evaluated on held-out rows without
+              clipping or held-out weight renormalization.
             </p>
             <p>
-              Open <strong>Details</strong> for the actual columns, fold seed, penalties, normalization, solver results, effective sample sizes,
-              balance diagnostics, and warnings. Fixed regularization and a finite basis can leave bias; an available estimate is not an accuracy or
-              positivity certificate. Front-door, sequential, continuous-treatment, and other unsupported-for-AIPW questions retain their existing
-              estimator or an explicit unavailable result. Their Details says AIPW is not used; a failed balancing fit is not silently replaced by
-              kNN.
+              Open <strong>Details</strong> for the actual columns, fold seed, penalties, fitted weight function and bound, training mass residuals,
+              near-bound fractions, solver results, effective sample sizes, balance diagnostics, and warnings. The weight bound, fixed regularization,
+              and finite basis can leave bias; an available estimate is not an accuracy or positivity certificate. Front-door, sequential,
+              continuous-treatment, and other unsupported-for-AIPW questions retain their existing estimator or an explicit unavailable result. Their
+              Details says AIPW is not used; a failed balancing fit is not silently replaced by kNN.
             </p>
             <p>
               For the single-binary-treatment No unmeasured confounding template, Estimate offers <strong>Automatic (balancing AIPW)</strong> and
@@ -340,7 +342,10 @@ permalink: /experimental-lab/guide.html
               establish their additional assumptions.
             </p>
             <div class="work-links">
-              <a href="./">Launch app</a><a href="./examples.html">Examples &amp; support</a><a href="./code.html">Code &amp; install</a>
+              <a href="./">Launch app</a><a href="./examples.html">Examples &amp; support</a
+              ><a href="https://github.com/yonghanjung/yonghanjung.github.io/tree/d3d36fb7f5d9f14e4eaa29df085c55becd553788/experiment-lab/causalpy"
+                >Code &amp; install</a
+              >
             </div>
           </section>
         </article>

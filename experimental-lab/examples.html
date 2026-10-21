@@ -6,8 +6,7 @@ permalink: /experimental-lab/examples.html
 
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta name="robots" content="noindex, nofollow, noarchive" />
+  <meta name="robots" content="noindex, nofollow, noarchive" /><head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>CausalEngine examples</title>
@@ -36,9 +35,10 @@ permalink: /experimental-lab/examples.html
           <p>
             A compatible single-binary-treatment baseline graph uses cross-fitted balancing-weight AIPW. The No unmeasured confounding template also
             offers an explicit Graph plug-in (legacy) choice; an unstable balancing fit is never silently replaced. Details identifies the actual
-            outcome regression, inverse-weight calibration, folds, options, balance and overlap diagnostics. Calculation code provides the real
-            implementation and a script for the retained data. Download data and Download .py, then run them in the same folder. A model reference is
-            never a fitting input. Other structures keep their own named estimator and are not labelled AIPW.
+            outcome regression, bounded inverse-weight calibration, folds, options, training mass residuals, near-bound fractions, balance and overlap
+            diagnostics. The fitted inverse weights stay between 1 and 20 without trimming rows; the bound and fixed basis can leave bias. Calculation
+            code provides the real implementation and a script for the retained data. Download data and Download .py, then run them in the same
+            folder. A model reference is never a fitting input. Other structures keep their own named estimator and are not labelled AIPW.
           </p>
         </article>
         <article>
@@ -105,7 +105,12 @@ permalink: /experimental-lab/examples.html
             identifiable from observed data.
           </p>
         </article>
-        <div class="work-links"><a href="./guide.html">Guide</a><a href="./code.html">Code &amp; install</a></div>
+        <div class="work-links">
+          <a href="./guide.html">Guide</a
+          ><a href="https://github.com/yonghanjung/yonghanjung.github.io/tree/d3d36fb7f5d9f14e4eaa29df085c55becd553788/experiment-lab/causalpy"
+            >Code &amp; install</a
+          >
+        </div>
       </section>
     </main>
   </body>

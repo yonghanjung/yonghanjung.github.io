@@ -135,14 +135,22 @@
     },
     "balancing_aipw.py": {
       "additional_module": true,
-      "method": "two-fold cross-fitted ridge outcome + regularized entropy-calibration direct inverse weights + raw augmented score",
+      "method": "v2 two-fold cross-fitted ridge outcome + fitted bounded-calibration inverse weights in [1,20] + raw augmented score",
       "fixed_penalties": {
         "outcome": 0.001,
         "balance": 0.01
       },
       "truth_as_training_input": false,
       "new_dependencies": false,
-      "rights_note": "No new ownership or license-clearance claim; upstream notice and rights caveats remain."
+      "rights_note": "No new ownership or license-clearance claim; upstream notice and rights caveats remain.",
+      "weight_class": {
+        "bound": 20,
+        "link": "1+19*expit(intercept+B@slopes)",
+        "posthoc_clipping_or_rescaling": false,
+        "finite_intercept_feasibility": "train arm prevalence > 1/20",
+        "basis_outcome_and_guards_unchanged": true
+      },
+      "source_sha256": "e9556578f5528ce02001cf1845abc81b68e39decc175b5e0e46e4de9c01343d1"
     }
   },
   "license_note": "Upstream repository MIT notice preserved verbatim; the notice credits the original site template author. No new ownership attribution is asserted.",

@@ -62,7 +62,7 @@
   }
   function attach(section, estimate, context) {
     const metadata = estimate?.estimation_details;
-    const aipw = metadata?.method_id === "balancing_aipw_v1";
+    const aipw = ["balancing_aipw_v1", "balancing_aipw_v2"].includes(metadata?.method_id);
     const method = estimate?.method || "Not available";
     const armMethods = [
       ...new Set(
@@ -103,6 +103,12 @@
     if (aipw) {
       field(list, "Outcome models", metadata.nuisance?.outcome);
       field(list, "Inverse weights", metadata.nuisance?.weights);
+      field(list, "Inverse-weight function", metadata.nuisance?.inverse_weight);
+      field(
+        list,
+        "Fitted weight bound",
+        Number.isFinite(metadata.options?.weight_cap) ? "1 to " + metadata.options.weight_cap + " during fitting; no rows are trimmed." : undefined
+      );
       field(list, "Cross-fitting", metadata.nuisance?.cross_fitting);
       field(list, "Balance objective", metadata.nuisance?.weight_objective);
       field(list, "Augmented score", metadata.nuisance?.score);
@@ -130,6 +136,25 @@
     if (diagnostics) {
       const more = element("details");
       more.append(element("summary", "Fit, balance & overlap diagnostics"));
+      if (aipw && Number.isFinite(metadata.options?.weight_cap)) {
+        const fit = element("dl", undefined, "estimation-facts");
+        field(
+          fit,
+          "Near-bound weights",
+          "Fraction in the observed treatment arm with α ≥ 0.99 × " +
+            metadata.options.weight_cap +
+            "; training and held-out rows are evaluated separately."
+        );
+        for (const [index, fold] of (estimate?.diagnostics?.fold_details || []).entries()) {
+          for (const [arm, values] of Object.entries(fold.arms || {})) {
+            const label = "Fold " + (index + 1) + ", arm " + arm;
+            field(fit, label + " training mass residual", values.training_mass_residual);
+            field(fit, label + " training near-bound fraction", values.cap_saturation_fraction_train_arm);
+            field(fit, label + " held-out near-bound fraction", values.cap_saturation_fraction_heldout_arm);
+          }
+        }
+        more.append(fit);
+      }
       more.append(element("pre", JSON.stringify(diagnostics, null, 2), "estimation-code"));
       details.append(more);
     }
