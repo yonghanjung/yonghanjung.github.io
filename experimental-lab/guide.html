@@ -1,0 +1,308 @@
+---
+layout: null
+sitemap: false
+permalink: /experimental-lab/guide.html
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CausalEngine guide</title>
+    <link rel="icon" href="./lab-logo.png" />
+    <link rel="stylesheet" href="./guide.css" />
+  </head>
+  <body class="tutorial-page">
+    <main id="main">
+      <header class="tutorial-heading container">
+        <a class="back-product" href="./">CausalEngine</a>
+        <h1>Name your variables. Build your graph.</h1>
+        <p>Name your variables, review the graph, and check identification. Then estimate from your CSV or try Random Data on your own device.</p>
+        <div class="work-links">
+          <a class="primary-link" href="./" target="_blank" rel="noopener">Launch app</a><a href="./examples.html">Examples &amp; support</a
+          ><a href="./code.html">Code &amp; install</a>
+        </div>
+      </header>
+      <div class="container tutorial-layout">
+        <aside class="tutorial-toc">
+          <p>On this page</p>
+          <nav aria-label="Tutorial steps">
+            <a href="#start">1. Enter variables</a><a href="#graph">2. Review the graph</a><a href="#timeline">3. Add a timeline</a
+            ><a href="#compare">4. Identify and estimate</a><a href="#results">5. Read every result</a><a href="#model-details">6. Arrange and edit</a
+            ><a href="#help">Help</a>
+          </nav>
+        </aside>
+        <article class="tutorial-content">
+          <section id="start">
+            <h2>1. Enter your variables</h2>
+            <p>
+              Launch the app and select <strong>No unmeasured confounding</strong> under <strong>Causal structure</strong>. A
+              <strong>Treatment</strong> is the action whose settings you compare. <strong>Covariates</strong> are measured before that action.
+              <strong>Outcomes</strong> are the quantities you want to compare afterward.
+            </p>
+            <ol>
+              <li>In Treatment, enter <code>A</code>.</li>
+              <li>In Covariates, enter <code>C1, C2, C3</code>.</li>
+              <li>In Outcomes, enter <code>Y1, Y2, Y3</code>.</li>
+              <li>Select <strong>Update graph</strong>.</li>
+            </ol>
+            <p>
+              You should see seven variables. Blank fields create no nodes: clearing Covariates leaves only A and your outcomes. The visible
+              <strong>Treatment value</strong> and <strong>Reference value</strong> start at 1 and 0. These values apply to all selected treatments;
+              the role template creates binary treatments, so use 0 or 1.
+            </p>
+            <p>
+              To group CSV columns, enter <code>X (x1, x2, …, x25)</code> in Covariates. Both <code>…</code> and <code>...</code> expand an ascending
+              numeric range with the same prefix. The graph still has one logical X. Click X to unfold its member circles inside a boundary, then
+              click its header to fold it back. Enter or Space also toggles it. Members show the contents of X, not separate causal relationships.
+              Plain <code>C1, C2</code> still creates two logical variables. Cluster declarations also work in timeline Covariates fields.
+            </p>
+            <p>
+              Names must start with a letter and contain only letters, digits, or underscores. Every name must be unique across roles and times.
+              <code>Score_1</code> is valid; <code>exam score</code> and <code>Score-1</code> are not. Names starting with U are reserved for hidden
+              roots. An invalid entry does not overwrite the graph.
+            </p>
+            <figure class="tutorial-figure">
+              <a href="./causalengine-graph-guide.png"
+                ><img
+                  src="./causalengine-graph-guide.png"
+                  alt="CausalEngine variable fields, editable graph, and separate Identify and Estimate actions."
+              /></a>
+              <figcaption>Update graph applies your names. The arrows are editable assumptions.</figcaption>
+            </figure>
+          </section>
+          <section id="graph">
+            <h2>2. Review what the graph assumes</h2>
+            <p>
+              In this template, each covariate points to each treatment and outcome, and each treatment points to each outcome. There are no hidden
+              common causes. These arrows are proposed assumptions; the app does not infer relationships from variable names or a CSV.
+            </p>
+            <p>
+              Select <strong>Front-door</strong> for a different template. Its separate <strong>Mediators</strong> field contains measured variables
+              between treatment and outcome. For example, enter Treatment <code>A</code>, Covariates <code>C1</code>, Mediators <code>M</code>, and
+              Outcomes <code>Y1, Y2</code>, then update.
+            </p>
+            <p>
+              This template adds an unobserved root affecting treatment and outcomes, treatment → mediators → outcomes, and baseline covariates →
+              treatment/mediators/outcomes. Mediators are separate from baseline covariates. A blank mediator field can remain a draft, but this
+              template needs a mediator to run. Identification and estimation are checked for the actual graph and question; selecting Front-door does
+              not guarantee an available or reliable estimate.
+            </p>
+          </section>
+          <section id="timeline">
+            <h2>3. Describe variables at different times</h2>
+            <p>
+              Select <strong>No unmeasured confounding -- Sequential</strong>. The timeline starts with two time points. Each has Covariates measured
+              before its Treatment, and Outcomes measured afterward.
+            </p>
+            <ol>
+              <li>At Time 1, enter <code>C1</code>, <code>A1</code>, and <code>Y1</code>.</li>
+              <li>At Time 2, enter <code>C2</code>, <code>A2</code>, and <code>Y2</code>.</li>
+              <li>Select <strong>Add time</strong>. At Time 3, enter <code>C3</code>, <code>A3</code>, and <code>Y3</code>.</li>
+              <li>Leave <strong>Markovian order</strong> at <strong>Full history</strong>, then select <strong>Update graph</strong>.</li>
+            </ol>
+            <p>
+              Full history connects earlier variables to all later variables. Within each time, covariates precede treatment and outcomes, and
+              treatment precedes outcomes. These connections are explicit, editable assumptions. Later covariates are not pooled into one baseline
+              adjustment set.
+            </p>
+            <p>
+              <strong>Markovian order</strong> limits the maximum direct time lag. Order 1 allows direct arrows only to the next numbered time; order
+              2 also allows a direct arrow from Time 1 to Time 3. It does not limit effects that travel along several arrows. Changing this setting
+              changes the proposed graph when you press Update graph.
+            </p>
+            <p>
+              You may leave a role or an entire time blank. <strong>Remove</strong> deletes a time without renumbering the remaining Time IDs. Blank
+              and deleted gaps still count: Time 1 to Time 3 has a lag of 2 even if Time 2 is empty or removed. With only A1 at Time 1 and Y3 at Time
+              3, order 1 adds no arrow between them; order 2 allows one. Review the resulting graph.
+            </p>
+            <p>
+              A repeated measurement needs a distinct name, such as X1 and X2. The comparison uses the visible treatment and reference values and
+              reports each outcome separately. An arrow that runs backward through the entered timeline must be fixed before continuing.
+            </p>
+          </section>
+          <section id="compare">
+            <h2>4. Identify, then choose data to estimate</h2>
+            <h3>Identify: check the graph</h3>
+            <p>
+              Press <strong>Identify</strong>. No CSV, generated sample, or simulated model is needed. Each outcome receives its own identification
+              status for the supplied graph and question. <strong>Identifiable</strong> means the graph assumptions allow the requested effect to be
+              determined from observed data. It does not validate those assumptions or promise an accurate estimate from your available rows. The
+              identified expectation is shown directly as an expression using observed quantities, with sums for discrete variables and integrals for
+              continuous variables. It is a mean under one treatment setting, not the mean difference reported by Estimate. Details contains the
+              returned reason; an unfinished formula expansion is reported without changing the identification status.
+            </p>
+            <h3>Estimate: Upload CSV</h3>
+            <p>
+              Choose a CSV file using the file button. If your browser does not open a file dialog, open <strong>Other ways to load CSV</strong> and
+              drop a file or paste its text. <strong>Example CSV → Load example</strong> opens the supplied example directly, without a download
+              dialog.
+            </p>
+            <ol>
+              <li>Press <strong>Estimate</strong>, then <strong>Upload CSV</strong>.</li>
+              <li>
+                Choose your CSV file and open <strong>Data columns</strong> below the graph. Each observed graph variable receives a column binding.
+              </li>
+              <li>
+                Match treatments and outcomes to individual numeric columns. A baseline covariate can contain several columns: expand its name in Data
+                columns and check its members. A column cannot be reused. Headers can differ from graph names; hidden roots need no column.
+              </li>
+              <li>Check the visible treatment and reference values, then press <strong>Run estimate</strong>.</li>
+            </ol>
+            <p>
+              The same selected rows are used for every outcome. The app computes a data-only mean difference; it does not generate a substitute
+              sample or calculate a simulated-model reference for your CSV. CSV parsing and calculation stay on your device.
+            </p>
+            <p>
+              Use scalar treatment and outcome variables, at most 5,000 rows, 100 selected columns, and 500,000 selected cells. Baseline covariates
+              may group several columns when the current graph has a certified adjustment set. At least 128 rows are needed for estimation, and some
+              questions require more. Selected cells must contain finite numbers: no missing values, NaN, or infinity. Binary variables require 0/1.
+              Missing values, duplicate headers, reused columns, and invalid cells stop the calculation with an error; rows are not dropped or
+              imputed. Unused columns may contain text because only mapped columns are sent to the estimator.
+            </p>
+            <h3>Try an upload example</h3>
+            <p>
+              <a href="./examples/upload-cluster.csv" download>Download example CSV</a>: 512 synthetic rows with treatment A, columns x1 through x25,
+              and outcome Y. This is demonstration data, not a study. Enter Treatment <code>A</code>, Covariates <code>X (x1, …, x25)</code>, and
+              Outcomes <code>Y</code>; press Update graph. Choose Estimate → Upload CSV and select the downloaded file. The matching headers bind
+              automatically. Open Data columns to inspect all 25 members, then select Run estimate. An uploaded file has no simulated-model ground
+              truth.
+            </p>
+            <h3>Estimate: Random Data</h3>
+            <p>
+              Enter <strong>Records</strong> as a whole number from 1 to 5,000. A baseline covariate has its own dimension control from 1 to 50: X
+              dimension 25 produces x1 through x25 while keeping one logical X in the graph. A named declaration must match that dimension. These
+              Random settings do not change a CSV binding. Model seed fixes the simulated rules; Data seed fixes generated records.
+            </p>
+            <p>
+              For a simulated example, use a plain scalar covariate such as <code>X</code>, choose <strong>Random Data</strong>, select 512 or 2,048
+              records, and press <strong>Generate Data</strong>. Declared CSV clusters are not supported by the random simulator; remove the
+              declaration and update the graph to use this mode. <strong>Model seed</strong> fixes the simulated rules;
+              <strong>Data seed</strong> fixes the generated rows within those rules. The same graph, model settings, seeds, and record count
+              reproduce the same data. Changing only Data seed changes the rows, not the underlying model. You can inspect or download these records
+              before estimating. <strong>Run estimate</strong> reuses that dataset when the graph, model settings, and record count are unchanged. One
+              generated dataset is used for every outcome. The estimate uses those records only. A separately labelled model reference is displayed
+              after estimation and never substitutes for a failed estimate. Head and Download CSV beside Generate Data use the same retained rows;
+              they do not generate a new dataset.
+            </p>
+            <h3>Head and Download CSV</h3>
+            <p>
+              After loading or generating records, select <strong>Head</strong>. Choose 5 or 10 rows and 5 or 10 columns; Starting column lets you
+              inspect every field. <strong>Download CSV</strong> saves the complete retained dataset with its original column names and numeric
+              precision. Neither action generates data or estimates an effect. Changing the graph or source clears the preview so an older dataset is
+              not mistaken for the current one.
+            </p>
+            <h3>Benchmarks</h3>
+            <p>
+              Choose <strong>Benchmarks</strong>, open the Dataset menu, and select IHDP, LaLonde, or ACIC. The menu opens directly below its control;
+              use arrow keys and Enter to select, or Escape to close it. <strong>Dataset details</strong> contains the exact release, source, and data
+              notes. There are two actions: <strong>Download CSV</strong> saves its working table; <strong>Estimate</strong> binds the dataset to the
+              current graph and runs the calculation in one step.
+            </p>
+            <p>
+              <strong>Estimate</strong> preserves your graph, variable names, arrows, and node positions. For a graph with one treatment, one outcome,
+              and one baseline covariate node, it binds the released treatment and factual outcome to your treatment/outcome aliases and all released
+              covariates to the existing baseline node. For example, <code>X = (x1, …, x25)</code> keeps all 25 covariates inside X rather than adding
+              25 graph nodes. The compact graph caption shows the binding; open <strong>Data columns</strong> for the complete member list. This
+              grouping preserves the information used for adjustment and does not infer causal assumptions from data. Front-door and timeline
+              structures require mediator or time-specific bindings that these working datasets do not provide; the app reports this without changing
+              your graph. Use Upload CSV for custom bindings. Counterfactual outcomes and known simulation effects are excluded from working CSVs.
+              ACIC categorical members retain their codebook and use indicator features only inside the estimator. Selecting Random Data clears the
+              active CSV binding and uses the graph’s separate Random Data dimensions.
+            </p>
+            <p>
+              The first calculation loads numerical libraries. Keep the tab open while it prepares. Both data sources use your device’s CPU and
+              memory; installing Python is unnecessary for the browser app. A graph with blank treatment or outcome roles can remain a draft, but
+              running requires at least one of each.
+            </p>
+          </section>
+          <section id="results">
+            <h2>5. Read each result and its warning</h2>
+            <p>
+              <strong>Head</strong> opens and closes a preview of the current data. Its Rows, Columns, and Starting column controls change only the
+              visible table. <strong>Download CSV</strong> saves the complete current data without generating new rows. Generating again or changing
+              source closes the preview.
+            </p>
+            <p>
+              Identification and estimation answer different questions. A graph can be identifiable while the current estimator cannot calculate a
+              reliable value from the available rows. Every estimated outcome has its own value or <strong>Not available</strong> status. One
+              unsupported outcome does not hide the others.
+            </p>
+            <p>
+              <strong>Ground truth (exact)</strong> is a separate analytic mean difference in the fixed simulated model, not the average of the
+              sampled rows. When analytic evaluation is unavailable, <strong>Model reference (Monte Carlo)</strong> identifies an approximate
+              simulation result and its draw count. Benchmark <strong>Ground truth</strong> for IHDP and ACIC averages their supplied expected
+              treatment effects over the released rows, not a population average or noisy realized differences. LaLonde has no supplied ground truth.
+              The reference is shown only when the selected treatment/outcome bindings and comparison match it; an ordinary upload has none.
+            </p>
+            <p>
+              A positive mean difference means a larger outcome mean under the treatment setting than the reference setting; a negative number means a
+              smaller mean. For your CSV, units belong to its outcome column. Random Data values are artificial and are not real study results or
+              necessarily bounded scores.
+            </p>
+            <p>
+              The full action comparison appears above the results. Each outcome also names any actions omitted from its calculation because they are
+              not ancestors of that outcome: no directed path leads from them to it in the graph. For example, later A2/A3 need not affect an earlier
+              Y1. Only the query is reduced; the graph and dataset are unchanged. If no selected treatment can affect an outcome through the supplied
+              graph, both reduced settings are empty and their mean difference is zero under those graph assumptions.
+            </p>
+            <p>
+              <strong>Approximate estimate: too few comparable records may make this result unreliable</strong> is a warning, not an accuracy
+              certificate. More rows do not guarantee it disappears. No sampling standard error or confidence interval for the data estimate is
+              provided. A Monte Carlo standard error, when shown for the separate model reference, describes numerical simulation error only. Open
+              Details to read a returned reason when a result is unavailable; a simulated-model answer is never used as a fallback.
+            </p>
+          </section>
+          <section id="model-details">
+            <h2>6. Arrange or edit while keeping your inputs</h2>
+            <p>
+              Drag nodes to move them. <strong>Auto arrange</strong> changes positions and curved routes only; it never deletes a node or arrow to
+              improve appearance. Dense graphs may still contain crossings. On a phone, swipe within the graph to inspect a large model.
+            </p>
+            <p>
+              <strong>Edit tools</strong> adds or deletes nodes and arrows. A causal change marks the graph as <strong>Your edited model</strong> and
+              clears prior results; moving a node does not change the question. Use <strong>Update graph</strong> explicitly to replace an edited
+              graph with the role template, and review its replacement prompt.
+            </p>
+            <p>
+              <strong>Node &amp; model settings</strong> opens on the right. The left variable fields and source choices stay in place. Inspect
+              observed/hidden status, dimension, functions, seeds, and detailed query settings there; select <strong>Close settings</strong> to
+              return. Simulated functions control Random Data and are not fitted to your uploaded CSV. Current data-only estimation supports scalar
+              treatments and outcomes with fixed interventional mean differences, without factual evidence. Random baseline covariates can contain
+              1–50 components; CSV clusters use their bound columns.
+            </p>
+          </section>
+          <section id="help">
+            <h2>Help</h2>
+            <h3>I cannot update the graph</h3>
+            <p>
+              Check duplicate names, invalid characters, and the reserved U prefix. The engine allows at most 100 variables, including hidden roots.
+              Large graphs can be slow and may exceed a particular identification search or estimator’s limits.
+            </p>
+            <h3>My CSV will not run</h3>
+            <p>
+              Read the row/column error and correct the selected cell or mapping. Every observed variable needs a binding; a baseline cluster can
+              include multiple distinct columns. Binary treatments must contain only 0/1. Empty, nonnumeric, or nonfinite selected values are
+              rejected. Unused text columns do not need conversion. After changing the graph or mapping, run again to load the current selection.
+            </p>
+            <h3>I see Not available or UNKNOWN</h3>
+            <p>
+              The calculation was unsupported, lacked sufficient data, or did not finish within its budget. Read the outcome’s Details. An unavailable
+              estimate does not by itself prove that the effect is mathematically unidentifiable. Use Identify for the separate graph-only result.
+            </p>
+            <h3>Which other methods work?</h3>
+            <p>
+              IV with Monotonicity, IV bounding, Difference-in-Differences, and Synthetic Control remain not implemented. A graph alone does not
+              establish their additional assumptions.
+            </p>
+            <div class="work-links">
+              <a href="./">Launch app</a><a href="./examples.html">Examples &amp; support</a><a href="./code.html">Code &amp; install</a>
+            </div>
+          </section>
+        </article>
+      </div>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,168 @@
+/* Render only certified, fully observational identification trees. */
+window.CausalExpectation = (() => {
+  const el = (tag, ...children) => {
+    const n = document.createElementNS("http://www.w3.org/1998/Math/MathML", tag);
+    n.append(...children.map((v) => (v instanceof Node ? v : document.createTextNode(String(v)))));
+    return n;
+  };
+  const list = (xs) => el("mrow", ...xs.flatMap((x, i) => (i ? [el("mo", ","), x] : [x])));
+  const fence = (x, l = "(", r = ")") => el("mrow", el("mo", l), x, el("mo", r));
+  function render(result, target, actions, graphNodes) {
+    if (result.identification.status !== "IDENTIFIABLE") return null;
+    const candidate = formulaSource(result),
+      source = ["BD", "AC", "FD", "SBD"].includes(candidate)
+        ? candidate
+        : result.identification.observational_formula_status === "COMPLETE"
+          ? "Observational"
+          : null,
+      tree =
+        source === "Observational"
+          ? result.identification.observational_formula_tree
+          : source === "Indexed"
+            ? result.indexed.literal_formula_tree
+            : source
+              ? result.criteria[source].formula_tree
+              : null;
+    if (!tree || !completeFormula(tree)) throw Error("A fully expanded observational formula is not available for this graph.");
+    const node = graphNodes.find((n) => n.name === target);
+    if (!node || node.dimension !== 1) throw Error("Expectation display currently requires a scalar outcome.");
+    const used = new Set(graphNodes.map((n) => n.name)),
+      names = new Map(graphNodes.map((n) => [n.name, n])),
+      symbols = new Map(actions.map((name, i) => [name, actions.length === 1 ? "a" : "a" + (i + 1)]));
+    for (const symbol of symbols.values()) used.add(symbol);
+    const fresh = (name) => {
+      let x = name.toLowerCase();
+      while (used.has(x)) x += "′";
+      used.add(x);
+      return x;
+    };
+    const name = (x) => el("mi", x),
+      assign = (v, x) => el("mrow", name(v), el("mo", "="), name(x));
+    let count = 0;
+    function arg(a, scope) {
+      if (Object.hasOwn(a, "value")) return el("mrow", name(a.variable), el("mo", "="), el("mn", a.value));
+      if (scope.has(a.label)) return assign(a.variable, scope.get(a.label));
+      if (a.label === a.variable && symbols.has(a.variable)) return assign(a.variable, symbols.get(a.variable));
+      if (a.label !== a.variable) {
+        const suffix = /@([0-9]+)$/.exec(a.label || "");
+        return assign(a.variable, suffix ? a.variable.toLowerCase() + "′".repeat(Number(suffix[1]) + 1) : a.label);
+      }
+      return name(a.variable);
+    }
+    function integrate(variables, body, scope) {
+      let current = new Map(scope),
+        bindings = [];
+      for (const v of variables) {
+        const alias = fresh(v.variable);
+        current.set(v.label, alias);
+        bindings.push({ variable: v.variable, alias });
+      }
+      let rendered = body(current);
+      for (const b of bindings.reverse()) {
+        const variable = names.get(b.variable),
+          knownContinuous = ["linear", "quadratic", "bounded", "neural_network", "decision_tree"],
+          kind =
+            variable?.variable_type || (variable?.family === "binary" ? "binary" : knownContinuous.includes(variable?.family) ? "continuous" : null);
+        if (!variable || variable.dimension !== 1 || !["binary", "categorical", "continuous"].includes(kind))
+          throw Error("Set scalar variable types in Node & model settings to display the integration domain.");
+        let domain = null;
+        if (kind === "binary") domain = [0, 1];
+        if (kind === "categorical") {
+          const raw = variable.category_levels;
+          if (!raw || typeof raw !== "object" || Array.isArray(raw) || !Object.keys(raw).length)
+            throw Error("A complete category codebook is required to display this expectation.");
+          domain = Object.keys(raw).map(Number);
+          if (domain.some((x) => !Number.isFinite(x)) || new Set(domain).size !== domain.length)
+            throw Error("The category codebook needs unique finite numeric levels.");
+        }
+        rendered = domain
+          ? el(
+              "mrow",
+              el(
+                "munder",
+                el("mo", "∑"),
+                el("mrow", name(b.alias), el("mo", "∈"), el("mo", "{"), list(domain.map((x) => el("mn", x))), el("mo", "}"))
+              ),
+              fence(rendered)
+            )
+          : el("mrow", el("mo", "∫"), fence(rendered), el("mo", "d"), name(b.alias));
+      }
+      return rendered;
+    }
+    function walk(t, scope = new Map(), depth = 0) {
+      if (++count > 12000 || depth > 96) throw Error("The observational expression is too large to display.");
+      const child = (x) => walk(x, scope, depth + 1);
+      if (t.type === "number") return el("mn", t.value);
+      if (t.type === "probability" || t.type === "expectation") {
+        if (t.source && t.source !== "P") throw Error("The expression contains a nonobservational source.");
+        return el(
+          "mrow",
+          name(t.type === "expectation" ? "E" : "p"),
+          fence(
+            el(
+              "mrow",
+              list(t.outcomes.map((a) => arg(a, scope))),
+              ...(t.given.length ? [el("mo", "|"), list(t.given.map((a) => arg(a, scope)))] : [])
+            ),
+            t.type === "expectation" ? "[" : "(",
+            t.type === "expectation" ? "]" : ")"
+          )
+        );
+      }
+      if (t.type === "sum") return integrate(t.variables, (s) => walk(t.body, s, depth + 1), scope);
+      if (t.type === "product")
+        return t.factors.length
+          ? el("mrow", ...t.factors.flatMap((x, i) => [...(i ? [el("mo", "·")] : []), ["sum", "add"].includes(x.type) ? fence(child(x)) : child(x)]))
+          : el("mn", 1);
+      if (t.type === "ratio") return el("mfrac", child(t.numerator), child(t.denominator));
+      if (t.type === "add") return el("mrow", child(t.left), el("mo", "+"), child(t.right));
+      throw Error("The expression still contains an unexpanded kernel.");
+    }
+    const sourceRow = result.criteria[source],
+      adjustment =
+        ["BD", "AC"].includes(source) && sourceRow?.status === "ACCEPT" && Array.isArray(sourceRow.witness?.Z) ? sourceRow.witness.Z : null,
+      retained = result.query?.actions || actions;
+    const compact = summaryTree(tree, target, "expectation");
+    let right;
+    if (adjustment) {
+      const vector = () => {
+          const n = el("mi", "C");
+          n.setAttribute("mathvariant", "bold");
+          return n;
+        },
+        given = [
+          ...retained.map((a) => assign(a, symbols.get(a) || a.toLowerCase())),
+          ...(adjustment.length ? [adjustment.length === 1 ? name(adjustment[0]) : vector()] : []),
+        ],
+        inner = el("mrow", name("E"), fence(el("mrow", name(target), ...(given.length ? [el("mo", "|"), list(given)] : [])), "[", "]"));
+      right = adjustment.length
+        ? el("mrow", el("msub", name("E"), adjustment.length === 1 ? name(adjustment[0]) : vector()), fence(inner, "[", "]"))
+        : inner;
+    } else if (compact) right = walk(compact);
+    else
+      right = integrate(
+        [{ variable: target, label: target }],
+        (scope) => el("mrow", name(scope.get(target)), el("mo", "·"), fence(walk(tree, scope))),
+        new Map()
+      );
+    const left = el(
+      "mrow",
+      name("E"),
+      fence(
+        el(
+          "mrow",
+          name(target),
+          ...(actions.length ? [el("mo", "|"), el("mi", "do"), fence(list(actions.map((a) => assign(a, symbols.get(a)))))] : [])
+        ),
+        "[",
+        "]"
+      )
+    );
+    const math = el("math", left, el("mo", "="), right);
+    math.setAttribute("display", "block");
+    math.setAttribute("aria-label", "Identified expectation for " + target);
+    if (adjustment?.length > 1) math.dataset.adjustmentVariables = JSON.stringify(adjustment);
+    return math;
+  }
+  return { render };
+})();

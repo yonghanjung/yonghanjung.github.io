@@ -1,0 +1,141 @@
+{
+  "upstream_repository": "https://github.com/yonghanjung/yonghanjung.github.io",
+  "commit": "d3d36fb7f5d9f14e4eaa29df085c55becd553788",
+  "path": "experiment-lab/causalpy",
+  "files": [
+    {
+      "path": "SBD.py",
+      "sha256": "564ed4b6bb5f3ae5149fd996eee21f52581920afd36afeb1ef2c887a8d3b0cf2",
+      "url": "https://raw.githubusercontent.com/yonghanjung/yonghanjung.github.io/d3d36fb7f5d9f14e4eaa29df085c55becd553788/experiment-lab/causalpy/SBD.py"
+    },
+    {
+      "path": "SCM.py",
+      "sha256": "a9218350a1ec7c8b9c1d0b4be5a11b75f1cf6708864847e0f6a1307aa96963bf",
+      "url": "https://raw.githubusercontent.com/yonghanjung/yonghanjung.github.io/d3d36fb7f5d9f14e4eaa29df085c55becd553788/experiment-lab/causalpy/SCM.py"
+    },
+    {
+      "path": "adjustment.py",
+      "sha256": "2ca8c0a037e41f7ebacc034f4ca3e1c9a7cbfa9cee526ab5884497928b0cbe7c",
+      "url": "https://raw.githubusercontent.com/yonghanjung/yonghanjung.github.io/d3d36fb7f5d9f14e4eaa29df085c55becd553788/experiment-lab/causalpy/adjustment.py"
+    },
+    {
+      "path": "editor_engine.py",
+      "sha256": "27865c677c4a4bf20e2048ea9303b0aed7fc03fbaa29a7357075a43180214486",
+      "url": "https://raw.githubusercontent.com/yonghanjung/yonghanjung.github.io/d3d36fb7f5d9f14e4eaa29df085c55becd553788/experiment-lab/causalpy/editor_engine.py"
+    },
+    {
+      "path": "examples.py",
+      "sha256": "009f7f9103a6146dcc8a59ea4716e3afaed7f0d746f4eb07961682523d081aac",
+      "url": "https://raw.githubusercontent.com/yonghanjung/yonghanjung.github.io/d3d36fb7f5d9f14e4eaa29df085c55becd553788/experiment-lab/causalpy/examples.py"
+    },
+    {
+      "path": "frontdoor.py",
+      "sha256": "0dbc6f6015870a7328b48952ef6438ba3922184bf7dfbf495af19c36dda4de32",
+      "url": "https://raw.githubusercontent.com/yonghanjung/yonghanjung.github.io/d3d36fb7f5d9f14e4eaa29df085c55becd553788/experiment-lab/causalpy/frontdoor.py"
+    },
+    {
+      "path": "graph.py",
+      "sha256": "4cdc383c21f56ba3d1d2ff101ed8adc5dd7de32bc79629c1e59c7286f37c3a18",
+      "url": "https://raw.githubusercontent.com/yonghanjung/yonghanjung.github.io/d3d36fb7f5d9f14e4eaa29df085c55becd553788/experiment-lab/causalpy/graph.py"
+    },
+    {
+      "path": "identification_engine.py",
+      "sha256": "4dee2f8a0371f2b99e7261e4659f080b956529bb34596c4cbd8540d6aee69ccd",
+      "url": "https://raw.githubusercontent.com/yonghanjung/yonghanjung.github.io/d3d36fb7f5d9f14e4eaa29df085c55becd553788/experiment-lab/causalpy/identification_engine.py"
+    },
+    {
+      "path": "identify.py",
+      "sha256": "cdc46429b6af70c7489932b4d0697eb355880f26b0be55a8ba235b30f2a9337e",
+      "url": "https://raw.githubusercontent.com/yonghanjung/yonghanjung.github.io/d3d36fb7f5d9f14e4eaa29df085c55becd553788/experiment-lab/causalpy/identify.py"
+    },
+    {
+      "path": "indexed_identification.py",
+      "sha256": "bc3f49a0c6b75e5c1678e465aeba78ffe38d310a60c234c7d9a145779c94d483",
+      "url": "https://raw.githubusercontent.com/yonghanjung/yonghanjung.github.io/d3d36fb7f5d9f14e4eaa29df085c55becd553788/experiment-lab/causalpy/indexed_identification.py"
+    },
+    {
+      "path": "scm_registry.py",
+      "sha256": "72d9071e9bdb0b726c4adadb7b0b3f4e7bce36d704e368e50c335c0cc7d3ab3c",
+      "url": "https://raw.githubusercontent.com/yonghanjung/yonghanjung.github.io/d3d36fb7f5d9f14e4eaa29df085c55becd553788/experiment-lab/causalpy/scm_registry.py"
+    },
+    {
+      "path": "tian.py",
+      "sha256": "1b7e8db99fca4ef2de9df0be684c16de0967346a705de81918a1c9f69586707e",
+      "url": "https://raw.githubusercontent.com/yonghanjung/yonghanjung.github.io/d3d36fb7f5d9f14e4eaa29df085c55becd553788/experiment-lab/causalpy/tian.py"
+    },
+    {
+      "path": "index.html",
+      "sha256": "da5958560714a28c6744ec0b99d21997279561fa9b24afc287744157b2665cf2",
+      "url": "https://raw.githubusercontent.com/yonghanjung/yonghanjung.github.io/d3d36fb7f5d9f14e4eaa29df085c55becd553788/experiment-lab/causalpy/index.html"
+    },
+    {
+      "path": "scm-worker.js",
+      "sha256": "99ba78ab592bc9332f008a878602e28d3a00ea37e645276c497266c81f9e6718",
+      "url": "https://raw.githubusercontent.com/yonghanjung/yonghanjung.github.io/d3d36fb7f5d9f14e4eaa29df085c55becd553788/experiment-lab/causalpy/scm-worker.js"
+    }
+  ],
+  "package_adaptations": {
+    "SBD.py": {
+      "relative_imports": true,
+      "module_identity_adjustment": false
+    },
+    "SCM.py": {
+      "relative_imports": true,
+      "module_identity_adjustment": true,
+      "module_identity_adjustments": 2
+    },
+    "adjustment.py": {
+      "relative_imports": true,
+      "module_identity_adjustment": false
+    },
+    "editor_engine.py": {
+      "relative_imports": true,
+      "module_identity_adjustment": false,
+      "data_only_adapter_extension": true,
+      "categorical_covariate_feature_view": "explicit full K one-hot; existing estimator unchanged",
+      "whole_node_data_binding": "Ordered source-column tuples and component domains/codebooks; public graph/dimension unchanged; data_id+binding_key guards; verified baseline BD/AC witnesses only",
+      "sample_reference": "Snapshot/source/query-validated original scalar reference; explicit-vector no-evidence mean contrasts delegate to existing paired sample_interventional calls with MCSE, cell/time bounds and no stored-sample mutation.",
+      "random_baseline_adapter": "Validated observed continuous baseline vector1-50 injected only after public cap8 validation; public graph key, private schema and random_key bindings retained; existing SCM/registry and observed-data estimators unchanged."
+    },
+    "examples.py": {
+      "relative_imports": false,
+      "module_identity_adjustment": false
+    },
+    "frontdoor.py": {
+      "relative_imports": true,
+      "module_identity_adjustment": false
+    },
+    "graph.py": {
+      "relative_imports": true,
+      "module_identity_adjustment": false
+    },
+    "identification_engine.py": {
+      "relative_imports": true,
+      "module_identity_adjustment": false,
+      "display_metadata_extension": "bounded observational ID-trace tree with fresh-slot joint averaging of redundant evaluation contexts; ID status/algorithm unchanged",
+      "graph_node_limit": 100
+    },
+    "identify.py": {
+      "relative_imports": true,
+      "module_identity_adjustment": false
+    },
+    "indexed_identification.py": {
+      "relative_imports": true,
+      "module_identity_adjustment": false
+    },
+    "scm_registry.py": {
+      "relative_imports": false,
+      "module_identity_adjustment": false
+    },
+    "tian.py": {
+      "relative_imports": true,
+      "module_identity_adjustment": false
+    }
+  },
+  "license_note": "Upstream repository MIT notice preserved verbatim; the notice credits the original site template author. No new ownership attribution is asserted.",
+  "web_theme_source": "/tmp/causal-science-lab-preview-20261019/apps/causalengine/",
+  "web_changes": "Website preview/data download/benchmark UI and standalone guides; worker/editor data-only adapter, ordered covariate-cluster bindings and categorical feature view; identification API graph cap100 and bounded observational display metadata. Existing estimation/identification algorithms unchanged. Other10 browser Python modules byte-identical to upstream.",
+  "web_ui_sha256": "6886a964ef34e508a4551aaf3ea75c7912c51f95a7897dce15dc489dbc64acb8",
+  "benchmark_assets": "web/benchmarks/manifest.json records dataset-specific versions, sources, transforms, hashes and terms; not covered by engine MIT notice",
+  "benchmark_reference_assets": "web/benchmarks/ground-truth.json: separate aggregate mean(mu1-mu0) over unchanged released rows, source SHA/alignment/definition; factual CSV hashes unchanged; LaLonde unavailable. Never an estimation input."
+}

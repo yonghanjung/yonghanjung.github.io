@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "scope": "Aggregate benchmark evaluation metadata only. Not an estimation input; factual CSVs contain no potential/expected counterfactual outcomes.",
+  "datasets": {
+    "ihdp": {
+      "status": "AVAILABLE",
+      "label": "Benchmark reference (1 vs 0)",
+      "target": "released_row_mean_conditional_effect",
+      "definition": "(1/n) * sum_i [mu1_i - mu0_i]",
+      "intervention": 1,
+      "reference": 0,
+      "approximate": false,
+      "population_ate": false,
+      "row_order": "Unchanged complete source row order",
+      "limitations": "This averages the simulation conditional-mean effects over the released covariate rows. It is not the population ATE or the average of noisy realized potential-outcome differences.",
+      "value": 4.016066896118338,
+      "n": 747,
+      "treatment": "treatment",
+      "outcome": "y_factual",
+      "factual_csv": "ihdp_npci_1.csv",
+      "factual_sha256": "b258615535a1603ab4bb2b1f46eb3f727424b75b5385f714ef9b25dc7918e6ac",
+      "source_versions": "CEVAE commit 9081f863e24ce21bd34c8d6a41bf0edc7d1b65dd; NPCI replication 1",
+      "sources": [
+        {
+          "url": "https://raw.githubusercontent.com/AMLab-Amsterdam/CEVAE/9081f863e24ce21bd34c8d6a41bf0edc7d1b65dd/datasets/IHDP/csv/ihdp_npci_1.csv",
+          "sha256": "2bdc8b94fdf2f669b1d3d49325fd9359d88418566545003867841312a1653411",
+          "bytes": 161908,
+          "last_modified": null
+        }
+      ],
+      "definition_sources": [
+        {
+          "url": "https://raw.githubusercontent.com/AMLab-Amsterdam/CEVAE/9081f863e24ce21bd34c8d6a41bf0edc7d1b65dd/datasets.py",
+          "sha256": "2978a650f474f26af41f807402027445f70deb91156f9bd6e95a9005f05925ce"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/AMLab-Amsterdam/CEVAE/9081f863e24ce21bd34c8d6a41bf0edc7d1b65dd/evaluation.py",
+          "sha256": "cccc193d6b11c7c006147e0832661a8d385268350e084df3cf55db55581b10a8"
+        }
+      ],
+      "source_truth_columns": {
+        "mu0": 3,
+        "mu1": 4,
+        "indexing": "zero-based original headerless CSV"
+      },
+      "alignment": "Every factual treatment/outcome/covariate cell equals the matching original row; no sorting, row selection or duplication."
+    },
+    "acic": {
+      "status": "AVAILABLE",
+      "label": "Benchmark reference (1 vs 0)",
+      "target": "released_row_mean_conditional_effect",
+      "definition": "(1/n) * sum_i [mu1_i - mu0_i]",
+      "intervention": 1,
+      "reference": 0,
+      "approximate": false,
+      "population_ate": false,
+      "row_order": "Unchanged complete source row order",
+      "limitations": "This averages the simulation conditional-mean effects over the released covariate rows. It is not the population ATE or the average of noisy realized potential-outcome differences.",
+      "value": 2.1280792580310415,
+      "n": 4802,
+      "treatment": "z",
+      "outcome": "y_factual",
+      "factual_csv": "acic2016_condition1.csv",
+      "factual_sha256": "95a6c269de83f00e5db1a426cc4ac55b7e4acf9b8f071b4dc07b0755f98a13fb",
+      "source_versions": "causallib commit 267e0c72df81ea8264ece46496107f99a599b60d; distributed zymu_1.csv (not asserted to equal organizer parameter1/replicate1)",
+      "sources": [
+        {
+          "url": "https://raw.githubusercontent.com/BiomedSciAI/causallib/267e0c72df81ea8264ece46496107f99a599b60d/causallib/datasets/data/acic_challenge_2016/x.csv",
+          "sha256": "0d6387ad45d23e54b11cbf967248fb68ad5e578db80d193208b8b4c98b1ed0c1",
+          "bytes": 697786,
+          "last_modified": null
+        },
+        {
+          "url": "https://raw.githubusercontent.com/BiomedSciAI/causallib/267e0c72df81ea8264ece46496107f99a599b60d/causallib/datasets/data/acic_challenge_2016/zymu_1.csv",
+          "sha256": "002fad96bb55d54edec08a0af46ef4f8ad69e0cfe6294ab48f351f22976a6e76",
+          "bytes": 339560,
+          "last_modified": null
+        }
+      ],
+      "definition_sources": [
+        {
+          "url": "https://raw.githubusercontent.com/BiomedSciAI/causallib/267e0c72df81ea8264ece46496107f99a599b60d/causallib/datasets/data/acic_challenge_2016/README.md",
+          "sha256": "06f3e71634f476a8f00fb44e614168d4343c0024b95f26ac1b1fa344438a12f6"
+        }
+      ],
+      "source_truth_columns": {
+        "mu0": "mu0",
+        "mu1": "mu1"
+      },
+      "alignment": "All treatment, factual outcome and 58 covariates matched original x.csv/zymu_1.csv rows exactly, including reversible nominal coding; no row selection."
+    },
+    "lalonde": {
+      "status": "UNAVAILABLE",
+      "label": "Benchmark ground truth unavailable",
+      "n": 445,
+      "treatment": "treated",
+      "outcome": "re78",
+      "factual_csv": "lalonde_nsw_dw.csv",
+      "factual_sha256": "f57cc47825a9c7e48ff753fd45fb5243349229ebd2bc42c35e05170764b4d42f",
+      "source_versions": "Official Dehejia–Wahba NSW sample; source Last-Modified 1999-12-07; SHA256 pinned in manifest",
+      "sources": [
+        {
+          "url": "https://users.nber.org/~rdehejia/data/nswre74_treated.txt",
+          "sha256": "e7b742fe0ff07a0f45e129b4ff108bb9611cd83d53604732c48a8a0a3e20eda3",
+          "bytes": 29785,
+          "last_modified": "Tue, 07 Dec 1999 22:49:15 GMT"
+        },
+        {
+          "url": "https://users.nber.org/~rdehejia/data/nswre74_control.txt",
+          "sha256": "a1364cea459d953dc691a667d99194b4ad335d6d550354fe23a5d2dc58d729b5",
+          "bytes": 41860,
+          "last_modified": "Tue, 07 Dec 1999 22:49:15 GMT"
+        }
+      ],
+      "reason": "These real NSW experimental records contain each person's factual outcome, not both potential outcomes or simulation conditional means. An experimental difference in sample means is an estimate, not a known ground truth."
+    }
+  }
+}

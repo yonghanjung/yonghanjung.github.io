@@ -1,0 +1,103 @@
+---
+layout: null
+sitemap: false
+permalink: /experimental-lab/code.html
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Code & installation · CausalEngine</title>
+    <link rel="icon" href="./lab-logo.png" />
+    <link rel="stylesheet" href="./guide.css" />
+  </head>
+  <body>
+    <main id="main">
+      <section class="container usage-page code-page">
+        <a class="back-product" href="./">CausalEngine</a>
+        <h1>Code &amp; installation</h1>
+        <p>CausalEngine runs on your own device. Choose the browser app or install the Python package locally.</p>
+        <section id="browser">
+          <h2>Use the browser app</h2>
+          <p>
+            Calculations run in a worker in your browser, using your device’s processor and memory.
+            <strong>No local Python installation is needed.</strong> The first run needs internet access to download the Pyodide runtime and numerical
+            libraries from jsDelivr.
+          </p>
+          <div class="work-links">
+            <a class="primary-link" href="./" target="_blank" rel="noopener">Launch app</a><a href="./guide.html">Tutorial</a>
+          </div>
+        </section>
+        <section id="downloads">
+          <h2>Download CausalEngine 0.1.0</h2>
+          <div class="download-list">
+            <a href="./downloads/causalengine-0.1.0-py3-none-any.whl" download><strong>Python wheel</strong><span>Installable package</span></a
+            ><a href="./downloads/causalengine-0.1.0-source.zip" download
+              ><strong>Source ZIP</strong><span>Code, tests, examples, and browser app</span></a
+            ><a href="./downloads/causalengine-0.1.0.tar.gz" download><strong>Source archive</strong><span>Python source distribution</span></a>
+          </div>
+          <div class="resource-links">
+            <a href="./downloads/README.md">Full installation guide</a><a href="./downloads/LICENSE">License</a
+            ><a href="./downloads/PROVENANCE.json">Source provenance</a>
+          </div>
+        </section>
+        <section id="install">
+          <h2>Install on your computer</h2>
+          <p>Use <strong>Python 3.12</strong>, the tested version. Download the wheel above and open a terminal in the folder containing it.</p>
+          <pre><code>python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install ./causalengine-0.1.0-py3-none-any.whl
+python -c "import causalengine; print(causalengine.__version__)"</code></pre>
+          <p>
+            On Windows, create the environment with <code>py -3.12 -m venv .venv</code>, then activate it with
+            <code>.venv\Scripts\Activate.ps1</code> in PowerShell. See the full guide for alternatives.
+          </p>
+          <p>
+            The package installs its NumPy, SciPy, pandas, and NetworkX requirements. This local release is supplied as downloads; use the downloaded
+            wheel rather than an unqualified package-name install.
+          </p>
+        </section>
+        <section id="demo">
+          <h2>Run a complete example</h2>
+          <pre><code>python -m causalengine demo
+python -m causalengine demo --rows 2048 --data-seed 5</code></pre>
+          <p>
+            The native Python example generates a simulated class with a binary action and compares setting A to 1 versus 0. Read its estimate, model
+            reference, and diagnostic messages. These are simulated results.
+          </p>
+          <h3>Use it from Python</h3>
+          <pre><code>from causalengine.demo import run_demo
+
+result = run_demo(rows=512, data_seed=5)
+print(result["comparison"]["data_estimate"])
+print(result["comparison"]["scm_reference"])</code></pre>
+        </section>
+        <section id="local-app">
+          <h2>Serve the app locally</h2>
+          <pre><code>python -m causalengine serve --port 8766</code></pre>
+          <p>
+            Open <code>http://127.0.0.1:8766/</code> and keep the terminal running. Press Ctrl+C to stop it. This serves static files on your
+            computer; calculations still run in the browser. The browser runtime uses CDN downloads, so this is not a fully offline bundle.
+          </p>
+        </section>
+        <section id="source">
+          <h2>Source &amp; help</h2>
+          <p>
+            The source ZIP includes the Python API, command line, browser app, tests, example script, and installation guide. Worker and
+            numerical-engine source are bundled with this website.
+          </p>
+          <div class="work-links">
+            <a href="./downloads/README.md">Install &amp; troubleshoot</a><a href="./guide.html#help">App help</a
+            ><a href="https://github.com/yonghanjung/yonghanjung.github.io/tree/d3d36fb7f5d9f14e4eaa29df085c55becd553788/experiment-lab/causalpy"
+              >Pinned upstream source</a
+            >
+          </div>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,102 @@
+---
+layout: null
+sitemap: false
+permalink: /experimental-lab/examples.html
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CausalEngine examples</title>
+    <link rel="icon" href="./lab-logo.png" />
+    <link rel="stylesheet" href="./guide.css" />
+  </head>
+  <body class="examples-body">
+    <main id="main">
+      <section class="container examples-page">
+        <a class="back-product" href="./">CausalEngine</a>
+        <h1>Examples &amp; support</h1>
+        <p>
+          Choose a causal structure and enter unique variable names in each role. Identify checks the graph without data; Estimate uses your mapped
+          CSV or optional Random Data on your device.
+        </p>
+        <article>
+          <h2>No unmeasured confounding</h2>
+          <p>
+            Enter A, covariates C1/C2/C3, and outcomes Y1/Y2/Y3. The template connects observed covariates to actions and outcomes. Identification and
+            data-only estimation are checked separately for each outcome. Match every observed variable to a numeric CSV column, or try Random Data.
+          </p>
+          <a href="./">Open the app</a>
+        </article>
+        <article>
+          <h2>Front-door</h2>
+          <p>
+            Use a separate Mediators field, such as M, between A and Y. Optional baseline covariates stay separate. The generated template has a
+            hidden common cause of actions and outcomes; a conditional Front-door query may be supported. A hidden root needs no CSV column.
+            Estimation can return a coverage warning.
+          </p>
+          <a href="./guide.html#model-details">Inspect this structure</a>
+        </article>
+        <article>
+          <h2>No unmeasured confounding -- Sequential</h2>
+          <p>
+            Add or remove time points and enter covariates, treatments, and outcomes at each time. Identify each outcome, then estimate the action
+            sequence from the same uploaded or generated rows. Full history connects earlier variables to all later times. Markovian order limits
+            direct arrows by the displayed Time ID lag; blank or removed gaps still count. Arrows remain editable assumptions.
+          </p>
+          <a href="./">Open the app</a>
+        </article>
+        <article>
+          <h2>Random covariate dimensions</h2>
+          <p>
+            In Random Data, set X dimension to a whole number from 1 to 50, enter Records and seeds, then Generate Data. Dimension 25 generates x1
+            through x25 while retaining one logical X. Head toggles a bounded preview; Download CSV saves all current records without regenerating.
+            Large-vector references are labelled Monte Carlo and show their numerical standard error.
+          </p>
+        </article>
+        <article>
+          <h2>Upload a covariate cluster</h2>
+          <p>
+            <a href="./examples/upload-cluster.csv" download>Download the 512-row example CSV</a>. Use Treatment <code>A</code>, Covariates
+            <code>X (x1, …, x25)</code>, and Outcomes <code>Y</code>. Update the graph, then upload the file. If your browser does not open its file
+            dialog, use Example CSV → Load example or Other ways to load CSV → drop/paste. Click X to expand or collapse its member view. The logical
+            graph stays unchanged, and uploaded data have no supplied ground truth.
+          </p>
+          <a href="./guide.html#compare">Follow the upload steps</a>
+        </article>
+        <article>
+          <h2>Benchmark datasets</h2>
+          <p>
+            Open Estimate → Benchmarks for IHDP, LaLonde, and ACIC. Inspect the specific release and source before using it. Select a dataset, then
+            choose Download CSV or Estimate. Estimate preserves the chosen graph, variable names, arrows, and positions. In a compatible
+            treatment–baseline–outcome graph, all released covariates bind to the existing baseline node as one cluster. Open Data columns to inspect
+            every member. Structures requiring unavailable mediator or time-specific bindings are reported without replacing the graph. The working
+            CSV includes factual observations, not counterfactual answers. Head and Download CSV reuse the loaded records.
+          </p>
+          <a href="./guide.html#compare">Load a benchmark</a>
+        </article>
+        <article>
+          <h2>Not implemented</h2>
+          <p>
+            <strong>IV with Monotonicity:</strong> requires an instrument and additional assumptions; its usual target is the effect among compliers,
+            not the population average effect. Monotonicity cannot be checked from the graph alone.
+          </p>
+          <p><strong>IV bounding:</strong> returns a range of possible effects and requires a separate bounding procedure.</p>
+          <p><strong>Difference-in-Differences:</strong> a study design comparing changes over time, with assumptions such as parallel trends.</p>
+          <p>
+            <strong>Synthetic Control:</strong> a comparison-over-time design using a weighted donor group. A graph alone does not establish its
+            validity.
+          </p>
+          <p>
+            These are not active calculation options. A known answer from a simulated model does not make an otherwise unidentified effect
+            identifiable from observed data.
+          </p>
+        </article>
+        <div class="work-links"><a href="./guide.html">Guide</a><a href="./code.html">Code &amp; install</a></div>
+      </section>
+    </main>
+  </body>
+</html>

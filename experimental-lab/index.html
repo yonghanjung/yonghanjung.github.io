@@ -1,0 +1,3702 @@
+---
+layout: null
+sitemap: false
+permalink: /experimental-lab/
+---
+
+<!doctype html>
+<html lang="en">
+  <meta name="robots" content="noindex, nofollow, noarchive" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CausalEngine · Causal Science Lab</title>
+  <link rel="icon" href="./lab-logo.png" type="image/png" />
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f5ee;
+      --surface: #fffdf8;
+      --ink: #1d342f;
+      --muted: #64706b;
+      --line: #d7ddd4;
+      --accent: #193b37;
+      --soft: #e9ede4;
+      --error: #ad502f;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+    [hidden] {
+      display: none !important;
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font:
+        14px/1.5 system-ui,
+        sans-serif;
+    }
+    main {
+      max-width: 1240px;
+      margin: auto;
+      padding: 28px;
+    }
+    .back {
+      display: inline-block;
+      margin-bottom: 16px;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    h1 {
+      font-size: 24px;
+      margin: 0;
+      font-weight: 650;
+      letter-spacing: -0.5px;
+    }
+    p {
+      margin: 4px 0;
+      color: var(--muted);
+    }
+    button,
+    input,
+    textarea,
+    select {
+      font: inherit;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--ink);
+      padding: 6px 9px;
+    }
+    button {
+      cursor: pointer;
+    }
+    button:hover {
+      border-color: var(--accent);
+    }
+    button:disabled {
+      cursor: wait;
+      opacity: 0.6;
+    }
+    button[aria-pressed="true"],
+    .primary {
+      background: var(--soft);
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+    .primary {
+      background: var(--surface);
+      font-weight: 600;
+    }
+    .toolbar,
+    .actions,
+    .settings {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .toolbar {
+      padding: 8px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+    }
+    #new-name {
+      width: 110px;
+    }
+    #rows {
+      width: 70px;
+    }
+    .toolbar details,
+    .query details {
+      margin: 0;
+    }
+    #graph-form {
+      width: min(420px, 100%);
+      padding: 8px 0;
+    }
+    #graph-form label {
+      display: block;
+      margin: 8px 0;
+    }
+    #graph-form input,
+    #graph-form textarea {
+      width: 100%;
+    }
+    .settings {
+      margin-top: 16px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+    }
+    .settings input {
+      width: 85px;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      grid-template-areas: "graph inspector" "query inspector";
+      align-items: start;
+      gap: 16px;
+    }
+    .canvas,
+    aside,
+    .output {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+    }
+    .canvas {
+      grid-area: graph;
+      overflow: auto;
+      background-image: linear-gradient(90deg, var(--line) 1px, transparent 1px), linear-gradient(var(--line) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+    svg {
+      display: block;
+      width: 100%;
+      min-width: 680px;
+      height: 410px;
+      touch-action: none;
+      user-select: none;
+    }
+    svg text {
+      fill: var(--ink);
+      pointer-events: none;
+    }
+    .edge {
+      stroke: var(--muted);
+      stroke-width: 1.6;
+      fill: none;
+    }
+    .edge.selected {
+      stroke: var(--accent);
+      stroke-width: 2.5;
+    }
+    .edge-hit {
+      stroke: transparent;
+      stroke-width: 16;
+      fill: none;
+      cursor: grab;
+    }
+    .node circle {
+      fill: var(--surface);
+      stroke: var(--accent);
+      stroke-width: 1.8;
+    }
+    .node.hidden circle {
+      stroke: var(--muted);
+      stroke-dasharray: 5 4;
+    }
+    .node.selected circle {
+      stroke-width: 3;
+      fill: var(--soft);
+    }
+    .node {
+      cursor: grab;
+    }
+    #node-menu {
+      position: fixed;
+      z-index: 5;
+      width: 220px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: var(--surface);
+      box-shadow: 0 8px 24px #0002;
+    }
+    #node-menu input {
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    #node-menu button {
+      margin: 2px 0;
+    }
+    aside {
+      grid-area: inspector;
+      max-height: 520px;
+      overflow: auto;
+      padding: 16px;
+    }
+    #query-panel {
+      grid-area: query;
+      margin-top: 0;
+    }
+    [role="status"]:empty {
+      display: none;
+    }
+    aside h2 {
+      font-size: 16px;
+      margin: 0 0 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+      overflow-wrap: anywhere;
+    }
+    aside label {
+      display: block;
+      margin: 12px 0;
+    }
+    aside input[type="number"],
+    aside select {
+      width: 100%;
+      margin-top: 4px;
+    }
+    aside input[type="checkbox"] {
+      accent-color: var(--accent);
+    }
+    #status {
+      min-height: 24px;
+      margin: 12px 0;
+    }
+    #status.error {
+      color: var(--error);
+    }
+    .output {
+      margin-top: 16px;
+      padding: 16px;
+    }
+    .scroll {
+      overflow: auto;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-variant-numeric: tabular-nums;
+    }
+    th,
+    td {
+      padding: 7px 12px;
+      text-align: right;
+      border-bottom: 1px solid var(--line);
+      white-space: nowrap;
+    }
+    th {
+      color: var(--muted);
+      font-weight: 550;
+    }
+    details {
+      margin-top: 12px;
+    }
+    pre {
+      overflow: auto;
+      max-height: 300px;
+      font-size: 12px;
+    }
+    #parameters label {
+      display: block;
+      margin: 8px 0;
+    }
+    #parameters {
+      max-height: 360px;
+      overflow: auto;
+    }
+    #parameters textarea {
+      width: 100%;
+      min-height: 65px;
+      font: 12px/1.4 monospace;
+    }
+    #parameters details {
+      margin: 8px 0;
+    }
+    .specification {
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: var(--soft);
+      margin: 12px 0;
+    }
+    .specification strong,
+    #parameter-state {
+      font-size: 12px;
+    }
+    #applied-equation,
+    #noise-law {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      margin: 8px 0 0;
+    }
+    #parameters fieldset {
+      border: 0;
+      padding: 0;
+      margin: 12px 0;
+    }
+    #parameters legend {
+      font-size: 13px;
+      font-weight: 650;
+    }
+    #parameters .input-order {
+      font: 12px/1.5 monospace;
+      overflow-wrap: anywhere;
+      color: var(--muted);
+    }
+    .query {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: end;
+      gap: 10px;
+    }
+    .query label {
+      display: grid;
+      gap: 4px;
+    }
+    .query input {
+      width: 130px;
+    }
+    #extrapolation-field {
+      display: flex;
+      align-items: center;
+    }
+    #allow-continuous-extrapolation {
+      width: auto;
+    }
+    .query select {
+      width: 90px;
+    }
+    #query-type,
+    #query-summary {
+      width: 155px;
+    }
+    .query .assignments {
+      width: 240px;
+      max-width: 100%;
+      font-family: monospace;
+    }
+    .formula {
+      max-width: 100%;
+      overflow-x: auto;
+      padding: 10px 0;
+    }
+    .formula math {
+      font-size: 17px;
+      margin: 0;
+      text-align: left;
+    }
+    #query-status {
+      min-height: 24px;
+      margin: 8px 0;
+    }
+    #query-status.error {
+      color: var(--error);
+    }
+    #query-status.info {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    #analysis-status {
+      min-height: 24px;
+      margin: 12px 0;
+    }
+    #analysis-status.error {
+      color: var(--error);
+    }
+    #criteria {
+      table-layout: fixed;
+    }
+    #criteria th,
+    #criteria td {
+      text-align: left;
+      white-space: normal;
+      vertical-align: top;
+    }
+    #criteria th:first-child {
+      width: 65px;
+    }
+    #criteria td:nth-child(2) {
+      width: 145px;
+    }
+    #criteria details {
+      margin: 0;
+    }
+    .verdict {
+      font-size: 12px;
+      font-weight: 650;
+    }
+    .verdict[data-status="ACCEPT"],
+    .verdict[data-status="IDENTIFIABLE"] {
+      color: var(--accent);
+    }
+    .verdict[data-status^="NO_"],
+    .verdict[data-status="NOT_IDENTIFIABLE"] {
+      color: var(--error);
+    }
+    #other-methods details {
+      padding: 8px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    #graph-library {
+      max-width: 210px;
+    }
+    #id-formula {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    @media (max-width: 850px) {
+      main {
+        padding: 16px;
+      }
+      header {
+        align-items: flex-start;
+      }
+      .layout {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas: "graph" "query" "inspector";
+      }
+      aside label {
+        display: inline-block;
+        margin: 6px 18px 6px 0;
+      }
+      aside input[type="number"],
+      aside select {
+        width: auto;
+      }
+    }
+    .engine-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      letter-spacing: -0.7px;
+    }
+    .engine-brand img {
+      width: 42px;
+      height: 42px;
+      object-fit: contain;
+      background: #fff;
+      border-radius: 8px;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button.primary {
+      border-color: #193b37;
+      background: #193b37;
+      color: #f7f5ee;
+    }
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible {
+      outline-color: #ad502f;
+    }
+    @media (max-width: 600px) {
+      .engine-brand {
+        font-size: 21px;
+        gap: 9px;
+      }
+      .engine-brand img {
+        width: 36px;
+        height: 36px;
+      }
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+    body[data-view="easy"] header .actions {
+      display: none;
+    }
+    .view-switch {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid var(--line);
+      padding-top: 16px;
+      margin-bottom: 36px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .view-switch button {
+      border: 0;
+      background: none;
+      text-decoration: underline;
+      text-underline-offset: 4px;
+      padding: 5px 0;
+      color: var(--ink);
+      font-size: 12px;
+    }
+    #easy-view {
+      max-width: 760px;
+      margin: 0 auto 55px;
+    }
+    .easy-intro h2 {
+      font-size: 36px;
+      font-weight: 600;
+      letter-spacing: -1.2px;
+      line-height: 1.15;
+      margin: 0 0 13px;
+    }
+    .easy-intro p {
+      font-size: 16px;
+      color: var(--muted);
+      line-height: 1.7;
+      margin: 0;
+    }
+    .easy-input {
+      margin: 32px 0 26px;
+    }
+    .easy-input label {
+      font-size: 12px;
+      font-weight: 600;
+      display: block;
+      margin-bottom: 9px;
+    }
+    .easy-input select {
+      width: 100%;
+      min-height: 48px;
+      font-size: 15px;
+      padding: 10px 13px;
+      border-radius: 7px;
+    }
+    .easy-input p {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 10px 0 0;
+      line-height: 1.7;
+    }
+    .choice-pair {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      justify-content: center;
+      padding: 25px 15px;
+      background: #e9ede4;
+      border-radius: 8px;
+      margin-bottom: 25px;
+      font-size: 17px;
+      font-weight: 600;
+    }
+    .choice-versus {
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--muted);
+    }
+    #easy-compare {
+      min-width: 150px;
+      min-height: 48px;
+      border: 0;
+      background: #193b37;
+      color: #f7f5ee;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 12px 27px;
+      border-radius: 7px;
+    }
+    #easy-compare:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+    #easy-progress {
+      font-size: 13px;
+      color: var(--muted);
+      margin: 14px 0 0;
+      line-height: 1.7;
+      min-height: 22px;
+    }
+    #easy-result {
+      margin-top: 24px;
+      padding: 27px 0 0;
+      border-top: 1px solid var(--line);
+    }
+    .result-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 0 0 8px;
+    }
+    .result-value {
+      color: var(--ink);
+      font-size: 48px;
+      font-weight: 600;
+      line-height: 1.1;
+      letter-spacing: -1.5px;
+      margin: 0 0 17px;
+    }
+    #easy-interpretation {
+      font-size: 15px;
+      line-height: 1.8;
+      margin: 0;
+      max-width: 650px;
+    }
+    .model-answer {
+      font-size: 12px;
+      line-height: 1.8;
+      color: var(--muted);
+      margin: 18px 0 0;
+      max-width: 650px;
+    }
+    .easy-warning {
+      padding: 14px 16px;
+      background: #faeee2;
+      border-left: 3px solid #ad502f;
+      font-size: 13px;
+      line-height: 1.7;
+      margin-top: 18px;
+    }
+    .easy-footnote {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 28px;
+      line-height: 1.7;
+    }
+    .easy-help {
+      display: flex;
+      gap: 25px;
+      font-size: 12px;
+      margin-top: 15px;
+    }
+    .easy-help a {
+      color: var(--ink);
+      text-underline-offset: 4px;
+    }
+    .details-intro {
+      margin-bottom: 22px;
+    }
+    .details-intro h2 {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+    .details-intro p {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    @media (max-width: 600px) {
+      .view-switch {
+        margin-bottom: 28px;
+      }
+      .easy-intro h2 {
+        font-size: 29px;
+        letter-spacing: -0.8px;
+      }
+      .easy-intro p {
+        font-size: 14px;
+      }
+      .choice-pair {
+        gap: 12px;
+        padding: 22px 12px;
+        font-size: 14px;
+      }
+      .choice-versus {
+        font-size: 10px;
+      }
+      .result-value {
+        font-size: 40px;
+      }
+      .easy-input {
+        margin-top: 27px;
+      }
+      #easy-interpretation {
+        font-size: 14px;
+      }
+    }
+    .mobile-pan-hint {
+      display: none;
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 10px;
+    }
+    #easy-view {
+      max-width: none;
+      margin-bottom: 40px;
+    }
+    .easy-intro h2 {
+      font-size: 30px;
+    }
+    .easy-intro {
+      margin-bottom: 28px;
+    }
+    #easy-layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 370px) minmax(0, 1fr);
+      gap: 45px;
+      align-items: start;
+    }
+    #easy-controls {
+      min-width: 0;
+    }
+    .easy-input {
+      margin: 0 0 20px;
+    }
+    .easy-input.compact {
+      max-width: 165px;
+      margin-top: 22px;
+    }
+    .easy-input.compact select {
+      min-height: 38px;
+      font-size: 13px;
+    }
+    .case-facts {
+      font-size: 13px;
+      line-height: 1.6;
+      margin: 20px 0;
+    }
+    .case-facts dt {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-top: 14px;
+    }
+    .case-facts dd {
+      margin: 3px 0 0;
+    }
+    #easy-story {
+      font-size: 14px;
+      line-height: 1.7;
+    }
+    #easy-graph {
+      min-width: 0;
+    }
+    .graph-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      gap: 15px;
+    }
+    .graph-heading h3 {
+      font-size: 14px;
+      margin: 0;
+    }
+    .graph-heading button {
+      font-size: 12px;
+      background: none;
+      padding: 7px 9px;
+    }
+    .graph-legend {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.7;
+      margin: 12px 0 0;
+    }
+    #graph-slot .canvas {
+      overflow-x: auto;
+      max-width: 100%;
+      background: #fffdf8;
+    }
+    body[data-view="easy"] #graph-input,
+    body[data-view="easy"] #reset {
+      display: none;
+    }
+    #easy-result {
+      padding-top: 20px;
+      margin-top: 22px;
+    }
+    .result-value {
+      font-size: 38px;
+    }
+    .result-value.unavailable {
+      font-size: 27px;
+      letter-spacing: -0.5px;
+    }
+    .support-roadmap {
+      margin-top: 35px;
+      font-size: 13px;
+    }
+    .support-roadmap table {
+      font-size: 12px;
+      line-height: 1.7;
+      white-space: normal;
+    }
+    .support-roadmap th,
+    .support-roadmap td {
+      padding: 12px 14px;
+      vertical-align: top;
+    }
+    .support-roadmap p {
+      font-size: 12px;
+    }
+    .easy-footnote {
+      margin-top: 23px;
+    }
+    .view-switch {
+      margin-bottom: 25px;
+    }
+    @media (max-width: 900px) {
+      .mobile-pan-hint {
+        display: block;
+      }
+      #easy-layout {
+        grid-template-columns: 1fr;
+        gap: 28px;
+      }
+      #easy-graph {
+        grid-row: 1;
+      }
+      #easy-controls {
+        grid-row: 2;
+      }
+      #graph-slot svg {
+        height: 320px;
+        touch-action: pan-x;
+      }
+      .easy-intro h2 {
+        font-size: 26px;
+      }
+      .support-roadmap {
+        overflow: auto;
+      }
+      .support-roadmap table {
+        min-width: 560px;
+      }
+    }
+    @media (min-width: 1600px) {
+      #easy-layout {
+        grid-template-columns: 400px minmax(0, 1fr);
+        gap: 65px;
+      }
+      #graph-slot svg {
+        height: 440px;
+      }
+    }
+    #role-fields {
+      margin: 20px 0 25px;
+    }
+    #role-fields label {
+      font-size: 12px;
+      display: block;
+      margin: 12px 0;
+      color: var(--ink);
+    }
+    #role-fields input {
+      display: block;
+      width: 100%;
+      min-height: 38px;
+      margin-top: 5px;
+    }
+    #role-fields .field-help,
+    #role-status,
+    #role-error,
+    #layout-status {
+      font-size: 11px;
+      line-height: 1.6;
+      margin: 12px 0;
+    }
+    #role-error {
+      color: var(--error);
+    }
+    #apply-roles {
+      background: var(--soft);
+      font-weight: 600;
+    }
+    #role-stages {
+      display: grid;
+      gap: 14px;
+    }
+    .time-stage {
+      border: 1px solid var(--line);
+      padding: 12px;
+      min-width: 0;
+    }
+    .time-stage legend {
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .remove-stage {
+      float: right;
+      font-size: 10px;
+      padding: 3px 7px;
+    }
+    .outcome-result {
+      border-top: 1px solid var(--line);
+      padding: 17px 0;
+    }
+    .outcome-result h3 {
+      margin: 0;
+      font-size: 14px;
+    }
+    .outcome-result .outcome-value {
+      color: var(--ink);
+      font-size: 30px;
+      font-weight: 600;
+      margin: 8px 0;
+    }
+    .outcome-result p {
+      font-size: 12px;
+      line-height: 1.7;
+    }
+    .graph-heading {
+      flex-wrap: wrap;
+    }
+    .graph-heading h3 {
+      margin-right: auto;
+    }
+    .graph-heading button {
+      font-size: 11px;
+    }
+    #graph-slot {
+      max-height: 75vh;
+      overflow: auto;
+    }
+    #graph-slot .canvas {
+      overflow: visible;
+      max-width: none;
+    }
+    #graph-slot svg {
+      touch-action: pan-x pan-y;
+    }
+    #easy-layout {
+      grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+    }
+    @media (min-width: 901px) {
+      #easy-graph {
+        position: sticky;
+        top: 18px;
+      }
+    }
+    @media (max-width: 900px) {
+      #easy-layout {
+        grid-template-columns: 1fr;
+      }
+      #easy-controls {
+        grid-row: 2;
+      }
+      #easy-graph {
+        grid-row: 1;
+      }
+      .case-facts {
+        font-size: 12px;
+      }
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .contrast-controls {
+      display: flex;
+      align-items: end;
+      gap: 10px;
+      margin: 22px 0;
+    }
+    .contrast-controls label {
+      font-size: 13px;
+      flex: 1;
+    }
+    .contrast-controls input {
+      display: block;
+      width: 100%;
+      margin-top: 6px;
+    }
+    .contrast-controls span {
+      padding-bottom: 8px;
+    }
+    .action-buttons,
+    .source-choices {
+      display: flex;
+      gap: 10px;
+    }
+    .action-buttons button {
+      flex: 1;
+      min-height: 44px;
+      font-weight: 600;
+    }
+    .action-buttons .primary,
+    #run-estimate {
+      background: var(--accent);
+      color: var(--bg);
+      border-color: var(--accent);
+    }
+    #estimate-options {
+      border-top: 1px solid var(--line);
+      margin-top: 20px;
+      padding-top: 20px;
+    }
+    .source-choices button {
+      flex: 1;
+      padding: 10px;
+    }
+    #estimate-options label {
+      font-size: 13px;
+      display: block;
+      margin-top: 16px;
+    }
+    #estimate-options select,
+    #estimate-options input[type="file"] {
+      display: block;
+      width: 100%;
+      margin-top: 6px;
+    }
+    .mapping-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: center;
+      margin: 10px 0;
+    }
+    .mapping-row label {
+      margin: 0 !important;
+    }
+    .mapping-row select {
+      margin: 0 !important;
+    }
+    #csv-status,
+    #data-error,
+    #role-error,
+    #role-status,
+    #easy-progress,
+    #layout-status {
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    #data-error {
+      color: var(--error);
+    }
+    #run-estimate {
+      margin-top: 18px;
+      padding: 10px 18px;
+    }
+    #role-status:empty,
+    #data-error:empty,
+    #layout-status:empty,
+    #easy-progress:empty {
+      display: none;
+    }
+    .settings-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 15px;
+      position: sticky;
+      top: 0;
+      padding: 15px 0;
+      background: var(--bg);
+      z-index: 2;
+    }
+    .settings-heading h3 {
+      font-size: 16px;
+      margin: 0;
+    }
+    #right-settings-slot {
+      position: absolute;
+      inset: 45px 0 0;
+      z-index: 5;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      padding: 0 18px;
+      overflow: auto;
+      min-height: 400px;
+    }
+    #easy-graph {
+      position: relative;
+    }
+    #editor-view .layout {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    #editor-view aside {
+      order: -1;
+    }
+    #editor-view .actions {
+      margin-bottom: 15px;
+    }
+    body[data-view="details"] header .actions {
+      display: none;
+    }
+    .outcome-result details {
+      margin-top: 10px;
+    }
+    .outcome-result pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-size: 12px;
+    }
+    #result-heading {
+      font-size: 16px;
+      margin: 0 0 12px;
+    }
+    #role-fields select {
+      width: 100%;
+      margin-top: 5px;
+    }
+    #role-fields .field-help {
+      display: none;
+    }
+    @media (min-width: 901px) {
+      #easy-graph {
+        position: sticky;
+        top: 18px;
+      }
+    }
+    #editor-view[data-source="csv"] #query-panel,
+    #editor-view[data-source="csv"] > .actions,
+    #editor-view[data-source="csv"] .output:has(#sample) {
+      display: none;
+    }
+    .benchmark-picker {
+      position: relative;
+      margin-top: 16px;
+    }
+    .benchmark-picker > label {
+      margin: 0 0 6px !important;
+    }
+    #benchmark-select {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      text-align: left;
+      min-height: 44px;
+    }
+    #benchmark-value {
+      overflow-wrap: anywhere;
+    }
+    #benchmark-list {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      width: 100%;
+      box-sizing: border-box;
+      z-index: 20;
+      max-height: 240px;
+      overflow: auto;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      box-shadow: 0 5px 16px #193b3718;
+      border-radius: 5px;
+    }
+    #benchmark-list [role="option"] {
+      display: block;
+      width: 100%;
+      padding: 12px 14px;
+      border: 0;
+      border-radius: 0;
+      text-align: left;
+      background: transparent;
+      white-space: normal;
+      min-height: 44px;
+    }
+    #benchmark-list [role="option"]:hover,
+    #benchmark-list [role="option"]:focus,
+    #benchmark-list [data-active="true"] {
+      background: var(--soft);
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }
+    #benchmark-list [aria-selected="true"] {
+      font-weight: 700;
+    }
+    #benchmark-assumption {
+      font-size: 13px;
+    }
+    #benchmark-estimate {
+      background: var(--accent);
+      color: var(--bg);
+      border-color: var(--accent);
+    }
+    #easy-result {
+      grid-column: 1/-1;
+    }
+    #dataset-tools {
+      margin: 28px 0;
+      border-top: 1px solid var(--line);
+      padding-top: 22px;
+    }
+    .dataset-toolbar,
+    .head-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .dataset-toolbar h3 {
+      font-size: 16px;
+      margin: 0 auto 0 0;
+    }
+    .head-controls {
+      margin: 18px 0;
+    }
+    .head-controls label {
+      font-size: 13px;
+      display: grid;
+      gap: 5px;
+    }
+    .head-controls select {
+      min-width: 100px;
+    }
+    .data-table-scroll {
+      overflow: auto;
+      max-height: 430px;
+      border: 1px solid var(--line);
+    }
+    #head-table {
+      white-space: nowrap;
+      font-size: 13px;
+      margin: 0;
+    }
+    #head-table th,
+    #head-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    #head-caption,
+    #benchmark-info,
+    #benchmark-status {
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    #benchmark-info:empty,
+    #benchmark-status:empty {
+      display: none;
+    }
+    #benchmark-info a {
+      overflow-wrap: anywhere;
+    }
+    .outcome-formula {
+      overflow-x: auto;
+      margin: 18px 0;
+      font-size: 19px;
+    }
+    .outcome-formula math {
+      min-width: max-content;
+    }
+    .source-choices {
+      flex-wrap: wrap;
+    }
+    .source-choices button {
+      min-width: 95px;
+    }
+    #data-columns {
+      margin-top: 16px;
+      font-size: 14px;
+    }
+    #data-columns summary {
+      cursor: pointer;
+      padding: 8px 0;
+    }
+    .column-cluster {
+      margin: 12px 0;
+    }
+    .column-choices {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 7px;
+      max-height: 260px;
+      overflow: auto;
+      padding: 10px;
+      border: 1px solid var(--line);
+    }
+    .column-choices label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      font-size: 13px;
+    }
+    .column-choices input {
+      width: auto;
+    }
+    .cluster-caption {
+      font-size: 14px;
+      fill: var(--ink);
+      paint-order: stroke;
+      stroke: var(--bg);
+      stroke-width: 4px;
+      stroke-linejoin: round;
+    }
+    #data-columns .mapping-row {
+      max-width: 540px;
+    }
+    .random-seeds {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .random-seeds input {
+      width: 100%;
+    }
+    .ground-truth {
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+      font-size: 14px;
+    }
+    .ground-truth strong {
+      display: block;
+    }
+    .upload-example {
+      font-size: 13px;
+      margin-top: 15px;
+    }
+    .upload-example p {
+      line-height: 1.7;
+    }
+    .graph-file-tools {
+      display: flex;
+      align-items: start;
+      gap: 12px;
+      margin: 12px 0;
+    }
+    .graph-file-tools details {
+      flex: 1;
+    }
+    .ce-native-select {
+      display: none !important;
+    }
+    .ce-picker {
+      display: inline-block;
+      width: 100%;
+      min-width: 0;
+    }
+    .ce-picker-button {
+      display: flex;
+      width: 100%;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 40px;
+      text-align: left;
+      white-space: normal;
+    }
+    .ce-picker-button > span:first-child {
+      overflow-wrap: anywhere;
+    }
+    .ce-picker-popup {
+      position: fixed;
+      z-index: 10000;
+      overflow: auto;
+      box-sizing: border-box;
+      padding: 3px;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      box-shadow: 0 7px 20px #193b3720;
+      border-radius: 5px;
+    }
+    .ce-picker-popup > button {
+      display: block;
+      text-align: left;
+      width: 100%;
+      border: 0;
+      border-radius: 2px;
+      min-height: 40px;
+      white-space: normal;
+      padding: 10px 13px;
+      background: transparent;
+    }
+    .ce-picker-popup > button[data-active="true"] {
+      background: var(--soft);
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }
+    .ce-picker-popup > button[aria-selected="true"] {
+      font-weight: 700;
+    }
+    .ce-picker-popup > button:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+    .query .ce-picker {
+      width: 155px;
+    }
+    #csv-drop {
+      border: 1px dashed var(--muted);
+      padding: 18px;
+      margin: 10px 0;
+    }
+    #csv-drop[data-over="true"] {
+      background: var(--soft);
+    }
+    #csv-paste {
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .upload-fallback {
+      font-size: 13px;
+      margin-top: 14px;
+    }
+  </style>
+  <main>
+    <a class="back" href="./">CausalEngine</a>
+    <a class="back" style="margin-left: 16px" href="./code.html">Code &amp; install</a>
+    <header>
+      <h1 class="engine-brand"><img src="./lab-logo.png" alt="" width="42" height="42" />CausalEngine</h1>
+      <div class="actions">
+        <label>Rows <input id="rows" type="number" min="0" max="5000" step="1" value="512" required /></label>
+        <button id="generate" class="primary">Generate Sample</button>
+      </div>
+    </header>
+    <section id="easy-view" aria-labelledby="easy-title">
+      <h2 id="easy-title" class="sr-only">Causal graph</h2>
+      <div id="easy-layout">
+        <div id="easy-controls">
+          <div class="easy-input">
+            <label for="easy-example">Causal structure</label
+            ><select id="easy-example">
+              <option value="adjustment">No unmeasured confounding</option>
+              <option value="frontdoor">Front-door</option>
+              <option value="sequential">No unmeasured confounding -- Sequential</option>
+              <option value="custom" hidden>Your edited model</option>
+            </select>
+          </div>
+          <div id="role-fields">
+            <div id="role-general">
+              <label>Treatment<input id="role-a" value="A" placeholder="A" /></label
+              ><label>Covariates<input id="role-c" value="X" placeholder="C1, C2, C3" /></label
+              ><label id="role-m-label" hidden>Mediators<input id="role-m" value="" placeholder="M1, M2" /></label
+              ><label>Outcomes<input id="role-y" value="Y" placeholder="Y1, Y2, Y3" /></label>
+            </div>
+            <div id="role-timeline" hidden>
+              <label
+                >Markovian order<select id="markov-order">
+                  <option value="full">Full history</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="custom">Other</option>
+                </select></label
+              ><label id="markov-k-label" hidden>Maximum direct lag<input id="markov-k" type="number" min="1" step="1" value="1" /></label>
+              <div id="role-stages"></div>
+              <button id="add-time" type="button">Add time</button>
+            </div>
+            <button id="apply-roles" type="button">Update graph</button>
+            <p id="role-error" role="alert"></p>
+            <p id="role-status" role="status"></p>
+          </div>
+          <div class="contrast-controls">
+            <label>Treatment value<input id="contrast-action" type="number" step="any" value="1" /></label><span>vs</span
+            ><label>Reference value<input id="contrast-reference" type="number" step="any" value="0" /></label>
+          </div>
+          <div class="action-buttons">
+            <button id="easy-identify" type="button">Identify</button><button id="easy-estimate" class="primary" type="button">Estimate</button>
+          </div>
+          <div id="estimate-options" hidden>
+            <div class="source-choices">
+              <button id="choose-csv" type="button">Upload CSV</button><button id="choose-random" type="button">Random Data</button
+              ><button id="choose-benchmark" type="button">Benchmarks</button>
+            </div>
+            <div id="benchmark-options" hidden>
+              <div class="benchmark-picker">
+                <label id="benchmark-label">Dataset</label
+                ><button
+                  id="benchmark-select"
+                  type="button"
+                  role="combobox"
+                  aria-labelledby="benchmark-label benchmark-value"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                  aria-controls="benchmark-list"
+                >
+                  <span id="benchmark-value">Choose dataset…</span><span aria-hidden="true">⌄</span>
+                </button>
+                <div id="benchmark-list" role="listbox" aria-labelledby="benchmark-label" hidden></div>
+              </div>
+              <div id="benchmark-info"></div>
+              <p id="benchmark-assumption" hidden>No unmeasured confounding</p>
+              <div class="source-choices">
+                <button id="benchmark-download" type="button" disabled>Download CSV</button
+                ><button id="benchmark-estimate" type="button" disabled>Estimate</button>
+              </div>
+              <p id="benchmark-status" role="status"></p>
+            </div>
+            <div id="csv-options" hidden>
+              <label class="file-label">CSV file<input id="csv-file" type="file" accept=".csv,text/csv" /></label>
+              <details class="upload-example">
+                <summary>Example CSV</summary>
+                <a href="./examples/upload-cluster.csv" download>Download example CSV</a
+                ><button id="load-example-csv" type="button">Load example</button>
+                <p>Treatment: <code>A</code><br />Covariates: <code>X (x1, …, x25)</code><br />Outcomes: <code>Y</code></p>
+              </details>
+              <details class="upload-fallback">
+                <summary>Other ways to load CSV</summary>
+                <div id="csv-drop" tabindex="0">Drop a CSV file here</div>
+                <label>Paste CSV<textarea id="csv-paste" rows="5" spellcheck="false"></textarea></label
+                ><button id="load-pasted-csv" type="button">Load pasted CSV</button>
+              </details>
+              <p id="csv-status" role="status"></p>
+              <div id="benchmark-analysis-note" role="status"></div>
+              <div id="csv-mapping"></div>
+            </div>
+            <div id="random-options" hidden>
+              <label>Records<input id="easy-records" type="number" min="1" max="5000" step="1" value="512" /></label>
+              <div id="random-dimensions"></div>
+              <div class="random-seeds">
+                <label>Model seed<input id="random-model-seed" type="number" min="0" max="4294967295" value="7" /></label
+                ><label>Data seed<input id="random-data-seed" type="number" min="0" max="4294967295" value="5" /></label>
+              </div>
+              <button id="generate-data" type="button">Generate Data</button>
+            </div>
+            <p id="data-error" role="alert"></p>
+            <button id="run-estimate" class="primary" type="button" hidden>Run estimate</button>
+          </div>
+          <p id="easy-progress" role="status" aria-live="polite"></p>
+          <section id="easy-result" hidden aria-live="polite">
+            <h3 id="result-heading">Results</h3>
+            <p id="batch-regime"></p>
+            <div id="outcome-results"></div>
+          </section>
+        </div>
+        <div id="easy-graph">
+          <div class="graph-heading">
+            <h3>Graph</h3>
+            <button id="auto-arrange" type="button">Auto arrange</button><button id="edit-selected" type="button">Node &amp; model settings</button>
+          </div>
+          <div id="graph-slot"></div>
+          <p id="layout-status" role="status"></p>
+          <div id="right-settings-slot" hidden>
+            <div class="settings-heading">
+              <h3>Node &amp; model settings</h3>
+              <button id="back-easy" type="button">Close settings</button>
+            </div>
+            <div id="settings-content"></div>
+          </div>
+        </div>
+      </div>
+      <section id="dataset-tools" hidden>
+        <div class="dataset-toolbar">
+          <h3 id="dataset-label">Data</h3>
+          <button id="head-data" type="button">Head</button><button id="download-data" type="button">Download CSV</button>
+        </div>
+        <div id="head-panel" hidden>
+          <div class="head-controls">
+            <label
+              >Rows<select id="head-rows">
+                <option value="5">5</option>
+                <option value="10">10</option>
+              </select></label
+            ><label
+              >Columns<select id="head-columns">
+                <option value="5">5</option>
+                <option value="10">10</option>
+              </select></label
+            ><label>Starting column<select id="head-start"></select></label>
+          </div>
+          <div class="data-table-scroll"><table id="head-table"></table></div>
+          <p id="head-caption" role="status"></p>
+        </div>
+      </section>
+      <div class="easy-help"><a href="./guide.html">Guide</a><a href="./examples.html">Examples</a></div>
+    </section>
+    <section id="editor-view" hidden>
+      <p id="status" role="status" aria-live="polite"></p>
+      <div class="layout">
+        <div class="canvas">
+          <div class="toolbar">
+            <details id="graph-input">
+              <summary>Graph</summary>
+              <form id="graph-form">
+                <label>Nodes <input id="graph-nodes" aria-label="Graph nodes" placeholder="X, A, Y, ~U" /></label>
+                <label
+                  >Edges
+                  <textarea id="graph-edges" aria-label="Graph edges or JSON" rows="5" placeholder="U -> A, Y&#10;A -> Y&#10;X -> A, Y"></textarea>
+                </label>
+                <p>~U: hidden · X[2]: cluster · X@180:240: position · JSON graph_dict accepted.</p>
+                <button id="load-graph" type="submit">Load graph</button>
+                <button id="examples" type="button">Library</button>
+                <select id="graph-library" aria-label="UCA graph library" hidden>
+                  <option value="">UCA graphs…</option>
+                </select>
+              </form>
+            </details>
+            <button id="reset">Reset</button>
+            <details>
+              <summary>Edit tools</summary>
+              <div class="actions">
+                <input id="new-name" value="V1" aria-label="New node name" /><button id="add-node">Add node</button>
+                <button id="move-mode" aria-pressed="true">Move</button><button id="edge-mode" aria-pressed="false">Edge</button>
+                <button id="remove">Delete</button><button id="restore-graph" type="button" hidden>Restore previous graph</button>
+              </div>
+            </details>
+          </div>
+          <svg id="canvas" viewBox="0 0 900 410" aria-label="Editable directed graph"></svg>
+        </div>
+        <div id="node-menu" role="dialog" aria-label="Node actions" hidden>
+          <input id="rename-input" aria-label="Rename node" />
+          <button id="rename-node">Rename</button><button id="connect-node">Connect</button>
+        </div>
+        <section id="query-panel" class="output" aria-label="Query">
+          <form id="identification-query" class="query">
+            <label
+              >Type<select id="query-type" aria-label="Query type">
+                <option value="interventional">Interventional</option>
+                <option value="counterfactual">Counterfactual</option>
+              </select></label
+            >
+            <label title="Observed intervention nodes, separated by commas; blank means no intervention."
+              >Treatment<input id="query-x" aria-label="Treatment nodes" value="A" placeholder="A, X"
+            /></label>
+            <label title="Observed outcome nodes, separated by commas."
+              >Outcome<input id="query-y" aria-label="Outcome nodes" value="Y" placeholder="Y" required
+            /></label>
+            <label
+              >Summary<select id="query-summary" aria-label="Query summary">
+                <option value="mean">Mean</option>
+                <option value="distribution" hidden>Distribution</option>
+                <option value="probability">Probability</option>
+                <option value="mean_difference">Mean difference</option>
+              </select></label
+            >
+            <label>Values<input id="query-values" class="assignments" aria-label="Intervention values JSON" value='{"A":1}' /></label>
+            <label id="reference-field" hidden
+              >Reference values<input id="query-reference" class="assignments" aria-label="Reference intervention values JSON" value='{"A":0}'
+            /></label>
+            <label id="evidence-field" hidden title="Values observed in the factual world."
+              >Factual evidence<input
+                id="query-evidence"
+                class="assignments"
+                aria-label="Factual evidence JSON"
+                value="{}"
+                placeholder='{"X":0,"A":1}'
+            /></label>
+            <div id="event-fields" class="actions" hidden>
+              <label>Event<select id="event-column" aria-label="Probability event column"></select></label>
+              <select id="event-op" aria-label="Probability event operator">
+                <option value=">=">≥</option>
+                <option value="<=">≤</option>
+                <option value="==">=</option>
+              </select>
+              <input id="event-value" type="number" step="any" aria-label="Probability event value" value="0" />
+            </div>
+            <label id="joint-event-field" hidden title='All conditions are combined with AND, for example {"A":["<=",0],"B":["<=",1]}.'
+              >Event<input id="joint-event" class="assignments" aria-label="Joint probability event JSON" value="{}" />
+            </label>
+            <button id="compute-query" type="button" class="primary" disabled>Compute</button>
+            <button id="analyze" type="submit">Identify</button>
+            <details>
+              <summary>Query options</summary>
+              <div class="actions">
+                <label>Draws<input id="query-draws" type="number" min="256" max="10000" value="2048" /></label>
+                <label title="A supplied back-door adjustment set; blank checks the empty set. Automatic BD search is separate."
+                  >Check Z<input id="query-z" aria-label="Supplied BD adjustment set Z" placeholder="∅"
+                /></label>
+                <label title="Shared search deadline. UNKNOWN means the search was not completed."
+                  >Budget<select id="search-budget" aria-label="Search budget">
+                    <option value="3">3 s</option>
+                    <option value="10">10 s</option>
+                    <option value="30">30 s</option>
+                  </select></label
+                >
+              </div>
+              <label
+                id="extrapolation-field"
+                title="Only for the UCA Sample estimate: continue beyond observed continuous training ranges. Results may be unreliable."
+                ><input id="allow-continuous-extrapolation" type="checkbox" checked /> Allow continuous extrapolation (UCA Sample)</label
+              >
+            </details>
+          </form>
+          <div id="query-formula" class="formula"></div>
+          <p id="query-status" role="status" aria-live="polite">Generate Sample for a data estimate.</p>
+          <div id="query-results" hidden>
+            <strong id="query-result-label">SCM Monte Carlo · approximate</strong>
+            <div class="scroll"><table id="query-estimates" aria-label="Sample and SCM query estimates"></table></div>
+            <details>
+              <summary>Method</summary>
+              <p id="query-diagnostics"></p>
+            </details>
+          </div>
+          <p id="analysis-status" role="status" aria-live="polite"></p>
+          <div id="identification-results" hidden>
+            <strong>ID <span id="id-status" class="verdict"></span></strong>
+            <div id="id-formula" class="formula"></div>
+            <details>
+              <summary>Details</summary>
+              <table id="criteria" aria-label="Identification criteria"></table>
+              <details>
+                <summary>Methods</summary>
+                <div id="other-methods"></div>
+              </details>
+              <details>
+                <summary>Query</summary>
+                <div id="generic-id-formula" class="formula"></div>
+                <div id="identified-law" class="formula"></div>
+                <div id="q-definitions" class="formula"></div>
+                <p>
+                  Σ denotes summation for discrete variables and integration for continuous variables; P denotes the corresponding probability mass or
+                  density.
+                </p>
+              </details>
+            </details>
+          </div>
+        </section>
+        <aside>
+          <h2 id="selection-title">X</h2>
+          <div id="properties">
+            <label><input id="observed" type="checkbox" checked /> Observed</label>
+            <label>Random Data dimension <input id="dimension" type="number" min="1" max="8" value="2" /></label>
+            <label
+              >Function
+              <select id="family">
+                <option value="">Random</option>
+                <option>linear</option>
+                <option>quadratic</option>
+                <option>bounded</option>
+                <option>binary</option>
+                <option value="neural_network">Neural network</option>
+                <option value="decision_tree">Decision tree</option>
+              </select></label
+            >
+          </div>
+          <div id="equation-view" class="specification" hidden>
+            <strong id="equation-title">Function template</strong>
+            <div id="applied-equation" class="formula"></div>
+            <small id="equation-state"></small>
+          </div>
+          <form id="mechanism" hidden>
+            <details id="function-settings">
+              <summary>Edit function</summary>
+              <strong id="parameter-state">Parameters</strong>
+              <div id="parameters"></div>
+              <button id="apply" type="submit">Apply</button>
+              <div class="specification">
+                <strong>Noise law</strong>
+                <div id="noise-law" class="formula"></div>
+              </div>
+            </details>
+          </form>
+        </aside>
+      </div>
+      <details>
+        <summary>SCM options</summary>
+        <div class="settings">
+          <label>Model seed <input id="model-seed" type="number" min="0" value="7" /></label>
+          <label>Data seed <input id="data-seed" type="number" min="0" value="5" /></label>
+          <label
+            >Noise
+            <select id="noise">
+              <option value="random">Random</option>
+              <option selected>normal</option>
+              <option>uniform</option>
+            </select></label
+          >
+        </div>
+      </details>
+      <section class="output" aria-label="Generated data">
+        <div class="actions"><strong id="result-title">Sample</strong><button id="download" disabled>CSV</button></div>
+        <div class="scroll"><table id="sample"></table></div>
+      </section>
+    </section>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id),
+      svg = $("canvas"),
+      RADIUS = 30,
+      NS = "http://www.w3.org/2000/svg";
+    let nodes,
+      edges,
+      bends = new Map(),
+      selected,
+      mode = "move",
+      source = null,
+      drag = null,
+      revision = 0,
+      model = null,
+      token = null,
+      sample = null,
+      busy = false,
+      dirty = false,
+      draft = null,
+      shown = "",
+      analysisRevision = 0,
+      queryRevision = 0,
+      graphKey = "",
+      identificationCache = new Map(),
+      library = [];
+    function message(text, error = false) {
+      $("status").textContent = text;
+      $("status").className = error ? "error" : "";
+    }
+    function analysisMessage(text, error = false) {
+      $("analysis-status").textContent = text;
+      $("analysis-status").className = error ? "error" : "";
+    }
+    function queryMessage(text, error = false, info = false) {
+      $("query-status").textContent = text;
+      $("query-status").className = error ? "error" : info ? "info" : "";
+    }
+    const distributionNotice = "Choose Probability to compute an event.";
+    function clearComputation() {
+      queryRevision++;
+      $("query-results").hidden = true;
+      queryMessage(
+        $("query-summary").value === "distribution" ? distributionNotice : !sample && !busy && !dirty ? "Generate Sample for a data estimate." : ""
+      );
+    }
+    function graphSignature() {
+      return JSON.stringify([nodes.map(({ name, observed }) => [name, observed]).sort(), edges.map((edge) => [...edge]).sort()]);
+    }
+    function clearAnalysis() {
+      analysisRevision++;
+      identificationCache.clear();
+      $("identification-results").hidden = true;
+      $("criteria").replaceChildren();
+      $("other-methods").replaceChildren();
+      analysisMessage("");
+    }
+    function controls() {
+      let identify = true;
+      try {
+        queryEvidence(true);
+      } catch {
+        identify = false;
+      }
+      $("analyze").disabled = busy || !identify;
+      $("compute-query").hidden = $("query-summary").value === "distribution";
+      $("compute-query").disabled = busy || dirty || !model;
+      $("load-graph").disabled = busy;
+      $("examples").disabled = busy;
+      $("graph-library").disabled = busy;
+      $("generate").disabled = busy || dirty;
+      $("apply").disabled = busy || !dirty;
+      $("download").disabled = !sample;
+      for (const el of document.querySelectorAll(
+        "#mechanism input,#mechanism textarea,#mechanism select,#properties input,#properties select,#graph-form input,#graph-form textarea,.settings input,.settings select,#rows"
+      ))
+        el.disabled = busy;
+      $("family").disabled = busy || !nodes?.find((n) => n.name === selected?.name)?.observed;
+      $("family").options[0].disabled = Boolean(model);
+    }
+    function invalidate(definition = true) {
+      revision++;
+      sample = null;
+      $("sample").replaceChildren();
+      $("result-title").textContent = "Sample";
+      if (definition) {
+        model = token = draft = null;
+        window.causalEngineRandomKey = null;
+        window.causalEngineRandomBindings = null;
+        shown = "";
+        dirty = false;
+        $("mechanism").hidden = true;
+      }
+      clearComputation();
+      showEquation();
+      controls();
+      message("");
+    }
+    function element(tag, attributes = {}, text) {
+      const el = document.createElementNS(NS, tag);
+      for (const [name, value] of Object.entries(attributes)) el.setAttribute(name, value);
+      if (text !== undefined) el.textContent = text;
+      return el;
+    }
+    function render() {
+      const next = graphSignature();
+      if (next !== graphKey) {
+        graphKey = next;
+        const keys = new Set(edges.map((edge) => JSON.stringify(edge)));
+        for (const key of bends.keys()) if (!keys.has(key)) bends.delete(key);
+        clearAnalysis();
+        $("graph-library").value = "";
+      }
+      svg.replaceChildren();
+      const defs = element("defs"),
+        arrow = element("marker", {
+          id: "arrow",
+          viewBox: "0 0 10 10",
+          refX: 9,
+          refY: 5,
+          markerWidth: 6,
+          markerHeight: 6,
+          orient: "auto-start-reverse",
+        });
+      arrow.append(element("path", { d: "M 0 0 L 10 5 L 0 10 z", fill: "var(--muted)" }));
+      defs.append(arrow);
+      svg.append(defs);
+      for (const [a, b] of edges) {
+        const from = nodes.find((n) => n.name === a),
+          to = nodes.find((n) => n.name === b),
+          bend = bends.get(JSON.stringify([a, b])),
+          control = { x: (from.x + to.x) / 2 + (bend?.x || 0), y: (from.y + to.y) / 2 + (bend?.y || 0) },
+          endpoint = (node, target, fallback) => {
+            const direction = Math.hypot(target.x - node.x, target.y - node.y) ? target : fallback,
+              dx = direction.x - node.x,
+              dy = direction.y - node.y,
+              length = Math.hypot(dx, dy) || 1;
+            return `${node.x + (dx / length) * RADIUS} ${node.y + (dy / length) * RADIUS}`;
+          },
+          d = bend
+            ? `M ${endpoint(from, control, to)} Q ${control.x} ${control.y} ${endpoint(to, control, from)}`
+            : `M ${endpoint(from, to, to)} L ${endpoint(to, from, from)}`;
+        const group = element("g", { "data-edge": JSON.stringify([a, b]), role: "button", tabindex: 0, "aria-label": `${a} → ${b}` });
+        group.append(
+          element("path", { d, class: `edge ${selected?.edge?.[0] === a && selected.edge[1] === b ? "selected" : ""}`, "marker-end": "url(#arrow)" }),
+          element("path", { d, class: "edge-hit" })
+        );
+        svg.append(group);
+      }
+      for (const node of nodes) {
+        const active = selected?.name === node.name || source === node.name;
+        const group = element("g", {
+          "data-node": node.name,
+          transform: `translate(${node.x},${node.y})`,
+          class: `node ${node.observed ? "" : "hidden"} ${active ? "selected" : ""}`,
+          role: "button",
+          tabindex: 0,
+          "aria-label": `Node ${node.name}, dimension ${node.dimension}`,
+        });
+        group.append(
+          element("title", {}, node.name),
+          element("circle", { r: RADIUS }),
+          element(
+            "text",
+            {
+              "text-anchor": "middle",
+              y: 5,
+              "font-size": node.name.length > 3 ? 12 : 17,
+              "font-weight": 600,
+              ...(node.name.length > 3 ? { textLength: 50, lengthAdjust: "spacingAndGlyphs" } : {}),
+            },
+            node.name.length > 8 ? `${node.name.slice(0, 7)}…` : node.name
+          )
+        );
+        svg.append(group);
+      }
+    }
+    function select(value) {
+      if (selected?.name !== value?.name) {
+        dirty = false;
+        shown = "";
+        draft = null;
+        $("mechanism").hidden = true;
+      }
+      selected = value;
+      const node = nodes.find((n) => n.name === value?.name);
+      $("properties").hidden = !node;
+      $("selection-title").textContent = node ? node.name : value?.edge ? `${value.edge[0]} → ${value.edge[1]}` : "Selection";
+      if (node) {
+        $("observed").checked = node.observed;
+        $("dimension").value = node.dimension;
+        $("family").value = model?.variables[node.name]?.parameters.family || node.family;
+        $("family").disabled = !node.observed;
+      }
+      $("family").closest("label").hidden = !node?.observed;
+      showEquation();
+      if (!node || !model) $("mechanism").hidden = true;
+      else inspectNode(node.name);
+      render();
+    }
+    function setMode(value) {
+      mode = value;
+      source = null;
+      $("move-mode").setAttribute("aria-pressed", value === "move");
+      $("edge-mode").setAttribute("aria-pressed", value === "edge");
+      render();
+    }
+    function connects(start, end) {
+      const pending = [start],
+        seen = new Set();
+      while (pending.length) {
+        const name = pending.pop();
+        if (name === end) return true;
+        if (seen.has(name)) continue;
+        seen.add(name);
+        for (const [a, b] of edges) if (a === name) pending.push(b);
+      }
+      return false;
+    }
+    function addEdge(target) {
+      if (!source) {
+        source = target;
+        render();
+        return;
+      }
+      const from = source;
+      source = null;
+      if (from === target || connects(target, from)) message("A directed acyclic graph cannot contain a self-loop or cycle.", true);
+      else if (!nodes.find((n) => n.name === target).observed) message("A hidden root cannot have an incoming edge.", true);
+      else if (!edges.some(([a, b]) => a === from && b === target)) {
+        edges.push([from, target]);
+        invalidate();
+      }
+      render();
+    }
+    function point(event) {
+      return new DOMPoint(event.clientX, event.clientY).matrixTransform(svg.getScreenCTM().inverse());
+    }
+    function nextName() {
+      let i = 1;
+      while (nodes.some((n) => n.name === `V${i}`)) i++;
+      return `V${i}`;
+    }
+    function availableName(name, current) {
+      return /^[A-Za-z][A-Za-z0-9_]*$/.test(name) && !nodes.some((n) => n.name === name && n !== current);
+    }
+    function createNode(name, x, y) {
+      if (!availableName(name)) {
+        message("Use a unique name starting with a letter.", true);
+        return;
+      }
+      if (nodes.length >= 100) {
+        message("Use at most 100 nodes.", true);
+        return;
+      }
+      nodes.push({
+        name,
+        observed: true,
+        dimension: 1,
+        family: "",
+        x: Math.max(60, Math.min(svg.viewBox.baseVal.width - 60, x)),
+        y: Math.max(40, Math.min(svg.viewBox.baseVal.height - 40, y)),
+      });
+      $("new-name").value = nextName();
+      invalidate();
+      select({ name });
+    }
+    function openMenu(name, x, y) {
+      select({ name });
+      $("rename-input").value = name;
+      const menu = $("node-menu");
+      menu.style.left = `${Math.max(8, Math.min(x, innerWidth - 236))}px`;
+      menu.style.top = `${Math.max(8, Math.min(y, innerHeight - 145))}px`;
+      menu.hidden = false;
+    }
+    document.addEventListener("pointerdown", (event) => {
+      if (!event.target.closest("#node-menu")) $("node-menu").hidden = true;
+    });
+    $("rename-node").onclick = () => {
+      const old = selected?.name,
+        node = nodes.find((n) => n.name === old),
+        name = $("rename-input").value.trim();
+      if (!node) return;
+      if (!availableName(name, node)) {
+        message("Use a unique name starting with a letter.", true);
+        return;
+      }
+      node.name = name;
+      edges = edges.map((edge) => edge.map((n) => (n === old ? name : n)));
+      bends = new Map([...bends].map(([key, value]) => [JSON.stringify(JSON.parse(key).map((n) => (n === old ? name : n))), value]));
+      if (source === old) source = name;
+      $("node-menu").hidden = true;
+      invalidate();
+      select({ name });
+    };
+    $("rename-input").onkeydown = (event) => {
+      if (event.key === "Enter") $("rename-node").click();
+    };
+    $("connect-node").onclick = () => {
+      setMode("edge");
+      source = selected.name;
+      $("node-menu").hidden = true;
+      render();
+    };
+    svg.ondblclick = (event) => {
+      if (event.target.closest("[data-node],[data-edge]")) return;
+      const p = point(event);
+      createNode(nextName(), p.x, p.y);
+    };
+    svg.onpointerdown = (event) => {
+      if (event.button !== 0) return;
+      const nodeElement = event.target.closest("[data-node]"),
+        edgeElement = event.target.closest("[data-edge]");
+      if (nodeElement) {
+        const name = nodeElement.dataset.node;
+        select({ name });
+        const node = nodes.find((n) => n.name === name),
+          p = point(event);
+        drag = { node, x: node.x, y: node.y, dx: p.x - node.x, dy: p.y - node.y, startX: event.clientX, startY: event.clientY, moved: false };
+        svg.setPointerCapture(event.pointerId);
+      } else if (edgeElement) {
+        const edge = JSON.parse(edgeElement.dataset.edge),
+          p = point(event),
+          key = JSON.stringify(edge);
+        select({ edge });
+        drag = { edge, key, offset: bends.get(key) || { x: 0, y: 0 }, dx: p.x, dy: p.y, startX: event.clientX, startY: event.clientY, moved: false };
+        svg.setPointerCapture(event.pointerId);
+      }
+    };
+    svg.onpointermove = (event) => {
+      if (!drag) return;
+      const p = point(event);
+      drag.moved ||= Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4;
+      if (!drag.moved) return;
+      if (drag.edge) bends.set(drag.key, { x: drag.offset.x + 2 * (p.x - drag.dx), y: drag.offset.y + 2 * (p.y - drag.dy) });
+      else {
+        drag.node.x = Math.max(60, Math.min(svg.viewBox.baseVal.width - 60, p.x - drag.dx));
+        drag.node.y = Math.max(40, Math.min(svg.viewBox.baseVal.height - 40, p.y - drag.dy));
+      }
+      render();
+    };
+    svg.onpointerup = (event) => {
+      if (!drag) return;
+      if (drag.edge) {
+        drag = null;
+        if ($("graph-input").open) graphText();
+        return;
+      }
+      const { node, x, y, moved } = drag;
+      drag = null;
+      if (!moved) {
+        if (mode === "edge") addEdge(node.name);
+        else openMenu(node.name, event.clientX, event.clientY);
+      } else {
+        const p = point(event),
+          target = nodes.find((n) => n !== node && Math.hypot(p.x - n.x, p.y - n.y) <= RADIUS);
+        if (target) {
+          node.x = x;
+          node.y = y;
+          source = node.name;
+          addEdge(target.name);
+        }
+      }
+    };
+    svg.onpointercancel = () => {
+      drag = null;
+    };
+    svg.onkeydown = (event) => {
+      const node = event.target.closest("[data-node]"),
+        edge = event.target.closest("[data-edge]");
+      if (event.key === "Enter" && node) mode === "edge" ? addEdge(node.dataset.node) : select({ name: node.dataset.node });
+      if (event.key === "Enter" && edge) select({ edge: JSON.parse(edge.dataset.edge) });
+    };
+    $("add-node").onclick = () => {
+      createNode($("new-name").value.trim(), 130 + (nodes.length % 5) * 135, 100 + ((Math.floor(nodes.length / 5) * 55) % 250));
+    };
+    $("remove").onclick = () => {
+      if (busy || !selected) return;
+      $("node-menu").hidden = true;
+      if (selected.name) {
+        nodes = nodes.filter((n) => n.name !== selected.name);
+        edges = edges.filter(([a, b]) => a !== selected.name && b !== selected.name);
+      } else edges = edges.filter(([a, b]) => a !== selected.edge[0] || b !== selected.edge[1]);
+      source = null;
+      invalidate();
+      select(null);
+    };
+    document.addEventListener("keydown", (event) => {
+      if (!event.target.closest("#canvas")) return;
+      if (!["Delete", "Backspace"].includes(event.key) || !selected || event.target.closest("input,textarea,select,[contenteditable],#node-menu"))
+        return;
+      event.preventDefault();
+      $("remove").click();
+    });
+    for (const id of ["observed", "dimension", "family"])
+      $(id).onchange = () => {
+        const node = nodes.find((n) => n.name === selected?.name);
+        if (!node) return;
+        if (id === "family" && model) {
+          dirty = true;
+          invalidate(false);
+          changeFunction({ family: $("family").value });
+          return;
+        }
+        const dimension = Number($("dimension").value),
+          observed = $("observed").checked;
+        if (!Number.isInteger(dimension) || dimension < 1 || dimension > 8) {
+          message("Dimension must be an integer from 1 to 8.", true);
+          $("dimension").value = node.dimension;
+          return;
+        }
+        if (!observed && edges.some(([, b]) => b === node.name)) {
+          message("A node with parents cannot be a hidden root.", true);
+          $("observed").checked = true;
+          return;
+        }
+        node.dimension = dimension;
+        node.observed = observed;
+        node.family = $("family").value;
+        invalidate();
+        select({ name: node.name });
+      };
+    for (const id of ["model-seed", "noise"]) $(id).onchange = () => invalidate();
+    for (const id of ["data-seed", "rows"]) $(id).onchange = () => invalidate(false);
+    $("move-mode").onclick = () => setMode("move");
+    $("edge-mode").onclick = () => setMode("edge");
+    function nodeSpec(text) {
+      const match = /^(~)?([A-Za-z][A-Za-z0-9_]*)(?:\[(\d+)\])?(?:@([^:\s,]+):([^:\s,]+))?$/.exec(text);
+      if (!match) throw Error("Use X, ~U, X[2], or X@180:240.");
+      return {
+        name: match[2],
+        observed: !match[1],
+        dimension: Number(match[3] || 1),
+        ...(match[4] ? { x: Number(match[4]), y: Number(match[5]) } : {}),
+      };
+    }
+    function typedGraph() {
+      const text = $("graph-edges").value.trim(),
+        json = /^[{[]/.test(text) ? JSON.parse(text) : null;
+      if (json && !Array.isArray(json) && "nodes" in json && "edges" in json) return json;
+      const declared = $("graph-nodes")
+        .value.trim()
+        .split(/[\s,]+/)
+        .filter(Boolean)
+        .map(nodeSpec);
+      if (new Set(declared.map((n) => n.name)).size !== declared.length) throw Error("Node names must be unique.");
+      if (json) {
+        if (Array.isArray(json)) return { nodes: declared, edges: json };
+        if ("edges" in json && "bends" in json) return { nodes: declared, ...json };
+        const pairs = Object.entries(json).flatMap(([from, children]) => {
+          if (!Array.isArray(children)) throw Error("Each graph_dict value must be a child list.");
+          return children.map((to) => [from, to]);
+        });
+        const names = [...new Set([...Object.keys(json), ...pairs.map(([, to]) => to)])];
+        return { nodes: names.map((name) => declared.find((n) => n.name === name) || { name }), edges: pairs };
+      }
+      const pairs = [];
+      for (const line of text
+        .split(/[\n;]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)) {
+        const parts = line.split(/\s*(?:->|→)\s*/);
+        if (parts.length === 1) declared.push(nodeSpec(parts[0]));
+        else if (parts.length === 2 && parts[0] && parts[1].trim())
+          for (const to of parts[1].split(/[\s,]+/).filter(Boolean)) pairs.push([parts[0], to]);
+        else throw Error("Use one source -> child list per line.");
+      }
+      return { nodes: declared, edges: pairs };
+    }
+    function validateGraph(graph) {
+      if (
+        !graph ||
+        !Array.isArray(graph.nodes) ||
+        !Array.isArray(graph.edges) ||
+        !graph.nodes.length ||
+        graph.nodes.length > 100 ||
+        graph.edges.length > 2500
+      )
+        throw Error("Use 1–100 nodes and at most 2500 edges.");
+      const names = new Set(),
+        next = graph.nodes.map((entry, i) => {
+          const item = typeof entry === "string" ? { name: entry } : entry;
+          if (!item || typeof item.name !== "string" || !/^[A-Za-z][A-Za-z0-9_]*$/.test(item.name) || names.has(item.name))
+            throw Error("Node names must be valid and unique.");
+          names.add(item.name);
+          const node = {
+            observed: !item.name.startsWith("U"),
+            dimension: 1,
+            family: "linear",
+            x: 100 + (i % 5) * 150,
+            y: 80 + Math.floor(i / 5) * 32,
+            ...item,
+          };
+          if (typeof node.observed !== "boolean" || !Number.isInteger(node.dimension) || node.dimension < 1 || node.dimension > 8)
+            throw Error("Use observed true/false and dimensions from 1 to 8.");
+          if (![...$("family").options].some((o) => o.value === node.family)) throw Error("Unknown function family.");
+          if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) throw Error("Node positions must be finite.");
+          node.x = Math.max(60, Math.min(svg.viewBox.baseVal.width - 60, node.x));
+          node.y = Math.max(40, Math.min(svg.viewBox.baseVal.height - 40, node.y));
+          return node;
+        }),
+        pairs = [],
+        seen = new Set(),
+        incoming = new Map(next.map((n) => [n.name, 0]));
+      for (const pair of graph.edges) {
+        if (!Array.isArray(pair) || pair.length !== 2 || pair.some((name) => !names.has(name)))
+          throw Error("Every edge must connect two declared nodes.");
+        const [from, to] = pair,
+          target = next.find((n) => n.name === to);
+        if (from === to) throw Error("Self-loops are not allowed.");
+        if (!target.observed || to.startsWith("U")) throw Error("Hidden and U-prefixed nodes must have no incoming edge.");
+        const key = JSON.stringify(pair);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        pairs.push(pair);
+        incoming.set(to, incoming.get(to) + 1);
+      }
+      const pending = next.filter((n) => !incoming.get(n.name)).map((n) => n.name);
+      let visited = 0;
+      while (pending.length) {
+        const from = pending.pop();
+        visited++;
+        for (const [a, b] of pairs)
+          if (a === from) {
+            incoming.set(b, incoming.get(b) - 1);
+            if (!incoming.get(b)) pending.push(b);
+          }
+      }
+      if (visited !== next.length) throw Error("Directed cycles are not allowed.");
+      const curves = graph.bends === undefined ? [] : graph.bends,
+        curveKeys = new Set();
+      if (!Array.isArray(curves)) throw Error("Bends must be an array of [source, target, x, y].");
+      for (const curve of curves) {
+        const key = Array.isArray(curve) && JSON.stringify(curve.slice(0, 2));
+        if (
+          !Array.isArray(curve) ||
+          curve.length !== 4 ||
+          !seen.has(key) ||
+          curveKeys.has(key) ||
+          !curve.slice(2).every((v) => typeof v === "number" && Number.isFinite(v))
+        )
+          throw Error("Each bend needs one existing edge and finite x/y offsets.");
+        curveKeys.add(key);
+      }
+      for (const key of ["X", "Y", "Z"])
+        if (key in graph && (!Array.isArray(graph[key]) || graph[key].some((name) => !next.some((n) => n.name === name && n.observed))))
+          throw Error("Query roles must contain observed node names.");
+      return { ...graph, nodes: next, edges: pairs, bends: curves.map((curve) => [...curve]) };
+    }
+    function graphText() {
+      $("graph-nodes").value = nodes
+        .map((n) => (n.observed ? "" : "~") + n.name + (n.dimension > 1 ? "[" + n.dimension + "]" : "") + "@" + n.x + ":" + n.y)
+        .join(", ");
+      $("graph-edges").value = bends.size
+        ? JSON.stringify({ edges, bends: [...bends].map(([key, value]) => [...JSON.parse(key), value.x, value.y]) }, null, 2)
+        : edges.map(([a, b]) => a + " -> " + b).join("\n");
+    }
+    function loadGraph(input) {
+      const graph = validateGraph(input);
+      nodes = graph.nodes;
+      edges = graph.edges;
+      bends = new Map(graph.bends.map(([a, b, x, y]) => [JSON.stringify([a, b]), { x, y }]));
+      for (const [key, id] of [
+        ["X", "query-x"],
+        ["Y", "query-y"],
+        ["Z", "query-z"],
+      ])
+        if (key in graph) $(id).value = graph[key].join(", ");
+      const defaults = (value) =>
+        Object.fromEntries(
+          queryNames("query-x").map((name) => {
+            const dimension = nodes.find((n) => n.name === name)?.dimension || 1;
+            return [name, dimension > 1 ? Array(dimension).fill(value) : value];
+          })
+        );
+      $("query-values").value = JSON.stringify(defaults(1));
+      $("query-reference").value = JSON.stringify(defaults(0));
+      $("query-evidence").value = "{}";
+      $("node-menu").hidden = true;
+      invalidate();
+      setMode("move");
+      select({ name: graph.X?.[0] || graph.Y?.[0] || nodes.find((n) => n.observed)?.name || nodes[0].name });
+      $("new-name").value = nextName();
+      graphText();
+      clearAnalysis();
+      updateQuery();
+      const roles = [...queryNames("query-x"), ...queryNames("query-y")];
+      analysisMessage(
+        roles.every((name) => nodes.some((n) => n.name === name && n.observed)) && queryNames("query-y").length
+          ? ""
+          : "Choose Treatment and Outcome from this graph."
+      );
+    }
+    $("graph-input").ontoggle = () => {
+      if ($("graph-input").open) graphText();
+    };
+    $("graph-form").onsubmit = (event) => {
+      event.preventDefault();
+      try {
+        loadGraph(typedGraph());
+      } catch (error) {
+        message(error.message, true);
+      }
+    };
+    $("reset").onclick = () =>
+      loadGraph({
+        nodes: [
+          { name: "U", observed: false, dimension: 1, family: "", x: 160, y: 170 },
+          { name: "X", observed: true, dimension: 1, family: "linear", x: 460, y: 75 },
+          { name: "A", observed: true, dimension: 1, family: "linear", x: 300, y: 75 + 160 * Math.sqrt(3) },
+          { name: "Y", observed: true, dimension: 1, family: "linear", x: 620, y: 75 + 160 * Math.sqrt(3) },
+        ],
+        edges: [
+          ["U", "A"],
+          ["U", "X"],
+          ["A", "Y"],
+          ["X", "A"],
+          ["X", "Y"],
+        ],
+        X: ["A"],
+        Y: ["Y"],
+        Z: [],
+      });
+    let worker = null,
+      requestId = 0;
+    function request(action, payload) {
+      worker ||= new Worker("./scm-worker.js", { type: "module" });
+      const active = worker,
+        id = ++requestId;
+      return new Promise((resolve, reject) => {
+        const cleanup = () => {
+          clearTimeout(timer);
+          active.removeEventListener("message", receive);
+          active.removeEventListener("error", failed);
+        };
+        const failed = () => {
+          cleanup();
+          active.terminate();
+          if (worker === active) worker = null;
+          if (action !== "prepare" || model) invalidate();
+          reject(Error("Calculator stopped. Please retry."));
+        };
+        const receive = (event) => {
+          if (event.data.id !== id) return;
+          if (event.data.message) {
+            if (action !== "inspect" && action !== "prepare")
+              (action === "query" || action === "compare"
+                ? queryMessage
+                : action === "identify" || action === "examples"
+                  ? analysisMessage
+                  : message)(event.data.message);
+            return;
+          }
+          cleanup();
+          event.data.error ? reject(Error(event.data.error)) : resolve(event.data.result);
+        };
+        const timer = action === "prepare" ? null : setTimeout(failed, 120000);
+        active.addEventListener("message", receive);
+        active.addEventListener("error", failed);
+        active.postMessage({ id, action, payload });
+      });
+    }
+    function install(result) {
+      model = result.model;
+      token = result.token;
+      window.causalEngineRandomKey = result.random_key || null;
+      window.causalEngineRandomBindings = result.random_bindings || null;
+      showEquation();
+      clearComputation();
+      updateQuery();
+    }
+    async function perform(task, report = message) {
+      if (busy) return;
+      busy = true;
+      controls();
+      try {
+        await task();
+      } catch (error) {
+        report(error.message, true);
+      } finally {
+        busy = false;
+        controls();
+        if (model && selected?.name) inspectNode(selected.name);
+      }
+    }
+    function outputName(variable, index, name = selected?.name) {
+      return variable.columns?.[index] || (variable.shape?.length ? name + "[" + index + "]" : name);
+    }
+    function m(tag, ...children) {
+      const node = document.createElementNS("http://www.w3.org/1998/Math/MathML", tag);
+      node.append(...children.map((child) => (child instanceof Node ? child : document.createTextNode(String(child)))));
+      return node;
+    }
+    const fence = (body, left = "(", right = ")") => m("mrow", m("mo", left), body, m("mo", right)),
+      mathList = (items) => m("mrow", ...items.flatMap((item, i) => (i ? [m("mo", ","), item] : [item])));
+    function mathName(name) {
+      const coordinate = /^(.*)\[(\d+)\]$/.exec(name);
+      return coordinate ? m("msub", m("mi", coordinate[1]), m("mn", coordinate[2])) : m("mi", name);
+    }
+    function dummyName(name, used) {
+      let alias = name.toLowerCase();
+      while (used.has(alias)) alias += "′";
+      used.add(alias);
+      return alias;
+    }
+    function mathArgument(argument, aliases = new Map(), values = {}) {
+      if (Object.hasOwn(argument, "value")) return assignmentMath({ [argument.variable]: argument.value });
+      if (!aliases.has(argument.label) && argument.label === argument.variable && Object.hasOwn(values, argument.variable))
+        return assignmentMath({ [argument.variable]: values[argument.variable] });
+      const copy = /@([0-9]+)$/.exec(argument.label || ""),
+        alias = aliases.get(argument.label);
+      return alias || copy
+        ? m(
+            "mrow",
+            mathName(argument.variable),
+            m("mo", "="),
+            alias ? mathName(alias) : m("msub", mathName(argument.variable.toLowerCase()), m("mn", copy[1]))
+          )
+        : mathName(argument.label || argument.variable);
+    }
+    function formulaNode(tree, budget = { remaining: 5000, used: new Set(nodes.map((n) => n.name)) }, depth = 0, aliases = new Map(), values = {}) {
+      if (!tree || --budget.remaining < 0 || depth > 96) throw Error("Formula display limit.");
+      if (tree.type === "expectation" && tree.outcomes.length > 1) throw Error("Multiple outcomes require Probability or Distribution.");
+      const child = (value, scope = aliases) => formulaNode(value, budget, depth + 1, scope, values),
+        argument = (value) => mathArgument(value, aliases, values);
+      if (tree.type === "number") return m("mn", tree.value);
+      if (["probability", "expectation", "event"].includes(tree.type))
+        return m(
+          "mrow",
+          m("mi", tree.type === "expectation" ? "E" : tree.source || "P"),
+          fence(
+            m(
+              "mrow",
+              tree.type === "event" ? eventMath(aliases) : mathList(tree.outcomes.map(argument)),
+              ...(tree.given.length ? [m("mo", "|"), mathList(tree.given.map(argument))] : [])
+            ),
+            tree.type === "expectation" ? "[" : "(",
+            tree.type === "expectation" ? "]" : ")"
+          )
+        );
+      if (tree.type === "kernel")
+        return m(
+          "mrow",
+          m("msub", m("mi", "Q"), mathList(tree.nodes.map(mathName))),
+          ...(tree.arguments?.length ? [fence(mathList(tree.arguments.map(argument)))] : [])
+        );
+      if (tree.type === "sum") {
+        const scope = new Map(aliases),
+          variables = tree.variables.map((variable) => {
+            const alias = dummyName(variable.variable, budget.used);
+            scope.set(variable.label, alias);
+            return mathName(alias);
+          });
+        return m("mrow", m("munder", m("mo", "∑"), mathList(variables)), fence(child(tree.body, scope)));
+      }
+      if (tree.type === "extract") return m("mrow", m("msub", m("mi", "δ"), mathList(tree.nodes.map(mathName))), child(tree.body));
+      if (tree.type === "ratio") return m("mfrac", child(tree.numerator), child(tree.denominator));
+      if (tree.type === "add") return m("mrow", child(tree.left), m("mo", "+"), child(tree.right));
+      if (tree.type === "product")
+        return tree.factors.length
+          ? m(
+              "mrow",
+              ...tree.factors.flatMap((factor, i) => [
+                ...(i ? [m("mo", "·")] : []),
+                ["sum", "add"].includes(factor.type) ? fence(child(factor)) : child(factor),
+              ])
+            )
+          : m("mn", 1);
+      throw Error("Unknown formula node.");
+    }
+    function showFormula(container, tree, raw = "", values = {}) {
+      container.replaceChildren();
+      if (tree && !completeFormula(tree)) {
+        container.textContent = "Observable formula expansion is not available.";
+        return;
+      }
+      if (!tree) {
+        if (raw) container.textContent = "Formula source is in Details.";
+        return;
+      }
+      try {
+        const math = m("math", formulaNode(tree, undefined, 0, undefined, values));
+        math.setAttribute("display", "block");
+        container.append(math);
+      } catch {
+        container.textContent = "Formula is too large to display; see Details.";
+      }
+    }
+    function equationMath(variable, name) {
+      const epsilon = (output) => m("msub", m("mi", "ε"), mathName(output)),
+        sub = (label, index) => m("msub", m("mi", label), index instanceof Node ? index : m("mn", index)),
+        rows = [],
+        line = (left, operator, right) => rows.push(m("mtr", m("mtd", left, m("mo", operator), right)));
+      if (!variable.observed) line(mathName(name), "=", epsilon(name));
+      else
+        for (const [i, p] of (variable.equation.parameters.coordinates || [variable.equation.parameters]).entries()) {
+          const output = outputName(variable, i, name),
+            inputs = p.parents || Object.keys(p.coefficients || {}),
+            noise = epsilon(output);
+          if (p.kind === "neural_network") {
+            line(sub("h", 0), "=", fence(mathList(inputs.map(mathName)), "[", "]"));
+            line(
+              sub("h", m("mi", "ℓ")),
+              "=",
+              m(
+                "mrow",
+                m("mi", p.activation),
+                fence(
+                  m("mrow", sub("h", m("mrow", m("mi", "ℓ"), m("mo", "−"), m("mn", 1))), sub("W", m("mi", "ℓ")), m("mo", "+"), sub("b", m("mi", "ℓ")))
+                )
+              )
+            );
+            rows.push(m("mtr", m("mtd", m("mtext", "ℓ = 1…" + p.depth))));
+            line(mathName(output), "=", m("mrow", sub("h", p.depth), m("mi", "v"), m("mo", "+"), m("mn", p.intercept), m("mo", "+"), noise));
+          } else if (p.kind === "decision_tree" && p.depth) {
+            line(m("mi", "x"), "=", fence(mathList(inputs.map(mathName)), "[", "]"));
+            line(sub("k", 0), "=", m("mn", 0));
+            const k = () => sub("k", m("mi", "ℓ"));
+            line(
+              sub("k", m("mrow", m("mi", "ℓ"), m("mo", "+"), m("mn", 1))),
+              "=",
+              m(
+                "mrow",
+                m("mn", 2),
+                k(),
+                m("mo", "+"),
+                m("mn", 1),
+                m("mo", "+"),
+                m("mi", "𝟙"),
+                fence(m("mrow", sub("x", sub("feature", k())), m("mo", ">"), sub("threshold", k())), "[", "]")
+              )
+            );
+            rows.push(m("mtr", m("mtd", m("mtext", "ℓ = 0…" + (p.depth - 1)))));
+            line(
+              mathName(output),
+              "=",
+              m("mrow", sub("leaf", m("mrow", sub("k", p.depth), m("mo", "−"), m("mn", 2 ** p.depth - 1))), m("mo", "+"), noise)
+            );
+          } else {
+            const signal = m("mtable", m("mtr", m("mtd", m("mn", p.kind === "decision_tree" ? p.leaves[0] : p.intercept))));
+            signal.setAttribute("columnalign", "left");
+            for (const [input, coefficient] of Object.entries(p.coefficients || {}))
+              signal.append(
+                m(
+                  "mtr",
+                  m(
+                    "mtd",
+                    m("mo", coefficient < 0 ? "−" : "+"),
+                    m("mn", Math.abs(coefficient)),
+                    m("mo", "·"),
+                    p.kind === "quadratic" ? m("msup", mathName(input), m("mn", 2)) : mathName(input)
+                  )
+                )
+              );
+            signal.append(m("mtr", m("mtd", m("mo", "+"), noise)));
+            const probability = sub("p", mathName(output)),
+              value = ["bounded", "binary"].includes(p.kind) ? m("mrow", m("mi", "σ"), fence(signal)) : signal;
+            line(p.kind === "binary" ? probability : mathName(output), "=", value);
+            if (p.kind === "binary") {
+              line(
+                mathName(output),
+                "=",
+                m("mrow", m("mi", "𝟙"), fence(m("mrow", sub("R", mathName(output)), m("mo", "<"), sub("p", mathName(output))), "[", "]"))
+              );
+              line(sub("R", mathName(output)), "∼", m("mrow", m("mi", "Uniform"), fence(mathList([m("mn", 0), m("mn", 1)]))));
+            }
+          }
+        }
+      if (
+        variable.observed &&
+        (variable.equation.parameters.coordinates || [variable.equation.parameters]).some((p) => ["bounded", "binary"].includes(p.kind))
+      )
+        line(
+          m("mrow", m("mi", "σ"), fence(m("mi", "t"))),
+          "=",
+          m("mfrac", m("mn", 1), m("mrow", m("mn", 1), m("mo", "+"), m("msup", m("mi", "e"), m("mrow", m("mo", "−"), m("mi", "t")))))
+        );
+      const table = m("mtable", ...rows),
+        math = m("math", table);
+      table.setAttribute("columnalign", "left");
+      math.setAttribute("display", "block");
+      return math;
+    }
+    function equationTemplate(node) {
+      const parents = edges.filter(([, target]) => target === node.name).map(([name]) => name),
+        noise = m("msub", m("mi", "ε"), mathName(node.name)),
+        sub = (letter, names) => m("msub", m("mi", letter), mathList(names.map(mathName))),
+        family = node.family,
+        simple = node.dimension === 1 && parents.every((name) => nodes.find((n) => n.name === name).dimension === 1),
+        signal = m("mrow", sub("b", [node.name]));
+      for (const parent of parents)
+        signal.append(
+          m("mo", "+"),
+          sub("c", [node.name, parent]),
+          family === "quadratic" ? m("msup", mathName(parent), m("mn", 2)) : mathName(parent)
+        );
+      signal.append(m("mo", "+"), noise);
+      let value = noise;
+      if (node.observed) {
+        if (simple && ["linear", "quadratic", "bounded", "binary"].includes(family)) {
+          value = ["bounded", "binary"].includes(family) ? m("mrow", m("mi", "σ"), fence(signal)) : signal;
+          if (family === "binary") value = m("mrow", m("mi", "𝟙"), fence(m("mrow", sub("R", [node.name]), m("mo", "<"), value), "[", "]"));
+        } else
+          value = m(
+            "mrow",
+            sub("f", [node.name]),
+            fence(mathList([...parents.map(mathName), noise, ...(family === "binary" ? [sub("R", [node.name])] : [])]))
+          );
+      }
+      const math = m(
+        "math",
+        m(
+          "mtable",
+          m("mtr", m("mtd", mathName(node.name), m("mo", "="), value)),
+          ...(node.observed && family === "binary"
+            ? [
+                m(
+                  "mtr",
+                  m(
+                    "mtd",
+                    sub("R", [node.name]),
+                    m("mo", "∼"),
+                    m("mi", "Uniform"),
+                    fence(
+                      node.dimension > 1
+                        ? m("msup", fence(mathList([m("mn", 0), m("mn", 1)]), "[", "]"), m("mn", node.dimension))
+                        : mathList([m("mn", 0), m("mn", 1)])
+                    )
+                  )
+                ),
+              ]
+            : [])
+        )
+      );
+      math.setAttribute("display", "block");
+      return math;
+    }
+    function showEquation() {
+      const edge = model && selected?.edge,
+        node = nodes?.find((n) => n.name === (selected?.name || edge?.[1])),
+        variable = model?.variables[node?.name];
+      $("equation-view").hidden = !node;
+      if (!node) return;
+      if (edge) {
+        const parameters = variable?.equation?.parameters,
+          known =
+            variable &&
+            (!variable.observed ||
+              (parameters?.coordinates || [parameters]).every((p) =>
+                ["linear", "quadratic", "bounded", "binary", "neural_network", "decision_tree"].includes(p?.kind)
+              ));
+        $("equation-title").textContent = "Target equation · " + node.name;
+        $("applied-equation").replaceChildren(known ? equationMath(variable, node.name) : document.createTextNode("UNKNOWN"));
+        $("equation-state").textContent = known ? "" : "SCM mechanism unavailable.";
+        return;
+      }
+      $("equation-title").textContent = variable ? "Applied equation" : "Function template";
+      $("applied-equation").replaceChildren(variable ? equationMath(variable, node.name) : equationTemplate(node));
+      $("equation-state").textContent = variable ? "" : node.observed ? "Generate Sample draws the parameters." : "Noise only.";
+    }
+    function noiseMath(variable, name) {
+      const noise = variable.noise,
+        source = noise.parameters?.source || noise,
+        { loc = 0, scale = 1 } = source.keywords || {},
+        law =
+          source.distribution === "norm"
+            ? m("mrow", m("mi", "Normal"), fence(mathList([m("mi", "μ"), m("msup", m("mi", "σ"), m("mn", 2))])))
+            : source.distribution === "uniform"
+              ? m("mrow", m("mi", "Uniform"), fence(mathList([m("mi", "a"), m("mi", "b")])))
+              : m("mtext", source.distribution || source.kind),
+        parameters = source.distribution === "norm" ? { μ: loc, σ: scale } : source.distribution === "uniform" ? { a: loc, b: loc + scale } : {},
+        epsilon = m("msub", m("mi", "ε"), mathName(name)),
+        row = (...items) => m("mtr", m("mtd", ...items)),
+        table = m(
+          "mtable",
+          ...(noise.parameters?.mixing
+            ? [row(epsilon, m("mo", "="), m("mi", "E"), m("mi", "M")), row(m("msub", m("mi", "E"), m("mi", "i")), m("mo", "∼"), law)]
+            : [row(epsilon, m("mo", "∼"), law)]),
+          ...Object.entries(parameters).map(([key, value]) => row(m("mi", key), m("mo", "="), m("mn", value))),
+          ...(noise.parameters?.mixing
+            ? [
+                row(
+                  m("mi", "M"),
+                  m("mo", "="),
+                  fence(
+                    m("mtable", ...noise.parameters.mixing.map((values) => m("mtr", ...values.map((value) => m("mtd", m("mn", value)))))),
+                    "[",
+                    "]"
+                  )
+                ),
+                row(m("mtext", "Independent Eᵢ")),
+              ]
+            : [])
+        ),
+        math = m("math", table);
+      table.setAttribute("columnalign", "left");
+      math.setAttribute("display", "block");
+      return math;
+    }
+    function parameterFields(value, container, path = []) {
+      let advanced = null;
+      const inputs = value.parents || (value.coefficients ? Object.keys(value.coefficients) : null);
+      if (inputs) {
+        const order = document.createElement("p");
+        order.className = "input-order";
+        order.textContent = "Inputs: " + (inputs.map((name, i) => i + " = " + name).join(" · ") || "none");
+        container.append(order);
+      }
+      for (const [key, item] of Object.entries(value)) {
+        if (["kind", "parents", "parent_shapes", "used_parents", "weight_scale"].includes(key)) continue;
+        if (key === "coordinates") {
+          item.forEach((coordinate, i) => {
+            const group = document.createElement("fieldset"),
+              legend = document.createElement("legend");
+            legend.textContent = outputName(model.variables[selected.name], i);
+            group.append(legend);
+            container.append(group);
+            parameterFields(coordinate, group, [...path, key, i]);
+          });
+          continue;
+        }
+        if (item && !Array.isArray(item) && typeof item === "object") {
+          parameterFields(item, container, [...path, key]);
+          continue;
+        }
+        const label = document.createElement("label"),
+          input = document.createElement(Array.isArray(item) ? "textarea" : key === "activation" ? "select" : "input");
+        const names = {
+          intercept: value.kind === "neural_network" ? "Output bias" : "Intercept",
+          depth: value.kind === "neural_network" ? "Hidden layers" : "Depth",
+          width: "Hidden width",
+          activation: "Activation",
+          input_weights: "Input weights W1",
+          bias: "Hidden bias b1",
+          hidden_weights: "Additional hidden weights W2…Wd",
+          hidden_biases: "Additional hidden biases b2…bd",
+          output_weights: "Output weights v",
+          features: "Split variables (input indices)",
+          thresholds: "Split thresholds",
+          leaves: "Leaf values",
+        };
+        label.append(document.createTextNode(path.at(-1) === "coefficients" ? key + " coefficient" : names[key] || key));
+        if (key === "activation") for (const name of ["tanh", "relu"]) input.add(new Option(name, name));
+        else if (!Array.isArray(item)) {
+          input.type = "number";
+          input.step = "any";
+        }
+        input.value = Array.isArray(item) ? JSON.stringify(item) : item;
+        input.dataset.path = JSON.stringify([...path, key]);
+        input.oninput = () => {
+          dirty = true;
+          invalidate(false);
+          $("parameter-state").textContent = "Pending parameters · Apply";
+          message("");
+        };
+        label.append(input);
+        if (Array.isArray(item)) {
+          if (!advanced) {
+            advanced = document.createElement("details");
+            const summary = document.createElement("summary");
+            summary.textContent = "Advanced arrays";
+            advanced.append(summary);
+          }
+          advanced.append(label);
+        } else container.append(label);
+      }
+      if (advanced) container.append(advanced);
+    }
+    function showFunction(result) {
+      const name = result.node,
+        variable = model.variables[name];
+      shown = `${token}:${name}`;
+      dirty = false;
+      draft = structuredClone(variable.equation.parameters || {});
+      $("applied-equation").replaceChildren(equationMath(variable, name));
+      $("parameter-state").textContent = "Parameters";
+      $("parameter-state").hidden = !variable.observed;
+      $("parameters").replaceChildren();
+      if (variable.observed) parameterFields(draft, $("parameters"));
+      $("apply").hidden = !variable.observed;
+      $("family").value = variable.parameters.family || "";
+      $("noise-law").replaceChildren(noiseMath(variable, name));
+      $("mechanism").hidden = false;
+      controls();
+    }
+    async function inspectNode(name) {
+      if (busy) return;
+      if (shown === `${token}:${name}`) {
+        $("mechanism").hidden = false;
+        controls();
+        return;
+      }
+      $("mechanism").hidden = true;
+      const version = revision,
+        active = token;
+      try {
+        const result = await request("inspect", { token: active, name });
+        if (version === revision && active === token && selected?.name === name && model) showFunction(result);
+      } catch (error) {
+        if (version === revision) message(error.message, true);
+      }
+    }
+    function changeFunction(changes) {
+      const name = selected?.name,
+        version = revision;
+      perform(async () => {
+        message("Applying changes…");
+        const result = await request("update", { token, name, ...changes });
+        if (version !== revision) {
+          invalidate();
+          throw Error("Graph changed. Generate Sample again.");
+        }
+        install(result);
+        nodes.find((n) => n.name === name).family = model.variables[name].parameters.family;
+        invalidate(false);
+        if (selected?.name === name) showFunction(result);
+        message("");
+      });
+    }
+    $("mechanism").onsubmit = (event) => {
+      event.preventDefault();
+      try {
+        const parameters = structuredClone(draft);
+        for (const input of $("parameters").querySelectorAll("[data-path]")) {
+          const path = JSON.parse(input.dataset.path),
+            key = path.pop();
+          let object = parameters;
+          for (const part of path) object = object[part];
+          if (input.tagName === "TEXTAREA") object[key] = JSON.parse(input.value);
+          else if (input.tagName === "SELECT") object[key] = input.value;
+          else {
+            if (!input.value.trim() || !Number.isFinite(Number(input.value))) throw Error("Use finite numbers.");
+            object[key] = Number(input.value);
+          }
+        }
+        changeFunction({ parameters });
+      } catch (error) {
+        message(error.message, true);
+      }
+    };
+    $("generate").onclick = async () => {
+      if (!$("rows").reportValidity()) return;
+      const version = revision;
+      return perform(async () => {
+        message("Generating Sample…");
+        $("node-menu").hidden = true;
+        clearComputation();
+        if (!model) {
+          const result = await request("build", {
+            nodes,
+            edges,
+            model_seed: Number($("model-seed").value),
+            noise: $("noise").value,
+            ...(window.causalEngineRandomConfig?.() || {}),
+          });
+          if (version !== revision) throw Error("Graph changed. Generate Sample again.");
+          install(result);
+          select(selected?.name || selected?.edge ? selected : { name: nodes[0]?.name });
+        }
+        const result = await request("sample", {
+          token,
+          ...(window.causalEngineRandomKey ? { random_key: window.causalEngineRandomKey } : {}),
+          data_seed: Number($("data-seed").value),
+          n: Number($("rows").value),
+        });
+        if (version !== revision) {
+          message("Changed. Generate Sample.");
+          return;
+        }
+        sample = result;
+        $("sample").replaceChildren();
+        const row = (values, tag) => {
+          const tr = document.createElement("tr");
+          for (const value of values) {
+            const cell = document.createElement(tag);
+            cell.textContent = typeof value === "number" ? Number(value.toFixed(5)) : value;
+            tr.append(cell);
+          }
+          return tr;
+        };
+        $("sample").append(row(result.columns, "th"));
+        for (const values of result.rows) $("sample").append(row(values, "td"));
+        $("result-title").textContent = `${result.shape[0] > 10 ? `10/${result.shape[0]}` : result.shape[0]} rows × ${result.shape[1]} columns`;
+        message("");
+        if (
+          !window.causalEngineBatch &&
+          $("query-type").value === "interventional" &&
+          ["mean", "probability", "mean_difference"].includes($("query-summary").value)
+        ) {
+          try {
+            if (!Object.keys(assignments("query-evidence")).length) await computeQuery();
+          } catch (error) {
+            queryMessage(error.message, true);
+          }
+        }
+      });
+    };
+    $("download").onclick = () => {
+      if (!sample) return;
+      const url = URL.createObjectURL(new Blob([sample.csv], { type: "text/csv;charset=utf-8" })),
+        link = document.createElement("a");
+      link.href = url;
+      link.download = "causalpy-sample.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+    };
+    function verdict(status) {
+      const span = document.createElement("span");
+      span.className = "verdict";
+      span.dataset.status = status;
+      span.textContent = status;
+      return span;
+    }
+    function methodDetails(name, result) {
+      const details = document.createElement("details"),
+        summary = document.createElement("summary"),
+        reason = document.createElement("p");
+      summary.append(document.createTextNode(`${name} `), verdict(result.status));
+      reason.textContent = result.reason || "";
+      const formula = document.createElement("div");
+      formula.className = "formula";
+      showFormula(formula, result.formula_tree, result.formula);
+      details.append(summary, formula);
+      if (reason.textContent) details.append(reason);
+      return details;
+    }
+    function completeFormula(tree) {
+      const pending = tree ? [tree] : [];
+      if (!tree) return false;
+      while (pending.length) {
+        const item = pending.pop();
+        if (["kernel", "extract"].includes(item.type)) return false;
+        pending.push(...(item.factors || []), ...[item.body, item.numerator, item.denominator, item.left, item.right].filter(Boolean));
+      }
+      return true;
+    }
+    function formulaSource(result) {
+      return result.identification.status === "IDENTIFIABLE"
+        ? ["BD", "AC", "SBD", "FD", "Tian", "WMC", "MC", "Product"].find(
+            (name) => result.criteria[name]?.status === "ACCEPT" && completeFormula(result.criteria[name].formula_tree)
+          ) || (result.indexed?.formula_status === "COMPLETE" && completeFormula(result.indexed.literal_formula_tree) ? "Indexed" : null)
+        : null;
+    }
+    function referenceDetails(result, reference) {
+      $("reference-id")?.remove();
+      if (reference && reference !== result && reference.query?.original_actions.length) {
+        const details = methodDetails("Reference ID", reference.identification);
+        details.id = "reference-id";
+        $("other-methods").append(details);
+      }
+    }
+    function showAnalysis(result) {
+      showFormula(
+        $("generic-id-formula"),
+        result.identification.observational_formula_tree || result.identification.formula_tree,
+        result.identification.formula
+      );
+      $("criteria").replaceChildren();
+      const titles = {
+        BD: "Back-door Criterion (automatic witness search)",
+        SBD: "Sequential Back-door Criterion",
+        WMC: "Weak Multilinearity Criterion",
+        MC: "Multilinearity Criterion",
+      };
+      for (const name of Object.keys(titles)) {
+        const item = result.criteria[name],
+          row = document.createElement("tr"),
+          label = document.createElement("th"),
+          status = document.createElement("td"),
+          cell = document.createElement("td");
+        label.textContent = name;
+        label.title = titles[name];
+        status.append(verdict(item.status));
+        const details = methodDetails("Details", item);
+        if (name === "BD" && item.supplied_status) {
+          const check = document.createElement("p");
+          check.append(document.createTextNode("Check Z: "), verdict(item.supplied_status));
+          cell.append(check);
+        }
+        cell.append(details);
+        row.append(label, status, cell);
+        $("criteria").append(row);
+      }
+      $("other-methods").replaceChildren();
+      for (const [name, item] of Object.entries(result.criteria)) if (!titles[name]) $("other-methods").append(methodDetails(name, item));
+      $("other-methods").append(methodDetails("Indexed", result.indexed));
+      $("identification-results").hidden = false;
+      renderEstimand();
+    }
+    const queryNames = (id) => [
+      ...new Set(
+        $(id)
+          .value.trim()
+          .split(/[\s,]+/)
+          .filter(Boolean)
+      ),
+    ];
+    function checkedSummary(summary = $("query-summary").value) {
+      if (queryNames("query-y").length > 1 && !["probability", "distribution"].includes(summary))
+        throw Error("Multiple outcomes require Probability or Distribution.");
+      return summary;
+    }
+    function assignments(id) {
+      const value = JSON.parse($(id).value || "{}");
+      if (!value || typeof value !== "object" || Array.isArray(value)) throw Error("Use a JSON object of node values.");
+      return value;
+    }
+    function queryColumns() {
+      return queryNames("query-y").flatMap((name) => {
+        const node = nodes.find((n) => n.name === name && n.observed);
+        return node
+          ? model?.variables[name]?.columns || (node.dimension > 1 ? Array.from({ length: node.dimension }, (_, i) => `${name}[${i}]`) : [name])
+          : [];
+      });
+    }
+    function assignmentMath(values) {
+      const valueMath = (value) => (Array.isArray(value) ? fence(mathList(value.map((v) => m("mn", v))), "[", "]") : m("mn", value));
+      return mathList(Object.entries(values).map(([name, value]) => m("mrow", mathName(name), m("mo", "="), valueMath(value))));
+    }
+    const analysisKey = (actions) => JSON.stringify([[...actions].sort(), queryNames("query-y").sort()]);
+    function completedAnalysis(key) {
+      const result = identificationCache.get(key);
+      return result &&
+        ![result.identification, ...Object.values(result.criteria), result.indexed]
+          .filter(Boolean)
+          .some((row) => ["status", "mc_search_status", "indexing_status"].some((field) => ["UNKNOWN", "UNSUPPORTED"].includes(row[field])))
+        ? result
+        : null;
+    }
+    function checkedAssignments(id) {
+      const values = assignments(id);
+      for (const [name, value] of Object.entries(values)) {
+        const node = nodes.find((n) => n.name === name && n.observed),
+          valid = (v) => typeof v === "number" && Number.isFinite(v);
+        if (!node || (node.dimension > 1 ? !Array.isArray(value) || value.length !== node.dimension || !value.every(valid) : !valid(value)))
+          throw Error("Use observed node names and finite scalar or full-vector values.");
+        const binary = model ? model.variables[name]?.variable_type === "binary" : node.family === "binary";
+        if (binary && !(Array.isArray(value) ? value : [value]).every((v) => v === 0 || v === 1)) throw Error(`${name} is binary; use only 0 or 1.`);
+      }
+      return values;
+    }
+    function actionValues() {
+      const values = checkedAssignments("query-values"),
+        names = queryNames("query-x");
+      if (names.length !== Object.keys(values).length || names.some((name) => !Object.hasOwn(values, name)))
+        throw Error("Treatment names must match Values keys.");
+      return values;
+    }
+    function queryEvidence(identification = false) {
+      const evidence = checkedAssignments("query-evidence");
+      if ($("query-type").value !== "counterfactual" && Object.keys(evidence).length)
+        throw Error("Factual evidence is for Counterfactual. Clear it to {}.");
+      if (identification && Object.keys(evidence).length)
+        throw Error(
+          "UNSUPPORTED: graph Identification with factual evidence." + ($("query-summary").value === "distribution" ? "" : " Compute uses the SCM.")
+        );
+      return evidence;
+    }
+    function queryEvent() {
+      const pairs =
+        queryColumns().length > 1
+          ? assignments("joint-event")
+          : { [$("event-column").value]: [$("event-op").value, $("event-value").value.trim() ? Number($("event-value").value) : null] };
+      if (!Object.keys(pairs).length) throw Error("Choose an outcome event.");
+      return Object.fromEntries(
+        Object.entries(pairs).map(([name, condition]) => {
+          if (
+            !queryColumns().includes(name) ||
+            !Array.isArray(condition) ||
+            condition.length !== 2 ||
+            ![">=", "<=", "==", "!=", "<", ">"].includes(condition[0]) ||
+            typeof condition[1] !== "number" ||
+            !Number.isFinite(condition[1])
+          )
+            throw Error("Event needs selected target columns and [comparison, finite threshold] pairs.");
+          return [name, { op: condition[0], value: condition[1] }];
+        })
+      );
+    }
+    function eventMath(aliases = new Map(), intervention = null) {
+      return m(
+        "mrow",
+        ...Object.entries(queryEvent()).flatMap(([name, condition], i) => {
+          const coordinate = /^(.*)(\[\d+\])$/.exec(name),
+            shown = aliases.get(name) || (coordinate && aliases.has(coordinate[1]) ? aliases.get(coordinate[1]) + coordinate[2] : name),
+            variable = intervention && Object.keys(intervention).length ? m("msub", mathName(shown), assignmentMath(intervention)) : mathName(shown);
+          return [
+            ...(i ? [m("mo", "∧")] : []),
+            m("mrow", variable, m("mo", { ">=": "≥", "<=": "≤", "==": "=", "!=": "≠", "<": "<", ">": ">" }[condition.op]), m("mn", condition.value)),
+          ];
+        })
+      );
+    }
+    function lawName(values) {
+      return Object.keys(values).length ? m("msub", m("mi", "I"), assignmentMath(values)) : m("mi", "I");
+    }
+    const freeTarget = (argument, name) => argument.variable === name && argument.label === name && !Object.hasOwn(argument, "value"),
+      formulaChildren = (tree) => [...(tree.factors || []), ...[tree.body, tree.numerator, tree.denominator, tree.left, tree.right].filter(Boolean)];
+    function targetIn(tree, name, depth = 0) {
+      if (depth > 96) throw Error("Formula display limit.");
+      if (tree.type === "sum" && tree.variables.some((argument) => argument.label === name)) return false;
+      return (
+        [...(tree.outcomes || []), ...(tree.given || [])].some((argument) => freeTarget(argument, name)) ||
+        formulaChildren(tree).some((child) => targetIn(child, name, depth + 1))
+      );
+    }
+    function summaryTree(tree, name, kind, depth = 0) {
+      if (depth > 96) throw Error("Formula display limit.");
+      const child = (value) => summaryTree(value, name, kind, depth + 1);
+      if (tree.type === "probability" && (!tree.source || tree.source === "P")) {
+        const targets = tree.outcomes.filter((argument) => freeTarget(argument, name));
+        if (targets.length !== 1 || tree.given.some((argument) => freeTarget(argument, name))) return null;
+        const rest = tree.outcomes.filter((argument) => !freeTarget(argument, name)),
+          moment = { type: kind, outcomes: targets, given: [...rest, ...tree.given] };
+        return rest.length ? { type: "product", factors: [moment, { ...tree, outcomes: rest }] } : moment;
+      }
+      if (tree.type === "sum" && !tree.variables.some((argument) => argument.label === name)) {
+        const body = child(tree.body);
+        return body && { ...tree, body };
+      }
+      if (tree.type === "product") {
+        const indices = tree.factors.flatMap((factor, i) => (targetIn(factor, name) ? [i] : []));
+        if (indices.length !== 1) return null;
+        const body = child(tree.factors[indices[0]]);
+        return body && { ...tree, factors: tree.factors.map((factor, i) => (i === indices[0] ? body : factor)) };
+      }
+      if (tree.type === "ratio" && !targetIn(tree.denominator, name)) {
+        const numerator = child(tree.numerator);
+        return numerator && { ...tree, numerator };
+      }
+      return null;
+    }
+    function summaryMath(result, values, summary) {
+      summary = checkedSummary(summary);
+      const names = queryNames("query-y"),
+        target = () => (summary === "probability" ? eventMath() : mathList(names.map(mathName))),
+        operator = ["probability", "distribution"].includes(summary) ? "P" : "E",
+        bracket = (body) => fence(body, operator === "P" ? "(" : "[", operator === "P" ? ")" : "]");
+      if (!Object.keys(values).length) return m("mrow", m("mi", operator), bracket(target()));
+      const source = formulaSource(result),
+        tree =
+          source === "Indexed"
+            ? result.indexed.literal_formula_tree
+            : source
+              ? result.criteria[source].formula_tree
+              : result.identification.formula_tree;
+      if (!completeFormula(tree)) throw Error("Observable formula expansion is not available.");
+      const budget = { remaining: 5000, used: new Set(nodes.map((n) => n.name)) };
+      if (summary === "distribution") return formulaNode(tree, budget, 0, undefined, values);
+      const compact =
+        names.length === 1 && nodes.find((node) => node.name === names[0])?.dimension === 1
+          ? summaryTree(tree, names[0], summary === "probability" ? "event" : "expectation")
+          : null;
+      if (compact) return formulaNode(compact, budget, 0, undefined, values);
+      const aliases = new Map(names.map((name) => [name, dummyName(name, budget.used)])),
+        coordinates = mathList([...aliases.values()].map(mathName)),
+        weight =
+          summary === "probability"
+            ? m("msub", m("mn", 1), fence(eventMath(aliases), "{", "}"))
+            : names.length > 1
+              ? fence(coordinates, "[", "]")
+              : coordinates;
+      return m(
+        "mrow",
+        m("munder", m("mo", "∑"), mathList([...aliases.values()].map(mathName))),
+        weight,
+        m("mo", "·"),
+        fence(formulaNode(tree, budget, 0, aliases, values))
+      );
+    }
+    function renderEstimand() {
+      let summary;
+      try {
+        summary = checkedSummary();
+        queryEvidence(true);
+      } catch (error) {
+        $("identification-results").hidden = true;
+        analysisMessage(error.message, true);
+        return;
+      }
+      const result = identificationCache.get(analysisKey(queryNames("query-x")));
+      if (!result) return;
+      $("id-formula").replaceChildren();
+      $("identified-law").replaceChildren();
+      $("q-definitions").replaceChildren();
+      let status = result.identification.status,
+        reason = status === "UNKNOWN" ? "Search incomplete; increase Budget." : "",
+        reference;
+      try {
+        const values = actionValues(),
+          referenceValues = summary === "mean_difference" ? checkedAssignments("query-reference") : null;
+        if (summary === "probability") eventMath();
+        reference = referenceValues
+          ? Object.keys(referenceValues).length
+            ? identificationCache.get(analysisKey(Object.keys(referenceValues)))
+            : { identification: { status: "IDENTIFIABLE" }, criteria: {} }
+          : null;
+        if (referenceValues && (status !== "IDENTIFIABLE" || reference?.identification.status !== "IDENTIFIABLE")) {
+          status = "UNKNOWN";
+          reason = reference ? "No certified observable formula for this contrast." : "Identify the reference world for this contrast.";
+        }
+        if (status === "IDENTIFIABLE") {
+          try {
+            const expression = summaryMath(result, values, summary === "mean_difference" ? "mean" : summary),
+              right = referenceValues
+                ? m("mrow", fence(expression), m("mo", "−"), fence(summaryMath(reference, referenceValues, "mean")))
+                : expression,
+              math = m("math", m("mrow", queryMath().firstElementChild, m("mo", "="), right));
+            math.setAttribute("display", "block");
+            $("id-formula").append(math);
+          } catch (error) {
+            $("id-formula").textContent = error.message;
+          }
+          for (const [world, assignment] of [
+            [result, values],
+            ...(referenceValues && referenceValues !== null && Object.keys(referenceValues).length ? [[reference, referenceValues]] : []),
+          ]) {
+            const source = formulaSource(world),
+              tree =
+                source === "Indexed"
+                  ? world.indexed.literal_formula_tree
+                  : source
+                    ? world.criteria[source].formula_tree
+                    : world.identification.formula_tree;
+            if (!tree || !completeFormula(tree) || ["BD", "AC"].includes(source)) continue;
+            try {
+              const budget = { remaining: 5000, used: new Set(nodes.map((n) => n.name)) },
+                complete = completeFormula(tree),
+                body = formulaNode(tree, budget, 0, undefined, complete ? assignment : {}),
+                evaluated =
+                  !complete && Object.keys(assignment).length ? m("mrow", fence(body), m("msub", m("mo", "|"), assignmentMath(assignment))) : body,
+                definition = m("math", lawName(assignment), m("mo", "="), evaluated);
+              definition.setAttribute("display", "block");
+              $("identified-law").append(definition);
+              if (!complete) {
+                if (!$("q-definitions").childElementCount)
+                  $("q-definitions").append(
+                    Object.assign(document.createElement("p"), { textContent: "Values apply to treatment arguments; summed copies stay unchanged." })
+                  );
+                for (const item of world.identification.definitions || []) {
+                  if (!item.formula_tree) continue;
+                  const math = m(
+                    "math",
+                    item.kernel_tree ? formulaNode(item.kernel_tree, budget) : m("mtext", item.kernel),
+                    m("mo", "="),
+                    formulaNode(item.formula_tree, budget)
+                  );
+                  math.setAttribute("display", "block");
+                  $("q-definitions").append(math);
+                }
+              }
+            } catch {
+              $("identified-law").append(Object.assign(document.createElement("p"), { textContent: "Formula display limit; source is in Details." }));
+            }
+          }
+        }
+      } catch (error) {
+        status = "UNKNOWN";
+        reason = error.message;
+      }
+      referenceDetails(result, reference);
+      $("id-status").replaceWith(Object.assign(verdict(status), { id: "id-status" }));
+      analysisMessage(reason);
+    }
+    function queryMath() {
+      const intervention = actionValues(),
+        evidence = queryEvidence(),
+        summary = checkedSummary(),
+        counterfactual = $("query-type").value === "counterfactual",
+        targets = () => mathList(queryNames("query-y").map(mathName)),
+        action = (values) => m("mrow", m("mi", "do"), fence(assignmentMath(values))),
+        decorated = (target, values) => (Object.keys(values).length ? m("msub", target, assignmentMath(values)) : target),
+        expect = (target, values) =>
+          m("mrow", m("mi", "E"), fence(m("mrow", target, ...(Object.keys(values).length ? [m("mo", "|"), action(values)] : [])), "[", "]"));
+      let body;
+      if (summary === "mean_difference" && !counterfactual)
+        body = m("mrow", expect(targets(), intervention), m("mo", "−"), expect(targets(), checkedAssignments("query-reference")));
+      else {
+        let target = summary === "probability" ? eventMath(new Map(), counterfactual ? intervention : null) : targets();
+        if (counterfactual && summary !== "probability") target = decorated(target, intervention);
+        if (summary === "mean_difference") target = m("mrow", target, m("mo", "−"), decorated(targets(), checkedAssignments("query-reference")));
+        const condition = counterfactual
+          ? Object.keys(evidence).length
+            ? [m("mo", "|"), assignmentMath(evidence)]
+            : []
+          : Object.keys(intervention).length
+            ? [m("mo", "|"), action(intervention)]
+            : [];
+        body = m(
+          "mrow",
+          m("mi", ["probability", "distribution"].includes(summary) ? "P" : "E"),
+          fence(
+            m("mrow", target, ...condition),
+            ["probability", "distribution"].includes(summary) ? "(" : "[",
+            ["probability", "distribution"].includes(summary) ? ")" : "]"
+          )
+        );
+      }
+      const math = m("math", body);
+      math.setAttribute("display", "block");
+      return math;
+    }
+    function updateQuery() {
+      const multiple = queryNames("query-y").length > 1,
+        summaryControl = $("query-summary"),
+        previous = summaryControl.value;
+      if (multiple && !["probability", "distribution"].includes(summaryControl.value)) summaryControl.value = "probability";
+      else if (!multiple && summaryControl.value === "distribution") summaryControl.value = "mean";
+      summaryControl.disabled = false;
+      for (const value of ["mean", "mean_difference"]) summaryControl.querySelector(`[value="${value}"]`).disabled = multiple;
+      summaryControl.querySelector('[value="distribution"]').hidden = !multiple;
+      if (previous !== summaryControl.value) clearComputation();
+      const summary = $("query-summary").value;
+      if (summary === "distribution") queryMessage(distributionNotice);
+      let hasEvidence = true;
+      try {
+        hasEvidence = Object.keys(assignments("query-evidence")).length > 0;
+      } catch {}
+      $("evidence-field").hidden = $("query-type").value !== "counterfactual" && !hasEvidence;
+      $("reference-field").hidden = summary !== "mean_difference";
+      $("event-fields").hidden = summary !== "probability" || queryColumns().length > 1;
+      $("joint-event-field").hidden = summary !== "probability" || queryColumns().length < 2;
+      const columns = queryColumns(),
+        signature = JSON.stringify(columns),
+        joint = $("joint-event");
+      if (joint.dataset.columns !== signature) {
+        let previous = {};
+        try {
+          previous = assignments("joint-event");
+        } catch {}
+        joint.value = JSON.stringify(Object.fromEntries(columns.map((name) => [name, previous[name] || ["<=", 0]])));
+        joint.dataset.columns = signature;
+      }
+      const selected = $("event-column").value;
+      $("event-column").replaceChildren(...queryColumns().map((name) => new Option(name, name)));
+      if (queryColumns().includes(selected)) $("event-column").value = selected;
+      $("query-formula").replaceChildren();
+      try {
+        $("query-formula").append(queryMath());
+      } catch {}
+      renderEstimand();
+      controls();
+    }
+    for (const id of ["query-x", "query-y", "query-z", "search-budget"])
+      $(id).oninput = () => {
+        clearAnalysis();
+        clearComputation();
+        updateQuery();
+      };
+    for (const id of [
+      "query-type",
+      "query-summary",
+      "query-values",
+      "query-reference",
+      "query-evidence",
+      "event-column",
+      "event-op",
+      "event-value",
+      "joint-event",
+      "query-draws",
+      "allow-continuous-extrapolation",
+    ])
+      $(id).oninput = () => {
+        if (id === "query-values")
+          try {
+            const names = Object.keys(assignments(id)).join(", ");
+            if (names !== $("query-x").value) {
+              $("query-x").value = names;
+              clearAnalysis();
+            }
+          } catch {}
+        if (["query-type", "query-evidence"].includes(id)) clearAnalysis();
+        clearComputation();
+        updateQuery();
+      };
+    async function computeQuery() {
+      clearComputation();
+      const summary = checkedSummary();
+      if (summary === "distribution") return;
+      const intervention = actionValues(),
+        evidence = queryEvidence();
+      const event = summary === "probability" ? queryEvent() : {};
+      queryMessage("Computing…");
+      const version = queryRevision,
+        currentRandomKey = window.causalEngineRandomKey,
+        currentToken = token,
+        currentSample = sample?.sample_id,
+        payload = {
+          token,
+          type: $("query-type").value,
+          targets: queryNames("query-y"),
+          intervention,
+          evidence,
+          summary,
+          event,
+          n: Number($("query-draws").value),
+          data_seed: Number($("data-seed").value),
+          max_seconds: 10,
+          allow_continuous_extrapolation: $("allow-continuous-extrapolation").checked,
+        };
+      if (summary === "mean_difference") payload.reference = checkedAssignments("query-reference");
+      $("query-results").hidden = true;
+      let result;
+      if (
+        currentSample &&
+        currentRandomKey &&
+        payload.type === "interventional" &&
+        summary === "mean_difference" &&
+        payload.targets.length === 1 &&
+        !Object.keys(evidence).length &&
+        nodes.find((n) => n.name === payload.targets[0])?.dimension === 1
+      ) {
+        const dataPayload = {
+          ...payload,
+          source: "random",
+          sample_id: currentSample,
+          random_key: currentRandomKey,
+          nodes,
+          edges,
+          Z: queryNames("query-z"),
+        };
+        const dataResult = await request("estimate_data", dataPayload);
+        if (
+          version !== queryRevision ||
+          currentToken !== token ||
+          currentSample !== sample?.sample_id ||
+          currentRandomKey !== window.causalEngineRandomKey
+        )
+          return;
+        let referenceResult;
+        try {
+          referenceResult = await request("sample_reference", {
+            ...dataPayload,
+            n: Math.max(...Object.values(window.causalEngineRandomBindings || {}).map((b) => b.dimension), 1) > 8 ? 512 : payload.n,
+          });
+        } catch (error) {
+          referenceResult = { model_reference: { status: "UNAVAILABLE", reason: error.message } };
+        }
+        const ref = referenceResult.model_reference;
+        result = {
+          ...dataResult,
+          scm_reference: ref,
+          query: payload,
+          difference: Object.fromEntries(
+            Object.entries(dataResult.data_estimate?.values || {})
+              .filter(([name, value]) => Number.isFinite(value) && Number.isFinite(ref?.values?.[name]))
+              .map(([name, value]) => [name, value - ref.values[name]])
+          ),
+        };
+      } else result = await request(currentSample ? "compare" : "query", currentSample ? { ...payload, sample_id: currentSample } : payload);
+      if (
+        version !== queryRevision ||
+        currentToken !== token ||
+        currentRandomKey !== window.causalEngineRandomKey ||
+        result.token !== token ||
+        (currentSample && (sample?.sample_id !== currentSample || result.sample_id !== currentSample))
+      ) {
+        queryMessage($("query-summary").value === "distribution" ? distributionNotice : "Changed. Compute.");
+        return;
+      }
+      window.causalEngineComparison = result;
+      const reference = result.scm_reference || result,
+        estimate = result.data_estimate,
+        exact = reference.status === "OK" && reference.approximate === false && reference.diagnostics?.method === "analytic linear expectation",
+        referenceLabel = exact ? "SCM ground truth (exact)" : "SCM reference (Monte Carlo, approximate)",
+        values = reference.status === "OK" ? reference.values || { Probability: reference.value } : {},
+        names = [
+          ...new Set([
+            ...(summary === "probability" ? ["Probability"] : payload.targets.flatMap((v) => model.variables[v].columns)),
+            ...Object.keys(values),
+            ...Object.keys(estimate?.values || {}),
+          ]),
+        ],
+        tableRow = (items, header = false) => {
+          const row = document.createElement("tr");
+          items.forEach((item, i) => {
+            const cell = document.createElement(header || !i ? "th" : "td");
+            cell.textContent = typeof item === "number" ? Number(item.toPrecision(8)) : item;
+            row.append(cell);
+          });
+          return row;
+        };
+      $("query-estimates").replaceChildren();
+      $("query-estimates").hidden = !names.length;
+      $("query-result-label").textContent = estimate ? "Sample comparison" : referenceLabel;
+      $("query-estimates").append(tableRow(["Outcome", "Data estimate", referenceLabel, exact ? "Absolute error" : "Absolute difference"], true));
+      for (const name of names) {
+        const comparable =
+            estimate?.status === "OK" &&
+            reference.status === "OK" &&
+            [estimate.values?.[name], values[name], result.difference?.[name]].every(Number.isFinite),
+          row = tableRow([
+            name,
+            estimate?.status === "OK" ? estimate.values?.[name] ?? "—" : "—",
+            values[name] ?? reference.status,
+            comparable ? Math.abs(result.difference[name]) : "—",
+          ]),
+          error = reference.standard_errors?.[name] ?? (name === "Probability" ? reference.standard_error : undefined);
+        if (!exact && reference.status === "OK" && Number.isFinite(error)) {
+          const note = document.createElement("small");
+          note.textContent = "MC SE: " + Number(error.toPrecision(3));
+          note.title = "Monte Carlo standard error of the SCM reference.";
+          row.children[2].append(document.createElement("br"), note);
+        }
+        $("query-estimates").append(row);
+      }
+      $("query-diagnostics").textContent = [
+        estimate?.status === "OK" && `Data: ${estimate.method}; ${estimate.n} rows.`,
+        estimate && estimate.status !== "OK" && `Sample: ${estimate.reason || estimate.status}`,
+        reference.status === "OK" && `SCM: ${exact ? "analytic expectation" : "Monte Carlo"}.`,
+      ]
+        .filter(Boolean)
+        .join(" ");
+      $("query-results").hidden = false;
+      const issues = (
+        estimate
+          ? [
+              ["Data estimate", estimate],
+              ["SCM reference", reference],
+            ]
+          : [["SCM", reference]]
+      )
+        .filter(([, value]) => value.status !== "OK")
+        .map(([label, value]) => label + " " + value.status + (value.reason ? ": " + value.reason : ""));
+      const noSample =
+          !currentSample && payload.type === "interventional" && ["mean", "probability"].includes(summary) && !Object.keys(evidence).length,
+        info = estimate?.status === "OK" ? estimate.info || estimate.warning || "" : "",
+        partial = estimate && estimate.status !== "OK" && reference.status === "OK";
+      queryMessage(
+        partial
+          ? "SCM result; Sample estimate unavailable for this query."
+          : [...issues, info].filter(Boolean).join(" · ") || (noSample ? "Generate Sample for a data estimate." : ""),
+        !partial && !!issues.length,
+        partial || (!issues.length && !!info)
+      );
+    }
+    $("compute-query").onclick = () => perform(computeQuery, queryMessage);
+    $("identification-query").onsubmit = (event) => {
+      event.preventDefault();
+      const version = analysisRevision,
+        signature = graphSignature(),
+        fields = ["query-x", "query-y", "query-z", "search-budget"].map((id) => $(id).value);
+      perform(async () => {
+        $("identification-results").hidden = true;
+        analysisMessage("Checking identification…");
+        const summary = checkedSummary();
+        actionValues();
+        queryEvidence(true);
+        if (summary === "probability") queryEvent();
+        const actions = queryNames("query-x"),
+          key = analysisKey(actions),
+          referenceNames = summary === "mean_difference" ? Object.keys(checkedAssignments("query-reference")) : [],
+          referenceKey = analysisKey(referenceNames),
+          payload = {
+            nodes,
+            edges,
+            X: actions,
+            Y: queryNames("query-y"),
+            Z: queryNames("query-z"),
+            max_seconds: Number($("search-budget").value),
+            max_orders: 256,
+            max_mc_unions: 256,
+          },
+          result = completedAnalysis(key) || (await request("identify", payload));
+        let reference = referenceKey === key ? result : completedAnalysis(referenceKey);
+        if (referenceNames.length && !reference) {
+          try {
+            reference = await request("identify", { ...payload, X: referenceNames, Z: [] });
+          } catch (error) {
+            reference = {
+              identification: { status: "UNSUPPORTED", reason: error.message },
+              query: { original_actions: referenceNames },
+              criteria: {},
+            };
+          }
+        }
+        if (
+          version !== analysisRevision ||
+          signature !== graphSignature() ||
+          fields.some((value, i) => value !== $(["query-x", "query-y", "query-z", "search-budget"][i]).value)
+        ) {
+          analysisMessage("Changed. Identify.");
+          renderEstimand();
+          return;
+        }
+        identificationCache = new Map([[key, result], ...(reference ? [[referenceKey, reference]] : [])]);
+        showAnalysis(result);
+      }, analysisMessage);
+    };
+    $("examples").onclick = () =>
+      perform(async () => {
+        library = await request("examples", {});
+        for (const graph of library) $("graph-library").add(new Option(graph.title, graph.id));
+        $("graph-library").hidden = false;
+        $("examples").hidden = true;
+        analysisMessage("Choose a UCA graph.");
+      }, analysisMessage);
+    $("graph-library").onchange = () => {
+      const graph = library.find((g) => g.id === $("graph-library").value);
+      if (!graph) return;
+      try {
+        loadGraph({ ...structuredClone(graph), nodes: graph.nodes.map((n) => ({ family: "", ...n })) });
+      } catch (error) {
+        message(error.message, true);
+        return;
+      }
+      $("graph-library").value = graph.id;
+    };
+    $("reset").click();
+    analysisMessage("");
+    const prepareCalculator = () => request("prepare", {}).catch(() => {});
+    if (window.requestIdleCallback) requestIdleCallback(prepareCalculator);
+    else setTimeout(prepareCalculator, 0);
+  </script>
+
+  <script src="./role-layout.js"></script>
+  <script src="./csv-data.js"></script>
+  <script src="./data-preview.js"></script>
+  <script src="./expectation-formula.js"></script>
+  <script src="./cluster-view.js"></script>
+  <script src="./role-ui.js"></script>
+  <script src="./benchmark-ui.js"></script>
+  <script src="./select-picker.js"></script>
+</html>
