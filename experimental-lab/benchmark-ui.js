@@ -56,6 +56,7 @@
     },
   };
   function choose(id) {
+    window.causalEngineEnterBenchmark?.();
     ++generation;
     if (selected?.id !== id) {
       CausalDataPreview.clear();
@@ -172,6 +173,7 @@
     box.append(details);
   }
   $("choose-benchmark").onclick = async () => {
+    window.causalEngineEnterBenchmark?.();
     window.causalEngineCancelCSVRead?.();
     const turn = ++generation;
     close();
@@ -223,7 +225,7 @@
         const results = await window.causalEngineEstimateBenchmark(entry, text);
         if (!results?.length) throw Error($("data-error").textContent || "Estimation did not finish.");
         $("benchmark-status").textContent = entry.label + " · " + entry.rows.toLocaleString() + " rows estimated.";
-        $("result-heading").textContent = "Mean difference · " + entry.label;
+        $("result-heading").textContent = ($("estimate-query").value === "apo" ? "APO · E[Y(a)]" : "ATE · Mean difference") + " · " + entry.label;
         $("easy-result").scrollIntoView({ block: "start", behavior: "smooth" });
       } else {
         CausalDataPreview.download(text, entry.csv);

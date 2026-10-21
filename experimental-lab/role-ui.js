@@ -960,7 +960,7 @@
     ++fileGeneration;
     window.causalEngineBenchmark = benchmark;
     csvReadPending = false;
-    chooseSource("csv");
+    chooseSource("csv", Boolean(benchmark));
     $("estimate-options").hidden = false;
     $("csv-file").value = "";
     acceptCSV(text, name);
@@ -970,8 +970,9 @@
     ++fileGeneration;
     csvReadPending = false;
   };
-  function chooseSource(source) {
+  function chooseSource(source, internalBenchmark = false) {
     if (running) return;
+    if (!internalBenchmark) leaveBenchmark();
     if (dataSource !== source) {
       ++fileGeneration;
       csvReadPending = false;
@@ -2027,6 +2028,97 @@
     identifyButton.disabled = estimateButton.disabled = draftDirty;
     run.disabled = draftDirty || (dataSource === "random" && !randomDataReady());
     checkChanges();
+  };
+  let benchmarkMode = false,
+    benchmarkActionState = null;
+  function leaveBenchmark() {
+    if (!benchmarkMode) return;
+    benchmarkMode = false;
+    const saved = benchmarkActionState;
+    benchmarkActionState = null;
+    if (saved && !draftDirty && nodes.includes(saved.node) && dataGraphKey() === saved.guard && $("role-a").value === saved.alias) {
+      saved.node.dimension = saved.dimension;
+      if (saved.members) saved.node.members = [...saved.members];
+      else delete saved.node.members;
+      if (saved.declaration) declaredClusters[saved.alias] = [...saved.declaration];
+      else delete declaredClusters[saved.alias];
+      $("role-a").value = saved.roleText;
+      $("query-values").value = saved.values;
+      $("query-reference").value = saved.reference;
+      baseline = structure();
+    }
+    originalInvalidate();
+    retainedRandomSignature = null;
+    groundTruthSignature = null;
+    CausalDataPreview.clear();
+    $("easy-result").hidden = true;
+    syncAssignmentWidths();
+    describe();
+  }
+  window.causalEngineEnterBenchmark = () => {
+    if (benchmarkMode) return;
+    benchmarkMode = true;
+    const previousBindingGraph = dataGraphKey();
+    const reusableCSV = bindingActive && dataSource === "csv" && csvTable && window.causalEngineBenchmark && csvBindingGraph === previousBindingGraph;
+    const actions = queryNames("query-x"),
+      targets = queryNames("query-y"),
+      observed = nodes.filter((n) => n.observed);
+    const compatible =
+      !draftDirty &&
+      !["frontdoor", "sequential"].includes(current) &&
+      actions.length === 1 &&
+      targets.length === 1 &&
+      observed.length === 3 &&
+      observed.filter((n) => clusterEligible(n.name)).length === 1;
+    if (compatible) {
+      const node = nodes.find((n) => n.name === actions[0]),
+        alias = node.name;
+      benchmarkActionState = {
+        node,
+        alias,
+        dimension: node.dimension,
+        members: node.members ? [...node.members] : null,
+        declaration: declaredClusters[alias] ? [...declaredClusters[alias]] : null,
+        roleText: $("role-a").value,
+        values: $("query-values").value,
+        reference: $("query-reference").value,
+      };
+      node.dimension = 1;
+      delete node.members;
+      delete declaredClusters[alias];
+      $("role-a").value = alias;
+      for (const field of ["query-values", "query-reference"]) {
+        try {
+          const values = assignments(field);
+          if (Array.isArray(values[alias])) values[alias] = values[alias][0];
+          $(field).value = JSON.stringify(values);
+        } catch {}
+      }
+      benchmarkActionState.guard = dataGraphKey();
+      baseline = structure();
+    }
+    const dataset = window.causalEngineBenchmark,
+      covariate = observed.find((n) => clusterEligible(n.name));
+    const keepBinding =
+      compatible &&
+      reusableCSV &&
+      previousBindingGraph === dataGraphKey() &&
+      columnMapping[actions[0]] === dataset.treatment &&
+      columnMapping[targets[0]] === dataset.outcome &&
+      Array.isArray(columnMapping[covariate.name]);
+    dataSource = keepBinding ? "csv" : "benchmark";
+    bindingActive = Boolean(keepBinding);
+    window.causalEngineDataBindings = keepBinding ? structuredClone(columnMapping) : null;
+    window.causalEngineDataResults = null;
+    window.causalEngineDataSource = null;
+    originalInvalidate();
+    retainedRandomSignature = null;
+    groundTruthSignature = null;
+    CausalDataPreview.clear();
+    $("easy-result").hidden = true;
+    $("data-error").textContent = "";
+    refreshBinding();
+    describe();
   };
   window.causalEngineBenchmarkStamp = () =>
     JSON.stringify({
