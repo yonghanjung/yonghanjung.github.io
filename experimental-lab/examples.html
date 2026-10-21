@@ -34,13 +34,14 @@ permalink: /experimental-lab/examples.html
         <article>
           <h2>Inspect and reproduce an estimate</h2>
           <p>
-            A compatible single-binary-treatment baseline graph uses cross-fitted balancing-weight AIPW. The No unmeasured confounding template offers
-            AIPW, Outcome Regression (Plug-in), and IPW. AIPW fits outcome regressions and bounded inverse weights; Outcome Regression fits only the
-            outcome models; IPW fits only the weights. All three reuse the same retained records. Details and Calculation code identify the actual
-            selected method, nuisance fits, folds, settings and diagnostics. AIPW keeps its fitted inverse-weight class between 1 and 20. IPW uses a
-            nonnegative quadratic, covariate-only UCA-style ratio fit with penalty 0.002 and a tanh/RBF dictionary. Its raw ratio is projected to
-            [0.01, 50], then normalized on the training arm and divided by training-arm prevalence; the final inverse weights have different bounds.
-            Finite features, regularization and projection can leave bias. No failed fit silently switches methods.
+            A compatible single-binary-treatment baseline graph offers AIPW, Outcome Regression (Plug-in), and IPW. Every method uses actual
+            arm-specific XGBoost outcome models, two-fold cross-fitting and the same retained records. AIPW and IPW also learn positive weights that
+            minimize their training second moment subject to training mass and scalar fitted-outcome mean constraints. IPW uses the predictions to fit
+            these weights, but its final score contains weighted observed outcomes only; AIPW adds residual corrections. Outcome Regression uses only
+            the predicted outcome contrast and fits no weights. The weight floor is 1e-8, with no upper cap or held-out normalization. Only the fitted
+            prediction is balanced, not all covariate moments. Prediction error and extrapolation can leave bias. Details and Calculation code
+            identify the actual source, nuisance fits, XGBoost parameters, constraints, folds and diagnostics. No failed fit silently switches
+            methods.
           </p>
         </article>
         <article>

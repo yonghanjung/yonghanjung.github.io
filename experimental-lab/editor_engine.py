@@ -261,13 +261,13 @@ def _event_hits(values, columns, event):
 
 
 def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
-    """Approximate a certified UCA functional with normalized, observed-only kNN kernels."""
+    """Approximate certified UCA: XGBoost terminal conditional means, unchanged kNN sampling kernels."""
     extrapolate = payload.get("allow_continuous_extrapolation", True)
     if type(extrapolate) is not bool:
         raise ValueError("Allow continuous extrapolation must be true or false.")
-    result = dict(status="UNSUPPORTED", method="UCA plug-in (normalized kNN kernels)", n=len(data), approximate=True,
+    result = dict(status="UNSUPPORTED", method="UCA plug-in (XGBoost conditional means; normalized kNN sampling kernels)", n=len(data), approximate=True,
                   diagnostics={"folds": 2, "data_uncertainty": "not estimated",
-                               "limitations": "finite-sample kernel smoothing and integration error; sparse support",
+                               "limitations": "XGBoost conditional-mean approximation, nonterminal kernel smoothing and integration error; sparse support",
                                 "support_checks": "per-kernel/fold engineering checks, not a positivity certificate",
                                 "allow_continuous_extrapolation": extrapolate})
 
@@ -373,7 +373,19 @@ def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
                                         f"[{first['observed_min']:.8g}, {first['observed_max']:.8g}]. "
                                         "Select UCA extrapolation in Query options to compute an approximation.")
                     if not np.any(~constant):
-                        output[test] = source.mean(axis=0) if terminal else source[rng.integers(len(source), size=len(test))]
+                        if terminal:
+                            from balancing_aipw import fit_xgboost_mean
+                            def regression_check():
+                                if perf_counter() >= deadline:
+                                    raise TimeoutError("Sample estimator deadline exhausted.")
+                            try:
+                                output[test], fit = fit_xgboost_mean(observed, source, query,
+                                    seed=(seed+1009*(stage+1)+104729*(heldout+1)) % 2**32, check=regression_check)
+                                diagnostic.setdefault("regressions", []).append(fit)
+                            except (TimeoutError, ValueError, RuntimeError, FloatingPointError) as error:
+                                return fail("UNKNOWN", str(error))
+                        else:
+                            output[test] = source[rng.integers(len(source), size=len(test))]
                         diagnostic["k"].append(len(source))
                         continue
                     center, scale = observed.mean(axis=0), np.where(constant, 1, observed.std(axis=0))
@@ -387,6 +399,17 @@ def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
                     radii = [nearest(normalized, baseline_source[start:start+64], k)[1]
                              for start in range(0, len(baseline_source), 64)]
                     baseline = max(float(np.median(np.concatenate(radii))), 1e-12)
+                    if terminal:
+                        from balancing_aipw import fit_xgboost_mean
+                        def regression_check():
+                            if perf_counter() >= deadline:
+                                raise TimeoutError("Sample estimator deadline exhausted.")
+                        try:
+                            output[test], fit = fit_xgboost_mean(observed, source, query,
+                                seed=(seed+1009*(stage+1)+104729*(heldout+1)) % 2**32, check=regression_check)
+                            diagnostic.setdefault("regressions", []).append(fit)
+                        except (TimeoutError, ValueError, RuntimeError, FloatingPointError) as error:
+                            return fail("UNKNOWN", str(error))
                     for start in range(0, len(test), 64):
                         if perf_counter() >= deadline:
                             return fail("UNKNOWN", "Sample estimator deadline exhausted.")
@@ -395,7 +418,8 @@ def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
                         diagnostic["off_range_rows"] += int(off_range.sum())
                         diagnostic["weak_rows"] += int(np.count_nonzero(off_range | (radius > 9*baseline)))
                         rows = test[start:start+64]
-                        output[rows] = source[chosen].mean(axis=1) if terminal else source[chosen[np.arange(len(rows)), rng.integers(k, size=len(rows))]]
+                        if not terminal:
+                            output[rows] = source[chosen[np.arange(len(rows)), rng.integers(k, size=len(rows))]]
                     diagnostic["k"].append(k)
             diagnostic["weak_fraction"] = diagnostic["weak_rows"]/len(evaluation)
             diagnostics.append(diagnostic)
@@ -427,13 +451,13 @@ def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
 def _estimate_mean(data, graph, schema, payload, seed, deadline):
     """Fit adjustment using only observed data, graph and public column/type metadata.
 
-    Two folds train kNN on one half and standardize over the other half's Z.
+    Two folds train XGBoost on one half and standardize over the other half's Z.
     Support cutoffs are engineering diagnostics, not a proof of positivity.
-    Finite-sample smoothing bias remains; no data standard error is asserted.
+    Finite-sample regression approximation remains; no data standard error is asserted.
     """
-    result = dict(status="UNSUPPORTED", method="2-fold kNN g-computation", n=len(data), approximate=True,
+    result = dict(status="UNSUPPORTED", method="2-fold XGBoost g-computation", n=len(data), approximate=True,
                   diagnostics={"folds": 2, "data_uncertainty": "not estimated",
-                               "limitations": "kNN smoothing bias and high-dimensional sparse support",
+                               "limitations": "XGBoost approximation bias and sparse support; nearest-neighbor coverage diagnostics are not the regression",
                                "support_checks": "empirical engineering checks, not a positivity certificate"})
 
     def fail(status, reason):
@@ -592,7 +616,16 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
             if not features or not np.any(x[train].std(axis=0)):
                 if features and not np.all(query == training[0]):
                     return fail("UNKNOWN", "INSUFFICIENT_DATA: constant training features do not cover the query.")
-                predictions[test] = y[train].mean(axis=0)
+                from balancing_aipw import fit_xgboost_mean
+                def regression_check():
+                    if perf_counter() >= deadline:
+                        raise TimeoutError("Sample estimator deadline exhausted.")
+                try:
+                    predictions[test], fit = fit_xgboost_mean(x[train], y[train], requested[test],
+                        seed=(seed+104729*(heldout+1)) % 2**32, check=regression_check)
+                    result["diagnostics"].setdefault("regressions", []).append(fit)
+                except (TimeoutError, ValueError, RuntimeError, FloatingPointError) as error:
+                    return fail("UNKNOWN", str(error))
                 sizes.append(len(train))
                 continue
             try:
@@ -605,7 +638,16 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
             baseline = np.maximum(factual_radius, 1e-12)
             poor_coverage += int(np.count_nonzero(radius > 9 * baseline))
             radii.extend((radius / baseline).tolist())
-            predictions[test] = y[train[nearest]].mean(axis=1)
+            from balancing_aipw import fit_xgboost_mean
+            def regression_check():
+                if perf_counter() >= deadline:
+                    raise TimeoutError("Sample estimator deadline exhausted.")
+            try:
+                predictions[test], fit = fit_xgboost_mean(x[train], y[train], requested[test],
+                    seed=(seed+104729*(heldout+1)) % 2**32, check=regression_check)
+                result["diagnostics"].setdefault("regressions", []).append(fit)
+            except (TimeoutError, ValueError, RuntimeError, FloatingPointError) as error:
+                return fail("UNKNOWN", str(error))
             sizes.append(k)
     result["diagnostics"].update(poor_coverage_fraction=poor_coverage / len(data),
                                  max_squared_radius_ratio=max(radii, default=0),
@@ -1166,7 +1208,7 @@ class Editor:
                         implementation=dict(file="editor_engine.py", entry="_estimate_mean",
                             sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()),
                         options=dict(seed=split_seed, max_seconds=seconds),
-                        nuisance=dict(outcome="Existing 2-fold kNN conditional-mean/kernel plug-in; inspect arm methods and diagnostics",
+                        nuisance=dict(outcome="2-fold XGBoost conditional means and unchanged nonterminal kNN sampling kernels; empirical unconditional means remain direct",
                                       weights="No inverse-probability or balancing weights; no AIPW augmentation"),
                         limitations=["High-dimensional kNN smoothing and sparse support can leave substantial error.",
                                      "No data standard error or confidence interval is estimated."],

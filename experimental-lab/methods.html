@@ -220,10 +220,11 @@ permalink: /experimental-lab/methods.html
     <main class="layout">
       <nav class="contents" aria-label="Methods contents">
         <a href="#overview">Target and meanings</a><a href="#dispatch">Which method runs?</a><a href="#data">Data and encoding</a
-        ><a href="#basis">Feature basis</a><a href="#outcome">Outcome nuisance</a><a href="#weights">Weight nuisance</a
-        ><a href="#cross-fitting">Cross-fitting and seeds</a><a href="#score">Augmented score</a><a href="#diagnostics">Diagnostics and failures</a
-        ><a href="#legacy">Legacy adjustment kNN</a><a href="#uca">General-ID kernel plug-in</a><a href="#reference">Generated-model reference</a
-        ><a href="#benchmark">Benchmark references</a><a href="#reproduce">Code and reproduction</a><a href="#sources">Sources and guarantees</a>
+        ><a href="#basis">Input coordinates</a><a href="#outcome">XGBoost means</a><a href="#weights">Minimum-variance weights</a
+        ><a href="#cross-fitting">Cross-fitting and seeds</a><a href="#score">Three actual scores</a
+        ><a href="#diagnostics">Diagnostics and failures</a><a href="#legacy">Graph adjustment</a><a href="#uca">General-ID integration</a
+        ><a href="#reference">Model reference</a><a href="#benchmark">Benchmark references</a><a href="#reproduce">Code and reproduction</a
+        ><a href="#sources">Sources and limits</a>
       </nav>
       <div class="body">
         <section id="overview">
@@ -246,66 +247,55 @@ permalink: /experimental-lab/methods.html
             <strong>Estimate</strong> approximates an identified quantity from observed rows.
           </p>
           <p>
-            A <strong>nuisance function</strong> is an intermediate function learned to compute the final effect. The three baseline choices use an
-            outcome mean, an inverse-weight function, or both for each arm. The target uses the whole cohort, not just treated rows. No rows are
+            A <strong>nuisance function</strong> is an intermediate function learned to compute the final effect. All three baseline choices learn an
+            outcome mean for each arm; AIPW and IPW also learn weight functions. The target uses the whole cohort, not just treated rows. No rows are
             trimmed to redefine the target.
           </p>
         </section>
+
         <section id="dispatch">
           <h2>Which method actually runs?</h2>
-          <p class="brief">Read the result's actual <code>method</code>, rather than assuming every graph uses AIPW.</p>
+          <p>
+            The three baseline choices require one scalar binary treatment, one scalar observed outcome, no factual evidence, and a verified baseline
+            Back-door (BD) or Adjustment Criterion (AC) witness. The adjustment nodes must be observed non-descendants of the treatment. An
+            identification result for Front-door or Sequential does not itself enable these baseline methods.
+          </p>
           <table>
-            <thead>
-              <tr>
-                <th>Request and graph</th>
-                <th>Numerical branch</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><code>estimation_method="aipw"</code>, or <code>"auto"</code> within the baseline scope below</td>
-                <td>
-                  Bounded-calibration augmented inverse probability weighting (AIPW), <code>balancing_aipw_v2</code>; outcome and weight nuisances
-                </td>
-              </tr>
-              <tr>
-                <td><code>estimation_method="outcome_regression"</code></td>
-                <td>Outcome Regression (Plug-in), <code>outcome_regression_v1</code>; arm-specific ridge outcome nuisances only</td>
-              </tr>
-              <tr>
-                <td><code>estimation_method="ipw"</code></td>
-                <td>
-                  Inverse probability weighting (IPW), <code>uca_balancing_ipw_v1</code>; UCA-style quadratic density-ratio balancing only; raw
-                  all-row mean, without heldout ratio normalization
-                </td>
-              </tr>
-              <tr>
-                <td>Explicit <code>estimation_method="legacy_knn"</code>, or an <code>"auto"</code> query outside that baseline scope</td>
-                <td>
-                  Original graph plug-in estimator: adjustment k-nearest neighbors (kNN) where a witness exists, otherwise a supported general
-                  identification (ID) kernel plug-in
-                </td>
-              </tr>
-              <tr>
-                <td>Unsupported graph/query/domain, stale dataset, or failed numerical diagnostics</td>
-                <td>Reason/status, without a fabricated estimate or substituted model reference</td>
-              </tr>
-            </tbody>
+            <tr>
+              <th>Request</th>
+              <th>Actual computation</th>
+            </tr>
+            <tr>
+              <td><code>aipw</code>, or eligible <code>auto</code></td>
+              <td><code>minimum_variance_aipw_v1</code>: XGBoost outcome means plus minimum-variance outcome-balanced weights; augmented score</td>
+            </tr>
+            <tr>
+              <td><code>outcome_regression</code></td>
+              <td><code>xgboost_outcome_regression_v1</code>: XGBoost outcome means; plug-in score; no weight fitting</td>
+            </tr>
+            <tr>
+              <td><code>ipw</code></td>
+              <td>
+                <code>minimum_variance_ipw_v1</code>: same XGBoost means used to fit the outcome-balance constraints; raw weighted outcome score, no
+                residual correction
+              </td>
+            </tr>
+            <tr>
+              <td><code>legacy_knn</code> compatibility API alias, or <code>auto</code> outside baseline scope</td>
+              <td>
+                Graph plug-in: XGBoost adjustment means, or supported general-ID integration with XGBoost terminal conditional means and unchanged
+                nonterminal sampling kernels. The alias is not the current regression method.
+              </td>
+            </tr>
           </table>
           <p>
-            All three explicit baseline choices require one scalar binary treatment, one scalar continuous/binary outcome, fixed 0/1 regimes, no
-            factual evidence and a verified baseline BD/AC witness. Every adjustment variable must be a treatment non-descendant. The actual witness
-            is selected by <code>construct_minimum_adjustment_set</code> and checked by <code>check_adjustment_criterion</code>; the result records
-            <code>BD</code> or <code>AC</code> and its adjustment variables. Only that witness's columns enter the nuisance functions. A vector
-            witness node retains every ordered component.
-          </p>
-          <p>
-            A fit failure of the selected baseline method stays <code>UNKNOWN</code>. An explicit baseline choice on an ineligible graph/query returns
-            <code>UNSUPPORTED</code>. There is no automatic fallback to the legacy estimator. The browser processes multiple outcomes separately on
-            the same data snapshot. A Front-door or Sequential identification result does not itself enable any of these three baseline choices. The
-            legacy <code>compare</code>, native <code>run_demo</code> and CLI <code>demo</code> retain their original plug-in/reference workflow.
+            A failed supported baseline fit remains <code>UNKNOWN</code>, with no estimate. Explicit baseline requests outside scope are
+            <code>UNSUPPORTED</code>. There is no silent fallback. Each outcome is processed separately on the same retained rows. Native
+            <code>compare</code>/CLI <code>demo</code> use graph plug-in estimation and separate model references; their learned means now also use
+            XGBoost.
           </p>
         </section>
+
         <section id="data">
           <h2>Observed data and encoding</h2>
           <p class="brief">The estimators learn from the selected factual rows. Model references and benchmark truth never enter their fits.</p>
@@ -332,354 +322,254 @@ permalink: /experimental-lab/methods.html
             coordinates of its verified witness, not every variable drawn in the graph.
           </p>
         </section>
+
         <section id="basis">
-          <h2>Feature basis</h2>
-          <p class="brief">The baseline nuisance models use linear features and each feature's square, fitted with training-fold scaling.</p>
+          <h2>Actual regression inputs and diagnostic coordinates</h2>
           <p>
-            For each outer training set, each supplied covariate coordinate is centered by its training mean and divided by its training standard
-            deviation. A scale at most <code>1e-12</code> is replaced by 1. The standardized coordinates and their coordinatewise squares are
-            concatenated; each resulting basis coordinate is again centered/scaled with training-fold statistics. The same transformation is applied
-            to the heldout fold. Coordinates constant in training map to zero on the training fold; heldout rows still use that same transformation
-            and need not be zero. There are no pairwise interactions, tree fit, neural network, automatic feature selection or truth-based tuning in
-            these nuisance models.
+            Every coordinate of the actual verified adjustment witness enters XGBoost. A vector node uses all its ordered bound members. Nominal
+            covariates use the existing full one-hot fit view, retaining every category and logical node. No source row or witness coordinate is
+            dropped. Covariates outside the chosen witness are not automatically added.
           </p>
           <p>
-            Write this transformed basis as <var>B</var>(<var>c</var>). AIPW and Outcome Regression use this basis for their fitted nuisances, with
-            separate arm-specific parameters. IPW uses the distinct positive/RBF weight dictionary below; the linear-plus-square basis remains its
-            support diagnostic basis only. Outcome Regression fits no weights; IPW fits no outcome model. Outcome centering is additionally
-            arm-specific. The basis retains every fitting coordinate of the witness, including every one-hot indicator; the twofold split does not
-            discard features.
+            XGBoost receives the original finite numeric coordinates, not the former standardized linear-plus-square regression basis. No learned
+            polynomial or RBF expansion is used. With zero real predictors, the helper supplies one explicit constant-zero column and still trains
+            XGBoost.
+          </p>
+          <p>
+            Separately, raw-coordinate imbalance diagnostics standardize each original witness coordinate by its whole outer-training mean and
+            standard deviation; a standard deviation at most <code>1e-12</code> becomes 1. Coordinates constant in training map to zero there. This
+            linear-only diagnostic is not the weight constraint or a new set of fitted features.
           </p>
         </section>
         <section id="outcome">
-          <h2>Outcome nuisance</h2>
-          <p class="brief">For each treatment arm, a ridge regression predicts the mean outcome at the covariate values being evaluated.</p>
+          <h2>The XGBoost outcome nuisance</h2>
+          <p class="brief">For each treatment arm, a real XGBoost model predicts the mean outcome from the witness covariates.</p>
           <p>
-            The ideal outcome nuisance is <code>m_a^*(c) = E[Y | A=a, C=c]</code>, the mean outcome conditional on the treatment arm and covariates.
-            The fitted <code>m_a(c)</code> approximates that ideal; fixed-basis ridge fitting need not equal it. For arm <var>a</var>, use only its
-            rows in the outer training fold. Center the basis by that arm's basis mean and the outcome by that arm's outcome mean. Fit slopes by least
-            squares with a fixed ridge penalty of <code>0.001</code>; the intercept is unpenalized.
+            The ideal function is <code>m_a^*(c)=E[Y | A=a,C=c]</code>; the fitted <code>m_a(c)</code> approximates it. The implementation uses
+            XGBoost <code>2.1.4</code>, core <code>DMatrix</code>/<code>train</code> APIs, with only that arm's outer-training rows. Its
+            training-response mean sets <code>base_score</code>. All heldout outcomes and evaluation references are excluded from learning.
           </p>
-          <pre aria-label="Exact ridge calculation">
-X = B_train_arm - mean(B_train_arm, axis=0)
-y_centered = Y_train_arm - mean(Y_train_arm)
-beta = solve(X.T @ X / n_arm + 0.001 * I,
-             X.T @ y_centered / n_arm)
-m_a(c) = mean(Y_train_arm) + (B(c) - mean(B_train_arm)) @ beta</pre
+          <pre>
+objective = "reg:squarederror"
+num_boost_round = 64
+max_depth = 3; eta = 0.05; tree_method = "hist"
+nthread = 1; subsample = 1; colsample_bytree = 1
+reg_lambda = 1; min_child_weight = 5
+base_score = mean(training_arm_outcome)</pre
           >
           <p>
-            This minimizes half the mean squared residual plus <code>0.001 / 2 * ||beta||²</code>. It is an unweighted arm-specific regression. Binary
-            outcomes use the same least-squares nuisance, not logistic regression. Its predictions are not clipped. <code>train_outcome_rmse</code> is
-            training fit error, not heldout validation accuracy or an uncertainty interval.
+            These settings are fixed before evaluation; there is no outcome-based tuning, inner cross-validation or early-stopping selection. Deadline
+            callbacks check after every boosting iteration and after prediction. Multiple conditional-mean output coordinates use one booster per
+            coordinate. Exact finite predictions, settings and training RMSE are returned.
+          </p>
+          <p>
+            All three baseline choices fit these four arm/fold regressions. AIPW and IPW reuse each fitted model for both their weight constraint and
+            heldout score. IPW therefore does use outcome learning for balancing, even though its score has no outcome-regression augmentation. OR
+            never fits weights.
+          </p>
+          <p>
+            Browser computation uses the official Pyodide <code>0.29.4</code> XGBoost <code>2.1.4</code> package on the user's device. Native Python
+            pins the same package version. Identify alone does not load XGBoost. Simulator mechanisms and density/particle sampling are separate
+            operations.
           </p>
         </section>
         <section id="weights">
-          <h2>AIPW weight nuisance</h2>
+          <h2>Minimum-second-moment fitted-outcome balance</h2>
           <p class="brief">
-            For AIPW, bounded logistic calibration learns correction weights that approximately match the whole training cohort's selected moments.
-            IPW uses the separate quadratic-ratio fit below.
+            Both AIPW and IPW minimize weight variability while exactly matching the whole training cohort's fitted arm-specific outcome mean.
           </p>
           <p>
-            The ideal inverse-weight nuisance is <code>alpha_a^*(c) = 1 / P(A=a | C=c)</code>, the reciprocal of the conditional probability of
-            receiving that arm. The fitted, constrained <code>alpha_a(c)</code> approximates this ideal; the two are not assumed equal. These are two
-            separately learned inverse-weight functions, <var>α</var><sub>0</sub> and <var>α</var><sub>1</sub>. The code does not separately fit a
-            propensity probability <var>e</var>(<var>c</var>), and the two fitted functions need not be reciprocals of a single coherent probability
-            model.
-          </p>
-          <p>
-            Let <var>T</var> denote the outer training rows, <var>n</var><sub>T</sub> their count, and <var>I</var><sub>ia</sub> equal 1 when row
-            <var>i</var> has treatment <var>a</var>, otherwise 0. Let <var>s</var><sub>a</sub>(<var>c</var>) = <var>b</var><sub>a</sub> +
-            <var>B</var>(<var>c</var>)<sup>T</sup><var>θ</var><sub>a</sub>. The fitted link is globally bounded:
+            For a fixed arm <var>a</var>, let <var>T</var> be the outer-training cohort, <var>N</var> its size, and <var>S</var> its rows with
+            <var>A</var>=<var>a</var>. The fitted prediction <var>g</var><sub>i</sub>=<var>m</var><sub>a</sub>(<var>C</var><sub>i</sub>) is evaluated
+            on every training row. Define the full-cohort weight <var>W</var><sub>i</sub>=1[<var>A</var><sub>i</sub>=<var>a</var>]<var>w</var
+            ><sub>i</sub>. It is zero outside the selected arm; positivity applies to the within-arm weights.
           </p>
           <div class="equation">
-            <math display="block" aria-label="alpha a of c equals 1 plus 19 sigmoid of b a plus B c transpose theta a"
-              ><msub><mi>α</mi><mi>a</mi></msub
-              ><mo>(</mo><mi>c</mi><mo>)</mo><mo>=</mo><mn>1</mn><mo>+</mo><mn>19</mn><mi>σ</mi><mo>(</mo><msub><mi>b</mi><mi>a</mi></msub
-              ><mo>+</mo
-              ><msup
-                ><mrow><mi>B</mi><mo>(</mo><mi>c</mi><mo>)</mo></mrow
-                ><mi>T</mi></msup
-              ><msub><mi>θ</mi><mi>a</mi></msub
-              ><mo>)</mo><mo>,</mo><mspace width="1em" /><mn>1</mn><mo>≤</mo><msub><mi>α</mi><mi>a</mi></msub
-              ><mo>≤</mo><mn>20</mn></math
+            <math display="block"
+              ><munder><mo>min</mo><mi>w</mi></munder
+              ><mfrac><mn>1</mn><mi>N</mi></mfrac
+              ><munder
+                ><mo>∑</mo><mrow><mi>i</mi><mo>∈</mo><mi>S</mi></mrow></munder
+              ><msubsup><mi>w</mi><mi>i</mi><mn>2</mn></msubsup
+              ><mspace width="1em" /><mtext>subject to</mtext><mspace width="1em" /><mfrac><mn>1</mn><mi>N</mi></mfrac
+              ><munder
+                ><mo>∑</mo><mrow><mi>i</mi><mo>∈</mo><mi>S</mi></mrow></munder
+              ><msub><mi>w</mi><mi>i</mi></msub
+              ><mo>=</mo><mn>1</mn><mo>,</mo><mspace width="1em" /><mfrac><mn>1</mn><mi>N</mi></mfrac
+              ><munder
+                ><mo>∑</mo><mrow><mi>i</mi><mo>∈</mo><mi>S</mi></mrow></munder
+              ><msub><mi>w</mi><mi>i</mi></msub
+              ><msub><mi>g</mi><mi>i</mi></msub
+              ><mo>=</mo><mfrac><mn>1</mn><mi>N</mi></mfrac
+              ><munder
+                ><mo>∑</mo><mrow><mi>i</mi><mo>∈</mo><mi>T</mi></mrow></munder
+              ><msub><mi>g</mi><mi>i</mi></msub
+              ><mo>,</mo><mspace width="1em" /><msub><mi>w</mi><mi>i</mi></msub
+              ><mo>≥</mo><mi>ε</mi></math
             >
           </div>
           <p>
-            Here <var>σ</var> is the logistic sigmoid, implemented by stable <code>expit</code>. The cap 20 defines the fitted function class; weights
-            are not clipped after fitting. For each arm the code minimizes this convex objective, with slope penalty fixed at <code>0.01</code>:
+            The fixed <code>ε=1e-8</code> is inside the feasible class, making the numerical problem closed and strictly positive on the arm. Strict
+            <code>w&gt;0</code> without a floor need not attain its infimum. There is no RBF loss, weight ridge penalty, ratio projection, propensity
+            fit or prevalence division in this calculation. The target is the whole training cohort, not the treated cohort.
           </p>
-          <pre aria-label="Exact bounded calibration objective">
-s_i = intercept + B_i @ slopes
-loss = 19 / n_train * sum_train_arm(logaddexp(0, s_i))
-       - 1 / n_train * sum_train_other_arm(s_i)
-       + 0.01 / 2 * (slopes @ slopes)</pre
-          >
+          <h3>Exact scalar active-set solver</h3>
           <p>
-            The intercept has no penalty. With <var>φ</var> = (1, <var>B</var>), the gradient is the training mean of
-            <code>(I_arm * alpha_arm - 1) * phi</code>, plus <code>0.01 * slopes</code> on slope coordinates only. The intercept's first-order
-            equation learns weighted arm mass <var>n</var><sub>T</sub>. The slope equations balance selected moments against the full training cohort
-            up to regularization and solver residuals. The actual mass residual is reported; no normalization is imposed afterward.
-          </p>
-          <p>
-            A finite intercept requires the training-arm prevalence <var>π</var><sub>a</sub> to satisfy <code>1/20 &lt; pi_a &lt; 1</code>. Slopes
-            start at zero; the intercept starts at <code>log((1/pi_a - 1) / (20 - 1/pi_a))</code>. The numerical solver is SciPy’s limited-memory
-            Broyden–Fletcher–Goldfarb–Shanno routine with box-constraint support (L-BFGS-B); no explicit coefficient bounds are passed here. It uses
-            <code>maxiter=400</code>, <code>ftol=1e-12</code>, <code>gtol=1e-7</code>; the accepted final maximum absolute gradient must be at most
-            <code>1e-5</code>. The fixed cap, penalties and basis are not selected using model truth or benchmark references.
-          </p>
-          <p class="note">
-            The bound prevents the former exponential-quadratic extension from exploding on a heldout outlier. It can also exclude true inverse
-            weights above 20, creating weight-nuisance misspecification. Neither bounded weights nor good moment balance proves real-world overlap or
-            causal correctness.
-          </p>
-        </section>
-        <section id="uca-ipw-weights">
-          <h2>IPW: UCA-style quadratic ratio balancing</h2>
-          <p class="brief">
-            IPW learns a density ratio that reweights each training treatment arm toward the whole training cohort. It fits no outcome model.
-          </p>
-          <p>
-            For arm <var>a</var>, the current source is the outer-training distribution of <var>C</var> conditional on <code>A=a</code>; the target
-            (previous source) is the whole outer-training cohort. The ideal ratio is <code>r_a(c) = dP(C) / dP(C | A=a)</code>. An inverse weight
-            additionally needs the training treatment prevalence: <code>alpha_a(c) = r_a(c) / pi_a</code>, where
-            <code>pi_a = n_train_arm / n_train</code>. A density ratio alone is not the inverse treatment probability.
-          </p>
-          <p>
-            The dictionary uses every coordinate of the actual adjustment witness. Coordinates are centered/scaled using the whole outer-training fold
-            (constant-coordinate scale falls back to 1), then mapped through <code>tanh</code>. For mapped vector <var>x</var>, concatenate 1,
-            <code>z=(x+1)/2</code>, its complement, their coordinatewise squares, and 24 radial-basis features (or all available training centers if
-            fewer). Centers are sampled from the current-arm plus whole-cohort training pool with the recorded derived seed. The radial feature is
-            <code>exp(-mean((x-center)**2)/0.35)</code>; 0.35 is its mean-squared-distance denominator, not a Gaussian standard deviation. There are
-            no binary proposal gates for this fixed-arm covariate-only fit. With no covariates, the dictionary is just the constant 1. Heldout rows
-            never choose scaling, centers, coefficients or normalization.
+            Center predictions by their whole-training mean <var>t</var> and divide by their whole-training standard deviation <var>s</var> (use 1
+            when at most <code>1e-12</code>). Write <var>z</var>=(<var>g</var>−<var>t</var>)/<var>s</var>. The solution has the form
+            <code>w(c)=max(ε, b0+b1*z(c))</code>. Sorting arm predictions and cumulative first/second moments identifies the active prefix or suffix
+            in <code>O(m log m)</code> time, where <var>m</var> is the arm size. Each candidate solves the two equality equations, checks the affine
+            active/floor inequalities, then verifies actual normalized mass and standardized-prediction residuals at most <code>1e-8</code>.
           </p>
           <pre>
-G = mean_arm(phi(C) @ phi(C).T) + 0.002 * I
-moment = mean_whole_training_cohort(phi(C))
-minimize over coef &gt;= 0:
-    0.5 * coef.T @ G @ coef - moment.T @ coef
-raw_ratio(c) = phi(c) @ coef
-projected_ratio(c) = clip(raw_ratio(c), 0.01, 50)
-scale = mean_training_arm(projected_ratio(C))
-r_hat(c) = projected_ratio(c) / scale
-alpha_hat(c) = r_hat(c) / pi_train_arm</pre
+R = N - m*epsilon
+q = (N*mean_cohort(z) - epsilon*sum_arm(z)) / R
+require q within [min_arm(z), max_arm(z)]
+For a candidate nonfloor prefix or suffix S+:
+[k, sum(z); sum(z), sum(z*z)] @ [b0,b1] =
+    [N-epsilon*(m-k), N*mean_cohort(z)-epsilon*sum_inactive(z)]
+w = max(epsilon, b0+b1*z)</pre
           >
           <p>
-            The outer products in <code>G</code> are formed row by row before averaging. The coefficient constraint makes the unprojected
-            finite-dictionary function nonnegative. The implementation checks the projected Karush–Kuhn–Tucker (KKT) residual
-            <code>max(abs(coef - maximum(0, coef - (G @ coef - moment)))) &lt;= 1e-4</code>, solver success, finite arithmetic and the request
-            deadline. The product solves exactly this positive-definite quadratic by Cholesky-transformed nonnegative least squares (NNLS). With
-            <code>G=L @ L.T</code>, explicitly use its lower triangular factor, <code>A=L.T</code> and <code>b=solve_triangular(L, moment)</code>.
-            Then minimizing <code>0.5*||A@coef-b||²</code> over nonnegative coefficients differs from the quadratic above only by a constant. SciPy
-            <code>nnls</code> uses <code>maxiter=3*feature_count</code>. A normal solver return, finite/nonnegative coefficients, the unchanged
-            projected KKT tolerance and the post-call deadline check are all required. A solver error withholds the estimate and retains diagnostics.
-            The API does not return actual iteration counts, so they are <code>null</code>; the fixed maximum is recorded. The generic UCA recipe used
-            L-BFGS-B; this product uses NNLS as a numerical solution of the same statistical objective, not a different weight target or
-            regularization setting.
+            Constant-arm predictions are feasible only when the same constant matches the whole-cohort target; the canonical extension is uniform
+            <code>N/m</code>. At an extreme-tie boundary, all excess mass <code>R</code> is shared equally among tied extreme predictions and all
+            other arm rows receive the floor. The canonical affine extension equals the floor at the nearest nonextreme prediction. A target outside
+            the floor-adjusted arm convex hull, or no numerically valid candidate, yields no estimate.
           </p>
           <p>
-            The source raw-ratio projection is <code>[0.01,50]</code>. The final inverse-weight range is
-            <code>[0.01/(scale*pi), 50/(scale*pi)]</code>, not 1–20 and not capped at 50. Training normalization makes the mean ratio in the training
-            arm equal to one and its inverse weights represent the whole training cohort. The same fitted scale and prevalence are reused on heldout
-            rows; there is no heldout normalization, trimming or target-cohort change. Diagnostics distinguish raw/post-projection ratio balance from
-            balance in the original standardized linear-plus-square diagnostic basis, as well as projection fractions, effective bounds, weight mass,
-            ESS and concentration.
+            The same training-fitted centering, scaling and affine-positive function are evaluated on heldout rows. There is no heldout re-fit or
+            re-normalization, no target trimming and no posthoc repair of equality constraints. Heldout weights are not globally upper-bounded;
+            concentration diagnostics still matter. Exact balance of one fitted prediction is not balance of all covariates or all functions, and does
+            not certify a correct density ratio or positivity.
           </p>
+          <h3 id="uca-ipw-weights">Previous UCA-style IPW implementation</h3>
           <p>
-            This is a one-stage, fixed-arm finite-dictionary adaptation of the adjacent-source quadratic loss in UCA
-            (<code>uca_sdr.py::fit_local_weight</code>, with its positive feature/RBF recipe). It is not a literal reproduction of the latest frozen
-            UCA paper benchmark, which uses a separate saturated-indicator recipe, and does not enable general UCA/Front-door/Sequential IPW in this
-            product. Finite feature balance, projection and normalization can leave density-ratio bias; none certifies positivity or causal
-            assumptions. AIPW and Outcome Regression keep their previous fits and arithmetic.
+            The former finite-dictionary quadratic RN fit is not the selected baseline weight routine anymore. General-ID kernel integration below is
+            a separate path; it has not been relabeled as these new weights.
           </p>
         </section>
         <section id="cross-fitting">
-          <h2>Cross-fitting and seeds</h2>
-          <p class="brief">Each row's score uses functions fitted without that row.</p>
+          <h2>Folds, seeds and isolation</h2>
           <p>
-            A seeded permutation within each treatment arm allocates rows alternately to two outer folds. For each heldout fold, preprocessing, only
-            the nuisance fits needed by the selected method use the other fold. AIPW fits two arm-specific outcome regressions and two
-            bounded-logistic calibration functions per fold; Outcome Regression fits only the regressions; IPW fits only two quadratic density-ratio
-            functions. The resulting functions are evaluated on the heldout rows. This is treatment-stratified twofold cross-fitting; there is no
-            inner cross-validation or fitted hyperparameter selection.
+            A seeded permutation within each treatment arm allocates rows alternately to two outer folds. Each heldout half uses only the opposite
+            half's XGBoost models, prediction scaling and weight duals. No heldout labels, Monte Carlo references or benchmark truths enter fitting.
+            The data adapter derives the split seed as <code>data_seed XOR 0x5A5A5A5A</code>. Model-fit seeds are
+            <code>(split_seed+104729*(heldout+1)+1009*(arm+1)) mod 2^32</code>. A complete baseline run makes outcome/weight attempts
+            <code>4/4</code> for AIPW, <code>4/0</code> for OR and <code>4/4</code> for IPW.
           </p>
           <p>
-            The actual split seed is the dataset seed XOR <code>0x5A5A5A5A</code>, recorded in <code>estimation_details.options.seed</code>. Changing
-            the dataset seed can change generated rows and/or fold allocation; copying the retained CSV plus its recorded split seed reproduces the
-            fit without rebuilding a model. A model seed fixes the generated mechanisms and is separate from the observed-data seed. Model-reference
-            simulation uses a separately derived seed.
+            <code>nuisance.used</code> marks required nuisance types. <code>fit_calls</code> counts actual attempts, <code>fit_completed</code> counts
+            completed fits and <code>fitted</code> becomes true after all four fits of that type complete. A failure can leave partial counts.
+            Identical 0/0 or 1/1 regimes return zero with no nuisance fits.
           </p>
         </section>
         <section id="score">
-          <h2>Three scores and their final averages</h2>
-          <p class="brief">
-            AIPW combines predicted outcomes with weighted observed prediction errors. Outcome Regression averages predictions; IPW averages weighted
-            observed outcomes.
+          <h2>Three different actual scores</h2>
+          <p>
+            Use heldout fitted means <code>m0,m1</code> and heldout fitted weights <code>w0,w1</code> for each original row. The estimate averages its
+            selected score over all original <code>n</code> rows:
           </p>
-          <p>For each row <var>i</var>, evaluate the heldout nuisance functions at <var>C</var><sub>i</sub>. The 1-versus-0 row score is:</p>
-          <pre aria-label="Raw AIPW row score and final estimate">
-score_i = m_1(C_i) - m_0(C_i)
-          + I(A_i == 1) * alpha_1(C_i) * (Y_i - m_1(C_i))
-          - I(A_i == 0) * alpha_0(C_i) * (Y_i - m_0(C_i))
-estimate = sum(score_i) / n</pre
+          <pre>
+AIPW: s = m1-m0 + I(A=1)*w1*(Y-m1) - I(A=0)*w0*(Y-m0)
+Outcome Regression (Plug-in): s = m1-m0
+IPW: s = I(A=1)*w1*Y - I(A=0)*w0*Y
+estimate = mean(s) * (intervention-reference)</pre
           >
           <h3 id="outcome-regression">Outcome Regression (Plug-in)</h3>
-          <pre>
-score_i = m_1(C_i) - m_0(C_i)
-estimate = sum(score_i) / n</pre
-          >
           <p>
-            This uses the same cross-fitted ridge outcome nuisance and witness coordinates as AIPW. It does not call the calibration solver or compute
-            weight feasibility, ESS, weight mass, concentration or balancing diagnostics. It requires at least 128 rows and 32 training rows in each
-            arm. Predictions can extrapolate; the absence of weight diagnostics is not evidence of overlap or correct outcome modeling.
+            Uses the XGBoost prediction contrast only. It never invokes the weight solver or its feasibility, ESS, mass or concentration checks. Its
+            extrapolation or approximation can still be biased.
           </p>
-          <h3 id="ipw">Inverse probability weighting (IPW)</h3>
-          <pre>
-score_i = I(A_i == 1) * alpha_1(C_i) * Y_i
-          - I(A_i == 0) * alpha_0(C_i) * Y_i
-estimate = sum(score_i) / n</pre
-          >
+          <h3 id="ipw">IPW</h3>
           <p>
-            This uses the quadratic density-ratio nuisance above, the whole-cohort ATE target and the existing concentration/support safeguards. It
-            does not solve an outcome regression or report outcome-fit RMSE. It is raw IPW: there is no division by an arm's sum of weights (Hájek
-            normalization). The separately fitted inverse weights need not define a single coherent propensity probability model. Finite dictionary,
-            regularization, ratio projection and train-normalization can bias IPW.
+            Uses raw weighted outcomes, without a residual correction. It fits outcome models because the user-selected weight constraint balances
+            their predictions. The heldout denominator is total <code>n</code>, not a separately normalized arm denominator: this is not Hájek
+            normalization.
           </p>
           <p>
-            The denominator is the total number of observed rows, not the number in one arm or the sum of heldout weights. There is no heldout weight
-            renormalization, score clipping, trimming or model-truth correction. AIPW separates <code>outcome_contrast_mean</code> from
-            <code>augmentation_mean</code>; Outcome Regression reports only the former, and IPW reports
-            <code>raw_weighted_outcome_contrast_mean</code>. A 0-versus-1 request reverses the sign. Identical requested levels return zero without
-            nuisance fitting after the minimum-row check; this is the contrast of the same regime with itself.
-          </p>
-          <p>
-            In the browser, selected actions that are not ancestors of an individual outcome can be removed from that outcome's request without
-            changing the graph or data. Under <code>auto</code> or <code>legacy_knn</code> API dispatch, if both resulting action maps are empty, the
-            original observed-mean calculation returns the same-data zero contrast. An explicit <code>aipw</code>, <code>outcome_regression</code> or
-            <code>ipw</code> request can instead be <code>UNSUPPORTED</code> when no applicable baseline action remains. This graph-dependent
-            conclusion is separate from learning nuisance functions.
+            Reversing 1-versus-0 reverses the sign. Under <code>auto</code> or the compatibility graph-plug-in API, nonancestor actions can be removed
+            and two empty action maps yield the same observed-mean zero contrast. Explicit baseline methods can be unsupported when no applicable
+            binary action remains. No graph or data is rewritten to make a method eligible.
           </p>
         </section>
         <section id="diagnostics">
-          <h2>Diagnostics, warnings and failures</h2>
-          <p class="brief">A failed fit has no estimate. A warning accompanies a finite approximation and explains its limits.</p>
+          <h2>Actual safeguards and uncertainty limits</h2>
           <table>
-            <thead>
-              <tr>
-                <th>Baseline check</th>
-                <th>Actual rule</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Data and arm counts</td>
-                <td>
-                  All three: at least 128 total rows and each outer training arm at least 32. AIPW/IPW additionally require at least 8 rows per
-                  heldout arm.
-                </td>
-              </tr>
-              <tr>
-                <td>Finite calibration feasibility</td>
-                <td>
-                  AIPW only: each training-arm prevalence strictly greater than 1/20 and less than 1. IPW requires both arms but does not use that
-                  logistic-class feasibility restriction.
-                </td>
-              </tr>
-              <tr>
-                <td>Numerical fit</td>
-                <td>
-                  Successful required solver and finite arithmetic. AIPW calibration: gradient maximum ≤ 1e-5. IPW quadratic fit: projected KKT
-                  residual ≤ 1e-4. Outcome Regression: finite ridge solve/predictions.
-                </td>
-              </tr>
-              <tr>
-                <td>Heldout effective sample size (ESS)</td>
-                <td>Fail below max(10, 0.05 × heldout arm count); warn below 0.25 × that count</td>
-              </tr>
-              <tr>
-                <td>Heldout concentration</td>
-                <td>Fail if largest observed-arm weight share &gt; 0.20; warn above 0.05</td>
-              </tr>
-              <tr>
-                <td>Training imbalance</td>
-                <td>Fail if maximum absolute moment residual &gt; 0.5; warn above 0.1</td>
-              </tr>
-              <tr>
-                <td>Heldout mass</td>
-                <td>Warn if observed-arm weight sum / heldout fold size is outside [0.5, 2]</td>
-              </tr>
-              <tr>
-                <td>Cap saturation</td>
-                <td>Report the fraction of observed-arm weights ≥ 0.99 × 20 in training and heldout arms; warn if heldout fraction &gt; 0.05</td>
-              </tr>
-              <tr>
-                <td>Deadline</td>
-                <td>Request budget is positive and ≤ 30 seconds; on exhaustion return no partial value</td>
-              </tr>
-            </tbody>
+            <tr>
+              <th>Check</th>
+              <th>Rule</th>
+            </tr>
+            <tr>
+              <td>Inputs</td>
+              <td>
+                Finite numeric rows, binary scalar action, scalar outcome; at most 5,000 rows, 100 physical coordinates and 500,000 cells; at least
+                128 rows.
+              </td>
+            </tr>
+            <tr>
+              <td>Arm counts</td>
+              <td>Each training arm needs at least 32 rows. Weighted methods additionally need 8 heldout rows per arm.</td>
+            </tr>
+            <tr>
+              <td>XGBoost</td>
+              <td>Actual version 2.1.4, fixed settings, finite predictions, training-only fitting, deadline callbacks and post-call checks.</td>
+            </tr>
+            <tr>
+              <td>Weights</td>
+              <td>
+                Floor-adjusted hull feasibility, finite weights at least 1e-8, valid affine active-set/KKT, actual normalized mass and standardized-μ
+                residual each at most 1e-8.
+              </td>
+            </tr>
+            <tr>
+              <td>Extreme concentration</td>
+              <td>Withhold if heldout arm ESS &lt; max(10, .05*n_arm) or maximum normalized arm share &gt; .20.</td>
+            </tr>
+            <tr>
+              <td>Warnings</td>
+              <td>
+                ESS &lt; .25*n_arm, share &gt; .05, heldout mass outside [.5,2], or standardized raw-coordinate imbalance &gt; .1. Raw-coordinate
+                imbalance is diagnostic only, not a hard constraint or rejection gate.
+              </td>
+            </tr>
+            <tr>
+              <td>Budget</td>
+              <td>Default 10 seconds, allowed request up to 30; no partial score/reference exposed after timeout.</td>
+            </tr>
           </table>
           <p>
-            The bounded-logistic prevalence check and near-20 cap-saturation diagnostics apply only to AIPW. IPW records ratio projection and
-            effective inverse bounds instead. The appropriate solver, ESS, concentration, original diagnostic-basis imbalance and weight-mass checks
-            apply to AIPW/IPW. Outcome Regression does not fit weights and does not run those checks. Its finite-input, arm-count, ridge-solve, score
-            and deadline checks still apply. <code>nuisance.used</code> states which nuisance types the method requires. <code>fitted</code> becomes
-            true only after all four required arm/fold fits of that type complete; identical regimes leave both false. <code>fit_calls</code> records
-            actual attempts (including partial attempts on failure), while <code>fit_completed</code> counts completed fits. A complete fit has
-            outcome/weight call counts 4/4 for AIPW, 4/0 for Outcome Regression and 0/4 for IPW. Identical regimes make 0/0 calls.
+            Returned arm diagnostics include the actual duals, training objective, mean/scale and target range, mass and μ residuals, KKT residual,
+            floor fractions, heldout mass/ESS/share and all actual XGBoost fit settings. ESS/share are engineering concentration diagnostics, not
+            positivity or confidence certificates. Failed required fits return <code>UNKNOWN</code>; invalid/stale inputs raise validation errors.
           </p>
           <p>
-            For positive observed-arm heldout weights <var>w</var>, ESS is <code>sum(w)² / sum(w²)</code> and maximum share is
-            <code>max(w) / sum(w)</code>. These describe concentration, not a new physical sample size or an accuracy guarantee. Mass uses the full
-            heldout-fold denominator; the arm's raw inverse weights should represent the whole cohort. Logit ranges and training mass residuals help
-            diagnose the fitted link.
-          </p>
-          <p>
-            Thresholds are engineering safeguards, not a positivity test or a statistical confidence guarantee. The code supplies
-            <strong>no standard error or confidence interval for the observed-data AIPW, Outcome Regression, IPW, kNN or UCA estimate</strong>.
-            Approximation, misspecification, fixed regularization and finite samples can leave bias even when status is <code>OK</code>. Failed
-            supported fits return <code>UNKNOWN</code>; unsupported query/compiler/domain branches return <code>UNSUPPORTED</code>. Invalid input or
-            stale IDs raise a validation error.
+            No observed-data standard error or confidence interval is estimated for AIPW, OR, IPW or graph plug-in results. Exact training balance
+            does not establish real-world assumptions, correct outcome learning or accurate heldout weights. No unconditional double robustness or
+            finite-sample unbiasedness is claimed.
           </p>
         </section>
         <section id="legacy">
-          <h2>Legacy adjustment kNN g-computation</h2>
-          <p class="brief">
-            This branch predicts an outcome mean from nearby observed training rows, then averages those predictions over the other fold.
+          <h2>Graph adjustment plug-in: XGBoost means</h2>
+          <p>
+            <code>_estimate_mean</code> uses the verified minimum adjustment witness and two seeded, unstratified folds. Discrete
+            treatments/covariates are matched as exact whole-node arms/strata. For each training stratum, requested continuous action values must lie
+            inside its observed range; constant predictors must match. The prior <code>k=max(8,floor(sqrt(n_train)))</code>,
+            <code>n_train≥2k</code> support rule and neighbor-radius coverage diagnostics remain, but neighbors no longer define the outcome
+            regression.
           </p>
           <p>
-            <code>_estimate_mean</code> first obtains and validates an adjustment witness. It uses a seeded twofold permutation of all rows,
-            <strong>not treatment-stratified folds</strong>. Binary/categorical interventions and finite adjustment strata are matched exactly.
-            Continuous interventions and continuous adjustment coordinates form the distance features. For each heldout stratum, the eligible
-            opposite-fold source rows determine:
-          </p>
-          <pre>
-k = max(8, floor(sqrt(n_eligible_training_rows)))
-required: n_eligible_training_rows &gt;= 2 * k</pre
-          >
-          <p>
-            Features are standardized by the eligible training rows' means and standard deviations; zero standard deviations become 1. Squared
-            Euclidean distances choose <var>k</var> neighbors by <code>argpartition</code>. The conditional prediction is their uniform mean, not a
-            Gaussian kernel or learned outcome ridge. If there are no varying continuous features, the eligible arm/stratum mean is used. Constant
-            features that cannot cover the requested values fail.
+            Each learned conditional mean uses <code>fit_xgboost_mean</code> with the same fixed settings above. Each output coordinate has an actual
+            booster. Zero or constant conditional predictors still call XGBoost with a constant feature; there is no silent empirical-mean regression
+            substitute. Nearest-neighbor diagnostics use training mean/std scaling and warn when more than 5% of rows exceed three times their factual
+            radius. No-action unconditional sample means/event rates remain direct empirical averages, not fitted regressions.
           </p>
           <p>
-            Each heldout row keeps its own adjustment covariates while continuous action coordinates are replaced by the requested intervention.
-            Requested continuous actions must be inside observed global and training-stratum action ranges. Too few exact-match rows, nonfinite
-            scales/distances/values or deadline exhaustion yield no estimate. A warning appears if more than 5% of rows need a neighbor radius greater
-            than three times their factual-query radius (squared-radius ratio &gt; 9). This cannot diagnose every form of bias.
-          </p>
-          <p>
-            The branch averages heldout predictions over all rows. With no action, it uses the observed mean directly. A mean difference computes the
-            two interventional means with the same split seed and subtracts them; the first receives half the initially remaining time budget. For a
-            supported event probability, target-row comparison indicators replace outcomes and joint-event hits are averaged. Events combine selected
-            coordinate comparisons with logical AND. Continuous targets allow inequalities; <code>==</code> and <code>!=</code> require a
-            binary/categorical observed-data target.
-          </p>
-          <p>
-            No inverse-probability nuisance, balancing fit, residual augmentation or data standard error is present in this branch. Read each arm's
-            actual method: when a conventional adjustment witness cannot be constructed, the code tries the general-ID compiler described next.
+            For event probabilities the learned outcome is the 0/1 event indicator with <code>reg:squarederror</code>; this approximation is not
+            probability-calibrated or silently clipped. No balancing weights or augmented score are added. The old string <code>legacy_knn</code> is
+            an API compatibility selector only.
           </p>
         </section>
+
         <section id="uca">
           <h2>General-ID normalized-kernel plug-in</h2>
           <p class="brief">This is a separate, approximate integration procedure for supported identified formulas. It is not baseline AIPW.</p>
@@ -703,10 +593,11 @@ required: n_eligible_training_rows &gt;= 2 * k</pre
           </p>
           <p>
             <strong>Unconditional kernels use the heldout evaluation fold's empirical marginal.</strong> They do not fit a conditional regression on
-            the opposite fold. For a terminal mean stage, the code uses the source/neighbor mean. If a generated head is used as a later context, or
-            the request is an event probability, it draws an entire source/neighbor row uniformly, preserving coordinates of that head. Later kernels
-            consume those generated values. The final targets or joint-event indicators are averaged across both folds, using the observed number of
-            integration rows rather than the model-reference draw count.
+            the opposite fold. Unconditional terminal stages use the heldout empirical source mean. Conditional terminal stages use actual XGBoost
+            models trained on the opposite fold, including constant-context cases; their fit diagnostics are returned. If a generated head is used as
+            a later context, or the request is an event probability, it draws an entire source/neighbor row uniformly, preserving coordinates of that
+            head. Later kernels consume those generated values. The final targets or joint-event indicators are averaged across both folds, using the
+            observed number of integration rows rather than the model-reference draw count.
           </p>
           <p>
             For continuous contexts, the code records off-range queries and neighbor-radius coverage. A fixed intervention outside its training
@@ -716,8 +607,9 @@ required: n_eligible_training_rows &gt;= 2 * k</pre
             contexts and time/compilation limits withhold results.
           </p>
           <p>
-            There is no fitted propensity model, inverse-weight correction, balancing loss, AIPW augmentation or observed-data uncertainty estimate
-            here. Bias and integration/smoothing error remain possible.
+            The nonterminal conditional row-sampling/density kernels are unchanged; only learned terminal conditional means use XGBoost. There is no
+            fitted propensity model, inverse-weight correction, balancing loss, AIPW augmentation or observed-data uncertainty estimate here. Bias and
+            integration/smoothing error remain possible.
           </p>
         </section>
         <section id="reference">
@@ -803,71 +695,62 @@ required: n_eligible_training_rows &gt;= 2 * k</pre
             never relabeled as known truth.
           </p>
         </section>
+
         <section id="reproduce">
-          <h2>Actual source and exact-data reproduction</h2>
-          <p class="brief">Use the current retained CSV and the code copied from that result's Details.</p>
+          <h2>Exact source and retained-data reproduction</h2>
           <p>
-            Details records the actual method, source SHA256, callable, requested method, split seed, contrast, current source-column/one-hot recipes
-            and fixed options. The source-copy action verifies the fetched implementation's SHA against the run. The standalone script contains the
-            actual implementation and constructs the same numerical inputs from the retained factual CSV. It calls
-            <code>estimate_balancing_aipw(..., estimator=options.estimator)</code> directly; the recorded value is <code>aipw</code>,
-            <code>outcome_regression</code> or <code>ipw</code>, so replay selects the same score and nuisances; it does not regenerate data or
-            consult a reference. Floating-point optimizer results can vary slightly across numerical runtimes.
+            Each result records the real method, source SHA256, callable, method selection, source-column/full-one-hot recipes, seed, contrast and
+            fixed options. Copy verifies the fetched source SHA. Baseline standalone code contains the entire
+            <a href="./balancing_aipw.py">actual numerical module</a>, including the XGBoost helper, and calls
+            <code>estimate_balancing_aipw(..., estimator=options.estimator)</code> on the retained factual CSV. It needs
+            <code>pip install numpy scipy xgboost==2.1.4</code>. It never regenerates rows or uses a reference. A pasted notebook can run; unavailable
+            source fingerprint is explicitly null.
           </p>
           <p>
-            For a legacy result, replay uses the actual graph, mapping, encoding, data seed, query and <code>estimation_method</code> with
-            <code>Editor.request("load_data", …)</code>/<code>Editor.request("estimate_data", …)</code>. Its implementation source is the original
-            graph estimator, not the bounded AIPW module. The native wheel bundles the same source and this document. A pasted notebook/exec context
-            can compute without a source file; its unverifiable source fingerprint is explicitly <code>null</code>.
+            Graph plug-in replay uses the actual graph, mapping, encoding, data seed, query and method selector with
+            <code>Editor.request("load_data", ...)</code> and <code>Editor.request("estimate_data", ...)</code>. The package includes both the adapter
+            and its imported XGBoost helper. Small floating-point differences across native/WASM builds are possible, even with the same pinned
+            version and fixed single-threaded settings.
           </p>
           <ul>
-            <li><a href="./balancing_aipw.py">Actual three-method baseline implementation</a>: <code>estimate_balancing_aipw</code></li>
-            <li>
-              <a href="./editor_engine.py">Data adapter and legacy methods</a>: <code>_balancing_baseline</code>, <code>_estimate_mean</code>,
-              <code>_estimate_uca_mean</code>, <code>_uca_schedule</code>, <code>_reference</code>, <code>_paired_vector_reference</code>
-            </li>
-            <li><a href="./SCM.py">Generated-model simulation and queries</a></li>
-            <li><a href="./identification_engine.py">Graph-only identification and formula metadata</a></li>
-            <li><a href="./scm_registry.py">Generated mechanism families</a></li>
+            <li><a href="./balancing_aipw.py">Baseline scores, XGBoost helper and minimum-variance solver</a></li>
+            <li><a href="./editor_engine.py">Data adapter, adjustment and general-ID integration</a></li>
+            <li><a href="./SCM.py">Unchanged simulator/query implementation</a></li>
+            <li><a href="./scm_registry.py">Unchanged generated mechanism families</a></li>
+            <li><a href="./identification_engine.py">Graph-only identification</a></li>
           </ul>
           <p>
-            CSV replacements, edited graph/types, changed column bindings, new models or new generated samples invalidate the associated results/IDs.
-            Head and Download CSV reuse the stored data snapshot. A model reference never replaces a failed observed-data estimate.
+            CSV replacements, edited graph/types/bindings, new models and generated samples invalidate old IDs/results. Head and Download reuse the
+            retained snapshot. A model reference never replaces a failed observed-data estimate.
           </p>
         </section>
         <section id="sources">
-          <h2>Source grounding and limits of guarantees</h2>
-          <p>These primary research sources explain related calibration, augmented-score and cross-fitting ideas:</p>
+          <h2>Source grounding and limits</h2>
           <ul>
-            <li><a href="https://doi.org/10.1093/pan/mpr025">Hainmueller (2012), Entropy Balancing for Causal Effects</a></li>
             <li>
-              <a href="https://doi.org/10.1093/biomet/asz059"
-                >Tan (2020), Regularized calibrated estimation of propensity scores with model misspecification and high-dimensional data</a
-              >
+              <a href="https://xgboost.readthedocs.io/en/release_2.1.0/python/python_api.html#xgboost.train">Official XGBoost train API</a>;
+              <a href="https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide-lock.json">actual pinned Pyodide package lock</a>
             </li>
             <li>
-              <a href="https://doi.org/10.1111/ectj.12097"
-                >Chernozhukov et al. (2018), Double/debiased machine learning for treatment and structural parameters</a
+              <a href="https://doi.org/10.1080/01621459.2015.1023805"
+                >Zubizarreta: Stable Weights that Balance Covariates for Estimation with Incomplete Outcome Data</a
               >
+              (related minimum-variance balancing)
+            </li>
+            <li>
+              <a href="https://doi.org/10.1111/ectj.12097">Chernozhukov et al.: Double/debiased machine learning</a> (related augmented scores and
+              cross-fitting)
             </li>
           </ul>
           <p>
-            The bounded-logistic link, fixed L2 penalties, chosen basis and engineering gates here are the actual implementation choices. This code is
-            not presented as the exact algorithm or theorem implementation from the entropy-balancing or calibrated-propensity papers.
-            Double-robustness and double/debiased-machine-learning inference require conditions on causal assumptions, overlap, nuisance
-            approximation/convergence and empirical processes; this tool does not certify them from the dataset.
-          </p>
-          <p>
-            In particular, a fixed basis or weight cap can misspecify the nuisance functions, fixed regularization can leave bias, and a successful
-            solver does not establish a causal model. There is no unconditional finite-sample unbiasedness, root-n inference, universal accuracy
-            improvement or confidence-interval guarantee. Read the returned diagnostics, assumptions and actual computation for each query.
+            The user's scalar fitted-outcome constraint, fixed XGBoost settings, positive-floor affine extension and engineering gates are this
+            product's actual specialization. This is not a claim to implement a cited paper's full algorithm or guarantee. Conditional double
+            robustness and inference theorems need assumptions and learning-rate conditions that this tool does not certify from data. Good training
+            balance alone does not establish overlap, a correct causal graph, finite-sample unbiasedness or a confidence interval.
           </p>
         </section>
       </div>
     </main>
-    <footer>
-      Canonical implementation document, bundled unchanged with CausalEngine's browser and Python package. Numerical source is unchanged by this
-      documentation update. <a href="./">Return to the app</a>
-    </footer>
+    <footer>Canonical actual implementation document, bundled with the browser and Python package. <a href="./">Return to CausalEngine</a></footer>
   </body>
 </html>

@@ -600,6 +600,28 @@ permalink: /experimental-lab/
       line-height: 1.7;
       min-height: 22px;
     }
+    #easy-progress.data-required {
+      color: var(--accent);
+      font-weight: 600;
+      animation: data-required-pop 0.38s cubic-bezier(0.2, 0.8, 0.3, 1);
+    }
+    @keyframes data-required-pop {
+      0%,
+      100% {
+        transform: scale(1);
+      }
+      40% {
+        transform: scale(1.065);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #easy-progress.data-required {
+        animation: none;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+    }
+
     #easy-result {
       margin-top: 24px;
       padding: 27px 0 0;
@@ -2547,7 +2569,7 @@ permalink: /experimental-lab/
     let worker = null,
       requestId = 0;
     function request(action, payload) {
-      worker ||= new Worker("./scm-worker.js", { type: "module" });
+      worker ||= new Worker("./scm-worker.js?runtime=xgboost-2.1.4-minimum-balance-v1", { type: "module" });
       const active = worker,
         id = ++requestId;
       return new Promise((resolve, reject) => {

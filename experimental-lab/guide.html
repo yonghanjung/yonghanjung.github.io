@@ -224,19 +224,26 @@ permalink: /experimental-lab/guide.html
             <h3>Which estimator ran?</h3>
             <p>
               For one binary treatment, scalar outcomes, and a verified baseline adjustment set, choose exactly one of <strong>AIPW</strong>,
-              <strong>Outcome Regression (Plug-in)</strong>, or <strong>IPW</strong>. <strong>AIPW</strong> combines arm-specific ridge outcome
-              predictions with inverse-weighted residual corrections. <strong>Outcome Regression (Plug-in)</strong> averages the predicted outcome
-              difference and fits no inverse weights. <strong>IPW</strong> averages weighted observed outcomes and fits no outcome regression. Each
-              method uses two-fold cross-fitting and the same retained records; changing the method does not generate new data.
+              <strong>Outcome Regression (Plug-in)</strong>, or <strong>IPW</strong>. All three fit actual arm-specific XGBoost outcome models with
+              two-fold cross-fitting and reuse the same retained records. <strong>AIPW</strong> combines predicted outcome differences with
+              inverse-weighted observed-outcome residuals. <strong>Outcome Regression (Plug-in)</strong> averages only the predicted differences and
+              fits no weights. <strong>IPW</strong> averages weighted observed outcomes; it also fits outcome predictions to define its weight
+              constraints, but adds no prediction difference or residual correction to its final score.
             </p>
             <p>
-              AIPW retains its fitted inverse-weight range 1 to 20 and calibration slope penalty 0.01; that range is a fitting constraint, not
-              post-hoc clipping. IPW instead fits a nonnegative quadratic ratio model using a training-only tanh/RBF dictionary and ridge penalty
-              0.002. Its raw ratio is projected to [0.01, 50], then normalized by the training-arm mean and divided by training-arm prevalence. These
-              are not final inverse-weight bounds. Outcome regression uses the fixed ridge penalty 0.001. Learned preprocessing and the selected
-              nuisance functions use training rows only. The held-out scores are averaged across all rows without weight-sum renormalization. These
-              fixed classes and ratio projection can leave bias. No separate propensity-probability model is fitted. The general graph UCA plug-in is
-              a separate unchanged estimator; this IPW is a one-stage covariate-only adaptation of UCA-style weight learning.
+              The fixed outcome learner is XGBoost 2.1.4: 64 rounds, depth 3, learning rate 0.05, histogram trees, one thread, L2 regularization 1 and
+              minimum child weight 5. It uses the actual verified adjustment coordinates and recorded categorical indicator recipes. Both weighted
+              methods minimize the training second moment of positive weights, subject to training mass and the scalar fitted-outcome mean matching
+              the full training cohort. The lower bound is 1e-8 and the constraint tolerance is 1e-8. There is no upper weight cap,
+              propensity-probability fit, former ratio/RBF dictionary, or post-hoc weight normalization.
+            </p>
+            <p>
+              Only the fitted-outcome prediction is constrained; raw covariate imbalance is a diagnostic, not an equality requirement or a positivity
+              certificate. Learned regressions, prediction scaling, and weight fits use outer-training rows only. The held-out scores are averaged
+              across all retained rows without weight-sum renormalization. Prediction error, extrapolation and concentrated held-out weights can leave
+              bias; no unconditional double robustness or confidence interval is claimed. Graph-specific conditional-mean calculations also use
+              XGBoost, while their nonterminal conditional sampling kernels retain normalized nearest-neighbor row sampling. These components are
+              distinct from the baseline balancing-weight estimators.
             </p>
             <p>
               Open <strong>Details</strong> to see the actual method, fitted nuisance functions and fit counts, columns, fold seed, settings,
@@ -246,8 +253,10 @@ permalink: /experimental-lab/guide.html
             </p>
             <p>
               Select <strong>Estimate</strong> to run the chosen method on the current data. If no source is chosen, it opens and focuses the data
-              choices. With Random Data selected, it reuses the current generation when unchanged, or prepares data using the visible settings. With a
-              benchmark selected, the top Estimate button runs that benchmark with the selected method. Errors appear beside the data controls.
+              choices. With Random Data selected, first select <strong>Generate Data</strong> using the current settings, then run the estimate.
+              Changing Records, dimensions, seeds, model settings, or the graph requires generating again. Estimate never generates random records;
+              changing only the estimator or treatment comparison reuses the retained rows. With a benchmark selected, the top Estimate button runs
+              that benchmark with the selected method. Errors appear beside the data controls.
             </p>
             <p>
               Use the <strong>?</strong> beside an estimator or Details label for a short definition. Read <a href="./methods.html">Methods</a> for
@@ -266,8 +275,8 @@ permalink: /experimental-lab/guide.html
               </li>
               <li>
                 Put the CSV and <code>reproduce_estimate.py</code> in one folder, then run <code>python reproduce_estimate.py</code>. Use the Python
-                environment prepared in Code &amp; install. The three baseline estimators run standalone with NumPy and SciPy. Graph-specific
-                estimator replay uses the installed CausalEngine package.
+                environment prepared in Code &amp; install. The three baseline estimators run standalone with NumPy, SciPy and XGBoost 2.1.4.
+                Graph-specific estimator replay uses the installed CausalEngine package.
               </li>
             </ol>
             <p>

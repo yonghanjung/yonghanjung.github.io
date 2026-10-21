@@ -6,6 +6,76 @@
       "For eligible binary-treatment baseline questions, choose AIPW, Outcome Regression (Plug-in), or IPW. They use different held-out scores and fit only their required supporting functions. These choices require a supported baseline adjustment question. Other queries can be unavailable; their result reports the actual graph-specific method.",
       "dispatch",
     ],
+    minimumAIPW: [
+      "AIPW",
+      "A nuisance is a supporting fitted function. AIPW combines arm-specific XGBoost outcome predictions with learned weights and held-out residual corrections. The weights minimize their training second moment subject to mass and fitted-outcome mean constraints. Balancing one prediction does not establish correct causal assumptions or unconditional double robustness.",
+      "score",
+    ],
+    xgboostOR: [
+      "Outcome Regression (Plug-in)",
+      "Each treatment arm fits an actual XGBoost outcome model using training rows only. Held-out arm predictions are subtracted and averaged. This estimator fits no weights and applies no residual correction; prediction error or extrapolation can leave bias.",
+      "outcome-regression",
+    ],
+    minimumIPW: [
+      "IPW",
+      "This estimator fits XGBoost outcome predictions to define its training balance constraints, then learns minimum-second-moment positive weights. Its final score averages weighted observed outcomes only, without the AIPW residual correction. Only the scalar fitted-outcome mean is constrained, not all covariate moments.",
+      "ipw",
+    ],
+    xgboostOutcome: [
+      "XGBoost outcome models",
+      "Each arm uses XGBoost 2.1.4 to predict its outcome from the actual verified adjustment coordinates. A model is fitted on that arm's outer-training rows, then predicts the training cohort and held-out rows. IPW also needs these predictions for its weight constraints; held-out outcomes and ground truth are never fitting inputs.",
+      "outcome",
+    ],
+    xgboostParameters: [
+      "XGBoost parameters",
+      "The fixed implementation uses 64 boosting rounds, depth 3, learning rate 0.05, histogram trees, one thread, L2 regularization 1 and minimum child weight 5, with full row/column sampling. Each fit records its actual seed and training-mean base score in the diagnostics. The settings are fixed, without held-out tuning.",
+      "outcome",
+    ],
+    xgboostBasis: [
+      "Regression coordinates",
+      "The outcome models receive the original verified adjustment-witness coordinates, including all recorded categorical indicator recipes. They do not use the former linear/squared or tanh/RBF dictionaries. For an empty feature set, the implementation explicitly supplies one constant-zero coordinate.",
+      "basis",
+    ],
+    minimumWeights: [
+      "Minimum-second-moment weights",
+      "For each arm, the weights minimize the empirical sum of squared training weights, with a positive floor, subject to exact training mass and the arm-model's scalar fitted-outcome mean matching its mean over the full training cohort. No separate propensity-probability model is fitted. Raw covariate imbalance remains diagnostic.",
+      "weights",
+    ],
+    minimumLink: [
+      "Fitted weight function",
+      "The training-fitted dual coefficients define a positive affine function of the standardized outcome prediction, lower-bounded by 1e-8. Training prediction scaling and duals are reused on held-out rows. There is no upper weight cap or conversion from a density ratio by arm prevalence.",
+      "weights",
+    ],
+    minimumBalance: [
+      "Balance constraints and objective",
+      "The objective minimizes the training second moment of arm weights. The empirical arm-weight mass divided by the full training count equals one; the weighted arm prediction mean equals the full training-cohort prediction mean, within the reported tolerance. This balances one fitted prediction, not every covariate or arbitrary function.",
+      "weights",
+    ],
+    muBalance: [
+      "Fitted-outcome balance diagnostics",
+      "The target and scaling come from the arm model's predictions over the outer-training cohort. Mass and standardized fitted-outcome equality residuals must meet the fixed 1e-8 tolerance. The raw residual is in outcome units. Duals, objective and reported KKT residual describe that implemented fit; they do not certify population balance or positivity.",
+      "diagnostics",
+    ],
+    weightFloor: [
+      "Positive weight floor",
+      "Weights are constrained to be at least 1e-8 inside the fitted optimization problem. The floor fraction reports how many evaluated arm weights are at that lower bound. There is no upper cap, post-hoc normalization or row trimming; a positive floor does not establish positivity of treatment probabilities.",
+      "weights",
+    ],
+    minimumNormalization: [
+      "Training mass and held-out score",
+      "Training arm mass is an equality constraint, not a post-hoc rescaling step. The fitted weight function is evaluated on held-out rows without renormalizing their weights. The effect score is averaged over the total retained row count, rather than a held-out weight sum.",
+      "weights",
+    ],
+    minimumIPWScore: [
+      "IPW score",
+      "For each held-out row, use its observed-arm weight times the outcome, with the treatment/reference signs. Average over the total retained count. XGBoost predictions enter the weight fit's balance constraints, but no predicted-outcome difference or residual correction is added to this IPW score.",
+      "score",
+    ],
+    xgboostGraph: [
+      "Graph plug-in estimator",
+      "This supported graph branch uses actual XGBoost for conditional outcome means. Nonterminal conditional row-drawing kernels still use normalized nearest-neighbor sampling, and unconditional averages use empirical rows. These are different components; the sampling kernels are not a replacement regression or AIPW correction. Details records the actual branch and fit parameters.",
+      "uca",
+    ],
     aipw: [
       "Balancing AIPW",
       "A nuisance is a supporting prediction or weight function used to estimate the requested effect. AIPW combines separate outcome predictions and learned inverse weights with an observed-outcome correction on held-out rows. Its fixed fitted class can still leave bias.",
@@ -63,7 +133,7 @@
     ],
     fitCalls: [
       "Actual nuisance fits",
-      "These are the numbers of outcome and inverse-weight fitting calls actually performed. A completed two-fold run normally fits four outcome models for Outcome Regression, four weight functions for IPW, and both for AIPW. Identical settings or an interrupted fit can use fewer.",
+      "These are the numbers of outcome and inverse-weight fitting calls actually performed. A completed current two-fold run fits four XGBoost outcome models for every baseline method. AIPW and IPW also fit four weight functions; Outcome Regression fits none. Identical settings or an interrupted fit can use fewer.",
       "diagnostics",
     ],
     orScore: [
@@ -118,7 +188,7 @@
     ],
     legacyWeights: [
       "Legacy weights",
-      "The legacy branch does not fit the bounded inverse-weight nuisance used by AIPW. Its actual prediction or conditional-kernel weighting is reported in the method-specific metadata.",
+      "This graph branch does not fit the baseline balancing-weight nuisances. Conditional row-drawing kernels and fitted conditional means are separate components, reported in the actual method-specific metadata.",
       "legacy",
     ],
     link: [

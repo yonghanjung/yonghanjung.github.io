@@ -1,7 +1,7 @@
 import { loadPyodide } from "https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide.mjs";
 
 const baseURL = "https://cdn.jsdelivr.net/pyodide/v0.29.4/full/";
-let ready, network, identification, scm, pandas;
+let ready, network, identification, scm, pandas, xgboost;
 async function sources(py, names) {
   await Promise.all(
     names.map(async (name) => {
@@ -66,6 +66,11 @@ async function prepare(py, action, id) {
         throw error;
       }));
   }
+  if (["estimate_data", "compare"].includes(action))
+    await (xgboost ||= py.loadPackage("xgboost").catch((error) => {
+      xgboost = null;
+      throw error;
+    }));
 }
 
 self.onmessage = async ({ data: { id, action, payload } }) => {

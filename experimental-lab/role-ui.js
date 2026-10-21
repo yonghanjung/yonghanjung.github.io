@@ -349,7 +349,7 @@
       $("easy-result").hidden = true;
       $("role-error").textContent = "";
       $("role-status").textContent = "";
-      run.disabled = false;
+      run.disabled = dataSource === "random" && !randomDataReady();
       identifyButton.disabled = false;
       estimateButton.disabled = false;
       baseline = structure();
@@ -420,11 +420,23 @@
       })),
       edges,
     });
+  let dataPromptTimer;
+  function requestData(message, target) {
+    progress.textContent = message;
+    progress.classList.remove("data-required");
+    void progress.offsetWidth;
+    progress.classList.add("data-required");
+    clearTimeout(dataPromptTimer);
+    dataPromptTimer = setTimeout(() => progress.classList.remove("data-required"), 650);
+    target?.focus();
+    target?.scrollIntoView({ block: "nearest" });
+  }
   function checkChanges() {
     if (groundTruthSignature && groundTruthSignature !== truthStamp()) {
       document.querySelectorAll(".ground-truth").forEach((e) => e.remove());
       groundTruthSignature = null;
     }
+    if (retainedRandomSignature && retainedRandomSignature !== randomSignature()) retainedRandomSignature = null;
     const snapshotKey = CausalDataPreview.key();
     if (snapshotKey && (snapshotKey.graph !== dataGraphKey() || (snapshotKey.random && snapshotKey.random !== randomSignature())))
       CausalDataPreview.clear();
@@ -439,7 +451,7 @@
       identifyButton.disabled = true;
       estimateButton.disabled = true;
     } else if (!draftDirty && !running) {
-      run.disabled = false;
+      run.disabled = dataSource === "random" && !randomDataReady();
       identifyButton.disabled = false;
       estimateButton.disabled = false;
     }
@@ -558,6 +570,7 @@
       $(id).disabled =
         value ||
         (draftDirty && ["easy-identify", "easy-estimate", "run-estimate"].includes(id)) ||
+        (id === "run-estimate" && dataSource === "random" && !randomDataReady()) ||
         (["benchmark-estimate", "benchmark-download"].includes(id) && !$("benchmark-select").value);
     identifyButton.textContent = value && label === "Identify" ? "Identifying…" : "Identify";
     estimateButton.textContent = value && ["Estimate", "Benchmark"].includes(label) ? "Estimating…" : "Estimate";
@@ -672,15 +685,17 @@
       $("estimate-options").hidden = false;
       if ($("choose-benchmark").getAttribute("aria-pressed") === "true") {
         await window.CausalBenchmarkUI.estimateSelected();
+      } else if (dataSource === "random" && !randomDataReady()) {
+        requestData("Generate Data with the current settings before estimating.", $("generate-data"));
       } else if (dataSource === "random" || (dataSource === "csv" && csvTable)) {
         await run.onclick();
         if (!$("easy-result").hidden) $("easy-result").scrollIntoView({ block: "start", behavior: "smooth" });
         else if ($("data-error").textContent) $("data-error").scrollIntoView({ block: "nearest" });
       } else {
-        progress.textContent = dataSource === "csv" ? "Choose a CSV file to estimate." : "Choose data to estimate.";
-        const next = $(dataSource === "csv" ? "csv-file" : "choose-csv");
-        next.focus();
-        next.scrollIntoView({ block: "nearest" });
+        requestData(
+          dataSource === "csv" ? "Choose a CSV file to estimate." : "Choose data to estimate.",
+          $(dataSource === "csv" ? "csv-file" : "choose-csv")
+        );
       }
     } catch (e) {
       progress.textContent = e.message;
@@ -806,6 +821,7 @@
     $("data-error").textContent = "";
     if (source === "csv" && csvTable) csvSnapshot();
     refreshBinding();
+    run.disabled = draftDirty || Boolean(temporalIssue()) || (source === "random" && !randomDataReady());
   }
   $("choose-csv").onclick = () => chooseSource("csv");
   $("choose-random").onclick = () => {
@@ -1111,6 +1127,28 @@
     }
   }
   let retainedRandomSignature = null;
+  function randomDataReady() {
+    return Boolean(model && sample && !dirty && retainedRandomSignature === randomSignature());
+  }
+  function invalidateRandomData() {
+    retainedRandomSignature = null;
+    if (dataSource !== "random") return;
+    CausalDataPreview.clear();
+    $("easy-result").hidden = true;
+    groundTruthSignature = null;
+    run.disabled = true;
+  }
+  document.addEventListener("input", (event) => {
+    if (
+      event.target.matches(
+        "#easy-records,#random-options input,#rows,#model-seed,#data-seed,#noise,#properties input,#properties select,#mechanism input,#mechanism textarea,#mechanism select"
+      )
+    )
+      invalidateRandomData();
+  });
+  document.addEventListener("change", (event) => {
+    if (event.target.matches("#noise,#properties select,#mechanism select")) invalidateRandomData();
+  });
   const originalGenerate = $("generate").onclick;
   $("generate").onclick = async () => {
     if (nodes.some((n) => n.variable_type === "categorical")) {
@@ -1141,7 +1179,18 @@
     if (CausalDataPreview.key()?.random !== key.random || CausalDataPreview.key()?.sample_id !== key.sample_id)
       CausalDataPreview.set({ csv: sample.csv, name: "causalengine-random-" + sample.sample_id, source: "random", key });
   }
-  async function ensureRandomData() {
+  function retainedRandomData() {
+    if (!randomDataReady()) throw Error("Generate Data with the current settings before estimating.");
+    showRandomSnapshot();
+    return {
+      token,
+      sample_id: sample.sample_id,
+      n: sample.shape[0],
+      ...(window.causalEngineRandomKey ? { random_key: window.causalEngineRandomKey } : {}),
+      random_bindings: window.causalEngineRandomBindings,
+    };
+  }
+  async function generateRandomData() {
     const records = Number($("easy-records").value);
     if (!Number.isSafeInteger(records) || records < 1 || records > 5000) throw Error("Records must be a whole number from 1 to 5,000.");
     for (const id of ["random-model-seed", "random-data-seed"]) {
@@ -1164,14 +1213,7 @@
       if (!model || !sample || sample === previous) throw Error($("status").textContent || "Random data generation did not finish.");
       retainedRandomSignature = randomSignature();
     }
-    showRandomSnapshot();
-    return {
-      token,
-      sample_id: sample.sample_id,
-      n: sample.shape[0],
-      ...(window.causalEngineRandomKey ? { random_key: window.causalEngineRandomKey } : {}),
-      random_bindings: window.causalEngineRandomBindings,
-    };
+    return retainedRandomData();
   }
   $("generate-data").onclick = async () => {
     if (running) return;
@@ -1187,7 +1229,7 @@
     $("data-error").textContent = "";
     progress.textContent = "Generating random data on your device…";
     try {
-      const source = await ensureRandomData();
+      const source = await generateRandomData();
       progress.textContent = source.n.toLocaleString() + " random records ready.";
     } catch (error) {
       $("data-error").textContent = error.message;
@@ -1365,9 +1407,16 @@
     if (raw) {
       const warning = document.createElement("p");
       warning.className = "easy-warning";
-      warning.textContent = ["balancing_aipw_v1", "balancing_aipw_v2", "outcome_regression_v1", "balancing_ipw_v1", "uca_balancing_ipw_v1"].includes(
-        e?.estimation_details?.method_id
-      )
+      warning.textContent = [
+        "minimum_variance_aipw_v1",
+        "xgboost_outcome_regression_v1",
+        "minimum_variance_ipw_v1",
+        "balancing_aipw_v1",
+        "balancing_aipw_v2",
+        "outcome_regression_v1",
+        "balancing_ipw_v1",
+        "uca_balancing_ipw_v1",
+      ].includes(e?.estimation_details?.method_id)
         ? raw
         : /weak|coverage|overlap/i.test(raw)
           ? "Approximate estimate: too few comparable records may make this result unreliable."
@@ -1417,6 +1466,7 @@
           );
       }
       if (dirty) throw Error("Apply pending node changes in settings first.");
+      if (dataSource === "random") retainedRandomData();
     } catch (e) {
       $("data-error").textContent = e.message;
       return;
@@ -1433,7 +1483,7 @@
     setBusy(true, "Estimate");
     resultPanel("Mean difference");
     $("data-error").textContent = "";
-    progress.textContent = source === "csv" ? "Reading selected data on your device…" : "Generating random data on your device…";
+    progress.textContent = source === "csv" ? "Reading selected data on your device…" : "Estimating the current random records on your device…";
     const results = [];
     let sourceInfo;
     try {
@@ -1441,7 +1491,7 @@
         sourceInfo = await request("load_data", { nodes: graphNodes, edges: graphEdges, ...projected, data_seed: 5 });
         if (sourceInfo.status !== "READY") throw Error(sourceInfo.reason || "CSV data could not be loaded.");
       } else {
-        sourceInfo = await ensureRandomData();
+        sourceInfo = retainedRandomData();
       }
       let replay;
       try {
@@ -1620,7 +1670,8 @@
     updateQuery();
     render();
     describe();
-    run.disabled = identifyButton.disabled = estimateButton.disabled = draftDirty;
+    identifyButton.disabled = estimateButton.disabled = draftDirty;
+    run.disabled = draftDirty || (dataSource === "random" && !randomDataReady());
     checkChanges();
   };
   window.causalEngineBenchmarkStamp = () =>

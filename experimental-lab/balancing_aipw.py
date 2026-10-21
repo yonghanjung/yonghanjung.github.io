@@ -1,60 +1,46 @@
-"""Cross-fitted baseline AIPW, outcome-regression and raw-IPW contrasts.
+"""Actual client/native XGBoost means and minimum-variance baseline weights.
 
-This is the actual browser/native routine, not pseudocode. Inputs contain observed
-rows only. Graph eligibility is verified separately by editor_engine.py.
+Two treatment-stratified outer folds fit arm-specific XGBoost means. AIPW and
+IPW additionally minimize E[W^2] subject to empirical training E[W]=1 and
+E[W*mu_a(X)]=E[mu_a(X)] with W=I(A=a)*w_a(X), w_a>=1e-8. This positive floor is
+inside the fitted class. The heldout function is the same positive-part affine
+function of the training-fitted prediction; no heldout normalization is used.
+IPW uses outcome learning for its balance constraint, but no residual correction.
+OR fits no weights. All scores use the original total-n denominator.
 
-AIPW preserves the original default score. Outcome regression fits only the
-outcome nuisance; raw IPW fits only the inverse-weight nuisance. Unused nuisance
-fits and their diagnostic gates are not run.
-
-Original AIPW settings fixed before prior accuracy experiments: two stratified folds; linear + coordinatewise
-square basis; averaged outcome ridge penalty .001; bounded-calibration slope penalty .01; weight class [1,20];
-L-BFGS-B maxiter400, gradient tolerance1e-5. All choices fail closed for n<128,
-any training arm<32, nonfinite arithmetic, required-fit failure or deadline.
-Only AIPW requires training-arm prevalence strictly greater than 1/20 for
-finite bounded-logistic intercept calibration. AIPW/IPW require heldout arm>=8,
-their own solver convergence,
-heldout arm ESS>=max(10,.05*n_arm), maximum normalized arm weight share<=.20,
-and training max moment imbalance<=.5. Their warnings flag ESS<.25*n_arm,
-share>.05, heldout arm mass outside[.5,2], training imbalance>.1, or active bounds.
-Outcome Regression runs no weight fit or weight diagnostic gates. IPW instead
-uses the documented UCA-style quadratic RN helper, with projected coefficients,
-ratio projection [.01,50], training-arm normalization and prevalence conversion;
-the [1,20] calibration feasibility restriction applies only to AIPW.
-AIPW has no posthoc weight normalization or clipping: its bound is part of the
-fitted weight function. IPW projects the raw RN ratio to [.01,50] and normalizes
-by its training-arm mean before prevalence conversion; it never renormalizes
-heldout weights.
-These are engineering safeguards, NOT a positivity certificate or inference.
-Finite basis, fixed regularization and misspecification can leave bias. No
-unconditional double-robustness, finite-sample unbiasedness or CI is claimed.
+XGBoost 2.1.4 uses fixed 64 rounds/depth3/eta.05/hist/single thread/lambda1/
+min_child_weight5, all original numeric witness coordinates, train-only means
+and seeds. Zero real coordinates use a constant-zero feature and actual XGBoost.
+No truth, test-label fitting, density approximation or simulator is used here.
+Constraint infeasibility, required fit failure, extreme heldout concentration,
+nonfinite arithmetic and deadlines return no value. Engineering checks do not
+certify positivity, model correctness, double robustness or confidence coverage.
 """
 import hashlib
 from pathlib import Path
 from time import perf_counter
 import numpy as np
-from scipy.optimize import minimize, nnls
-from scipy.linalg import cholesky, solve_triangular
-from scipy.special import expit
+import xgboost as xgb
 
-METHOD = "2-fold balancing-weight AIPW (bounded calibration)"
-METHODS = {"aipw": METHOD,
-           "outcome_regression": "2-fold outcome regression (ridge plug-in)",
-           "ipw": "2-fold IPW (UCA-style quadratic balancing; raw mean)"}
-METHOD_IDS = {"aipw": "balancing_aipw_v2", "outcome_regression": "outcome_regression_v1",
-              "ipw": "uca_balancing_ipw_v1"}
-RIDGE = .001
-BALANCE_PENALTY = .01
-WEIGHT_CAP = 20.
-SOURCE_URLS = [
-    "https://doi.org/10.1093/pan/mpr025",
-    "https://doi.org/10.1093/biomet/asz059",
-    "https://doi.org/10.1111/ectj.12097",
-]
+METHODS = {
+    "aipw": "2-fold AIPW (XGBoost; minimum-variance outcome balance)",
+    "outcome_regression": "2-fold outcome regression (XGBoost plug-in)",
+    "ipw": "2-fold IPW (minimum-variance XGBoost outcome balance; raw mean)"}
+METHOD = METHODS["aipw"]
+METHOD_IDS = {"aipw":"minimum_variance_aipw_v1", "outcome_regression":"xgboost_outcome_regression_v1",
+              "ipw":"minimum_variance_ipw_v1"}
+WEIGHT_FLOOR = 1e-8
+CONSTRAINT_TOLERANCE = 1e-8
+XGBOOST_PARAMS = dict(objective="reg:squarederror", max_depth=3, eta=.05,
+    tree_method="hist", nthread=1, subsample=1., colsample_bytree=1.,
+    reg_lambda=1., min_child_weight=5.)
+XGBOOST_ROUNDS = 64
+SOURCE_URLS = ["https://xgboost.readthedocs.io/en/release_2.1.0/python/python_api.html#xgboost.train",
+               "https://doi.org/10.1111/ectj.12097",
+               "https://doi.org/10.1080/01621459.2015.1023805"]
+
 
 def _implementation_sha256():
-    # A pasted notebook/exec cell has no reliable source file. Computation must
-    # still work; never pretend to have verified a source fingerprint there.
     try:
         filename = globals().get("__file__")
         return hashlib.sha256(Path(filename).read_bytes()).hexdigest() if filename else None
@@ -62,349 +48,269 @@ def _implementation_sha256():
         return None
 
 
-class _UCABalancingError(ValueError):
-    """A failed IPW-only finite-dictionary ratio fit."""
-    def __init__(self, message, diagnostics=None):
-        super().__init__(message)
-        self.diagnostics = diagnostics or {}
+def fit_xgboost_mean(train_x, train_y, query_x, *, seed, check):
+    """Actual XGBoost conditional means, one booster per response coordinate.
 
-
-def _fit_uca_ipw_ratio(train_coordinates, selected, test_coordinates, seed, check):
-    """One-stage finite-dictionary adaptation of UCA adjacent-source RN fitting.
-
-    current = outer-training C|A=a; previous = all outer-training C.
-    This helper accepts no outcome or heldout arm labels. All transforms, centers,
-    fitting and normalization use training rows only. It is not the frozen UCA
-    saturated-indicator benchmark and does not implement general UCA graphs.
+    Inputs must already be the selected training rows. No query labels or truth
+    enter fitting. A zero-feature problem gets one explicit constant-zero column.
+    Returns predictions and exact training-only settings/fit diagnostics.
     """
-    source_rows, target_rows = int(selected.sum()), len(train_coordinates)
-    prevalence = source_rows/target_rows
-    if source_rows == 0 or not 0 < prevalence < 1:
-        raise _UCABalancingError("UCA ratio fitting requires both observed training arms")
-    x, evaluation = np.tanh(train_coordinates), np.tanh(test_coordinates)
-    current = x[selected]
-    width = x.shape[1]
-    rng = np.random.default_rng(seed)
-    pool = np.vstack((current, x))
-    centers = pool[rng.choice(len(pool), min(24, len(pool)), replace=False)] if width else np.empty((0,0))
-    def features(values):
-        check()
-        if not width:
-            return np.ones((len(values),1))
-        positive = (values+1)/2
-        distance = np.maximum(0, (values*values).sum(1)[:,None]
-                              +(centers*centers).sum(1)[None,:]-2*values@centers.T)/width
-        return np.column_stack((np.ones(len(values)), positive, 1-positive,
-            positive*positive, (1-positive)**2, np.exp(-distance/.35)))
-    phi, target_phi = features(current), features(x)
-    gram = phi.T@phi/source_rows + .002*np.eye(phi.shape[1])
-    moment = target_phi.mean(0)
-    def objective(coefficients):
-        check()
-        product = gram@coefficients
-        value, gradient = .5*float(coefficients@product)-float(moment@coefficients), product-moment
-        if not np.isfinite(value) or not np.isfinite(gradient).all():
-            raise FloatingPointError("Nonfinite UCA quadratic objective or gradient")
-        return value, gradient
-    maxiter = 3*len(moment)
-    try:
-        # G=L L.T; this NNLS objective differs from the same quadratic only by
-        # an additive constant. No statistical fitting setting is changed.
-        # Explicitly discard the unused triangle before passing L.T to NNLS.
-        factor = np.tril(cholesky(gram,lower=True))
-        response = solve_triangular(factor,moment,lower=True)
-        check()
-        coefficients, residual_norm = nnls(factor.T,response,maxiter=maxiter)
-        check()
-    except (RuntimeError,np.linalg.LinAlgError) as error:
-        raise _UCABalancingError(str(error),dict(solver_success=False,solver_message=str(error),
-            solver="SciPy NNLS on Cholesky-transformed quadratic",iterations=None,
-            solver_maxiter=maxiter,projected_kkt_residual=None)) from error
-    value, gradient = objective(coefficients)
-    kkt = float(np.max(np.abs(coefficients-np.maximum(0,coefficients-gradient)),initial=0.))
-    success = bool(np.isfinite(coefficients).all() and np.all(coefficients >= 0)
-                   and np.isfinite(residual_norm) and kkt <= 1e-4)
-    solver_info = dict(solver_success=success,solver_message="SciPy nnls returned normally",
-        solver="SciPy NNLS on Cholesky-transformed quadratic",iterations=None,
-        solver_maxiter=maxiter,solver_residual_norm=float(residual_norm),
-        objective=value,projected_kkt_residual=kkt)
-    if not success:
-        raise _UCABalancingError("UCA balancing solver failed its fixed projected-KKT tolerance",solver_info)
-    raw = phi@coefficients
-    projected = np.clip(raw,.01,50)
-    normalizer = float(projected.mean())
-    if not np.isfinite(normalizer) or normalizer <= 0:
-        raise _UCABalancingError("UCA balancing has a nonpositive training normalizer")
-    training_ratio = projected/normalizer
-    raw_test = features(evaluation)@coefficients
-    heldout_ratio = np.clip(raw_test,.01,50)/normalizer
-    training_alpha, alpha = training_ratio/prevalence, heldout_ratio/prevalence
     check()
-    diagnostics = dict(solver_info,
-        ratio_feature_count=len(moment),ratio_center_seed=seed,
-        ratio_center_count=len(centers),training_arm_prevalence=prevalence,
-        ratio_normalizer=normalizer,
-        training_ratio_mean=float(training_ratio.mean()),
-        training_raw_ratio_max_balance=float(np.max(np.abs(phi.T@raw/source_rows-moment),initial=0.)),
-        training_post_ratio_max_balance=float(np.max(np.abs(phi.T@training_ratio/source_rows-moment),initial=0.)),
-        ratio_floor_fraction_train_arm=float(np.mean(raw < .01)),ratio_cap_fraction_train_arm=float(np.mean(raw > 50)),
-        ratio_floor_fraction_heldout_cohort=float(np.mean(raw_test < .01)),ratio_cap_fraction_heldout_cohort=float(np.mean(raw_test > 50)),
-        actual_ratio_lower=.01/normalizer,actual_ratio_upper=50/normalizer,
-        actual_inverse_weight_lower=.01/(normalizer*prevalence),actual_inverse_weight_upper=50/(normalizer*prevalence))
-    return training_alpha, alpha, diagnostics
+    if xgb.__version__ != "2.1.4":
+        raise ValueError("This routine requires xgboost==2.1.4 for native/browser replay parity")
+    x, y, q = (np.array(v, dtype=float, copy=True) for v in (train_x, train_y, query_x))
+    if y.ndim == 1:
+        y = y[:,None]
+    if (x.ndim != 2 or q.ndim != 2 or y.ndim != 2 or len(x) != len(y)
+            or not len(x) or x.shape[1] != q.shape[1]
+            or any(not np.isfinite(v).all() for v in (x,y,q))):
+        raise ValueError("XGBoost needs aligned finite training coordinates/responses and query coordinates")
+    original_width = x.shape[1]
+    constant_feature = not original_width
+    if constant_feature:
+        x, q = np.zeros((len(x),1)), np.zeros((len(q),1))
+    class Deadline(xgb.callback.TrainingCallback):
+        def after_iteration(self, model, epoch, evals_log):
+            check()
+            return False
+    predictions, fits = [], []
+    for coordinate in range(y.shape[1]):
+        check()
+        params = dict(XGBOOST_PARAMS, seed=int(seed), base_score=float(y[:,coordinate].mean()))
+        training = xgb.DMatrix(x, label=y[:,coordinate], nthread=1)
+        booster = xgb.train(params, training, num_boost_round=XGBOOST_ROUNDS, callbacks=[Deadline()])
+        check()
+        prediction = booster.predict(xgb.DMatrix(q,nthread=1)).astype(float)
+        fitted = booster.predict(training).astype(float)
+        check()
+        if not np.isfinite(prediction).all() or not np.isfinite(fitted).all():
+            raise FloatingPointError("XGBoost returned nonfinite predictions")
+        predictions.append(prediction)
+        fits.append(dict(params=params, rounds=XGBOOST_ROUNDS,
+            train_outcome_rmse=float(np.sqrt(np.mean((fitted-y[:,coordinate])**2)))))
+    return np.column_stack(predictions), dict(regression="XGBoost", version=xgb.__version__,
+        original_coordinates=int(original_width), constant_zero_feature=constant_feature, fits=fits)
 
 
-def estimate_balancing_aipw(covariates, treatment, outcome, *, seed=5,
-                            intervention=1, reference=0, max_seconds=10, estimator="aipw"):
-    """Return a JSON-safe scalar contrast; never reads a model or truth.
+class _BalanceError(ValueError):
+    def __init__(self,message,diagnostics=None):
+        super().__init__(message)
+        self.diagnostics=diagnostics or {}
 
-    covariates: numeric n-by-p matrix (p may be zero), treatment: n binary values,
-    outcome: n finite scalar values. Nominal covariates must be full one-hot
-    encoded before this call. The two regimes must be in {0,1}.
-    estimator selects aipw (default), outcome_regression or raw ipw; each uses
-    only its required nuisance fits, with the same fold allocation and training-only
-    scaling; its weight dictionary and diagnostic basis are method-specific.
+
+def _fit_minimum_variance_weights(training_mu, selected, heldout_mu, check):
+    """Exact two-equality empirical minimum-L2 positive-weight fit.
+
+    Whole-training rows are the target; selected arm rows carry nonzero W.
+    Sorting plus prefix/suffix cumulative moments gives O(m log m) fitting.
+    Canonical constant/extreme-tie extensions are defined explicitly. This
+    routine accepts no outcomes/heldout labels and never repairs constraints by
+    posthoc normalization. Training-fitted duals define every heldout weight.
     """
-    started = perf_counter()
-    if not isinstance(estimator, str) or estimator not in METHODS:
+    check()
+    g=np.asarray(training_mu,dtype=float); selected=np.asarray(selected,dtype=bool)
+    evaluation=np.asarray(heldout_mu,dtype=float)
+    if (g.ndim!=1 or selected.shape!=g.shape or evaluation.ndim!=1
+            or not np.isfinite(g).all() or not np.isfinite(evaluation).all()):
+        raise _BalanceError("Invalid fitted-outcome balance inputs")
+    N,m=len(g),int(selected.sum());eps=WEIGHT_FLOOR
+    if not 0 < m < N:
+        raise _BalanceError("WEIGHT_FEASIBILITY: both training arms are required")
+    target=float(g.mean());scale=float(g.std())
+    if scale<=1e-12:
+        scale=1.
+    z=(g-target)/scale; ev=(evaluation-target)/scale; za=z[selected]
+    target_z=float(z.mean());R=N-m*eps
+    q=(N*target_z-eps*float(za.sum()))/R
+    low,high=float(za.min()),float(za.max())
+    diagnostics=dict(solver="sorted affine-positive active set",solver_success=False,
+        iterations=None,weight_floor=eps,training_mu_target=target,training_mu_scale=scale,
+        floor_adjusted_target=q,training_arm_mu_min=float(g[selected].min()),
+        training_arm_mu_max=float(g[selected].max()),feasible_hull_min=low,feasible_hull_max=high)
+    def fail(message):
+        raise _BalanceError(message,diagnostics)
+    if R<=0 or q<low-1e-12 or q>high+1e-12:
+        fail("WEIGHT_FEASIBILITY: cohort fitted-outcome target lies outside the floor-adjusted training-arm convex hull")
+    ordered=np.sort(za);count=len(ordered)
+    candidates=[]
+    if high-low<=1e-12:
+        candidates.append((N/m,0.,"constant training-arm prediction"))
+    else:
+        # Boundary optimum: floor on all nonextreme rows, excess R split over
+        # tied extremes. Nearest nonextreme prediction is exactly at the floor.
+        for extreme,other in ((high,ordered[ordered<high]),(low,ordered[ordered>low])):
+            if abs(q-extreme)<=1e-12 and len(other):
+                k=int(np.sum(ordered==extreme));next_value=float(other[-1] if extreme==high else other[0])
+                slope=(R/k)/(extreme-next_value)
+                candidates.append((eps-slope*next_value,slope,"extreme-tie boundary"))
+        sums=np.r_[0.,np.cumsum(ordered)];squares=np.r_[0.,np.cumsum(ordered*ordered)]
+        total=float(sums[-1])
+        # A nonfloor affine-positive set is a sorted prefix or suffix. Boundary
+        # checks suffice for each candidate; construct a whole vector only once.
+        for suffix in (False,True):
+            for k in range(count,1,-1):
+                check()
+                start=count-k if suffix else 0;end=count if suffix else k
+                S1=float(sums[end]-sums[start]);S2=float(squares[end]-squares[start])
+                D=k*S2-S1*S1
+                if D<=1e-13*max(k*S2,S1*S1,1.):
+                    continue
+                U=N-eps*(count-k);V=N*target_z-eps*(total-S1)
+                b0=(U*S2-V*S1)/D;b1=(k*V-S1*U)/D
+                if (suffix and b1<0) or (not suffix and b1>0):
+                    continue
+                active_boundary=ordered[start] if suffix else ordered[end-1]
+                if b0+b1*active_boundary<eps-1e-10:
+                    continue
+                if k<count:
+                    inactive_boundary=ordered[start-1] if suffix else ordered[end]
+                    if b0+b1*inactive_boundary>eps+1e-10:
+                        continue
+                candidates.append((b0,b1,"interior sorted active set"))
+                break
+    for b0,b1,case in candidates:
+        check()
+        weights=np.maximum(eps,b0+b1*za)
+        mass=float(weights.sum()/N);moment=float(weights@za/N)
+        mass_error=abs(mass-1.);mu_error=abs(moment-target_z)
+        if mass_error>CONSTRAINT_TOLERANCE or mu_error>CONSTRAINT_TOLERANCE:
+            continue
+        alpha=np.maximum(eps,b0+b1*ev)
+        if not np.isfinite(weights).all() or not np.isfinite(alpha).all():
+            fail("Nonfinite minimum-variance fitted weights")
+        check()
+        diagnostics.update(solver_success=True,solution_case=case,dual_intercept=float(b0),dual_slope=float(b1),
+            objective=float(weights@weights/N),training_weight_mass=mass,
+            training_mass_residual=mass-1.,training_standardized_mu_residual=moment-target_z,
+            training_mu_balance_residual=float(weights@g[selected]/N-target),
+            training_kkt_residual=float(np.max(np.abs(weights-np.maximum(eps,b0+b1*za)),initial=0.)),
+            training_floor_fraction=float(np.mean(weights<=eps)),heldout_floor_fraction=float(np.mean(alpha<=eps)),
+            training_min_weight=float(weights.min()),training_max_weight=float(weights.max()))
+        return weights,alpha,diagnostics
+    fail("WEIGHT_FEASIBILITY: no finite active-set solution satisfies both equalities at the fixed tolerance")
+
+
+def estimate_balancing_aipw(covariates,treatment,outcome,*,seed=5,intervention=1,reference=0,max_seconds=10,estimator="aipw"):
+    """Actual same-data baseline score; all methods fit XGBoost outcome means.
+
+    AIPW/IPW weights exactly balance the scalar fitted arm outcome prediction on
+    training rows. This is not all-function/covariate balance or a positivity
+    certificate. Original rows and target ATE are retained, including failures.
+    """
+    started=perf_counter()
+    if not isinstance(estimator,str) or estimator not in METHODS:
         raise ValueError("estimator must be aipw, outcome_regression or ipw")
-    use_outcome, use_weights = estimator != "ipw", estimator != "outcome_regression"
-    if type(seed) is not int or not 0 <= seed < 2**32:
+    if type(seed) is not int or not 0<=seed<2**32:
         raise ValueError("seed must be an integer from 0 to 2**32-1")
-    if (type(max_seconds) not in (int, float) or not np.isfinite(max_seconds)
-            or not 0 < max_seconds <= 30):
+    if type(max_seconds) not in (int,float) or not np.isfinite(max_seconds) or not 0<max_seconds<=30:
         raise ValueError("max_seconds must be positive and at most 30")
-    for level in (intervention, reference):
-        if type(level) not in (int, float) or level not in (0, 1):
+    for level in (intervention,reference):
+        if type(level) not in (int,float) or level not in (0,1):
             raise ValueError("Use binary intervention/reference levels 0 or 1")
-    z = np.array(covariates, dtype=float, copy=True)
-    a = np.array(treatment, dtype=float, copy=True)
-    y = np.array(outcome, dtype=float, copy=True)
-    if (z.ndim != 2 or a.ndim != 1 or y.ndim != 1
-            or len(z) != len(a) or len(a) != len(y)):
+    z,a,y=(np.array(v,dtype=float,copy=True) for v in (covariates,treatment,outcome))
+    if z.ndim!=2 or a.ndim!=1 or y.ndim!=1 or len(z)!=len(a) or len(a)!=len(y):
         raise ValueError("Use aligned n-by-p covariates and scalar treatment/outcome arrays")
-    n, p = z.shape
-    if (not 1 <= n <= 5000 or p > 98 or n*(p+2) > 500000
-            or not np.isfinite(z).all() or not np.isfinite(a).all()
-            or not np.isfinite(y).all() or not np.isin(a, [0, 1]).all()):
+    n,p=z.shape
+    if (not 1<=n<=5000 or p>98 or n*(p+2)>500000 or any(not np.isfinite(v).all() for v in (z,a,y))
+            or not np.isin(a,[0,1]).all()):
         raise ValueError("Use finite numeric rows, binary treatment, <=5000 rows and <=100 physical columns")
-    options = dict(seed=seed, intervention=intervention, reference=reference,
-                   ridge=RIDGE if use_outcome else None, balance_penalty=(.002 if estimator == "ipw" else BALANCE_PENALTY) if use_weights else None,
-                   weight_cap=WEIGHT_CAP if estimator == "aipw" else None, folds=2, estimator=estimator,
-                   basis="training-standardized linear and coordinatewise squares",
-                   max_seconds=max_seconds)
-    if estimator == "ipw":
-        options.update(ratio_floor=.01,ratio_cap=50,ratio_centers=24,ratio_rbf_width=.35,
-            ratio_solver="SciPy NNLS on Cholesky-transformed quadratic",ratio_solver_maxiter_factor=3,ratio_projected_kkt_tolerance=1e-4,
-            basis="training-standardized tanh positive/complement/square and RBF dictionary",
-            diagnostic_basis="training-standardized linear and coordinatewise squares")
-    details = dict(method_id=METHOD_IDS[estimator], options=options,
-        implementation=dict(file="balancing_aipw.py", entry="estimate_balancing_aipw",
-                            sha256=_implementation_sha256()),
-        nuisance=dict(outcome="Arm-specific ridge least squares; intercept not penalized" if use_outcome else "Not fitted by this estimator",
-            used=dict(outcome=use_outcome, weights=use_weights), fitted=dict(outcome=False, weights=False),
-            fit_calls=dict(outcome=0, weights=0), fit_completed=dict(outcome=0, weights=0),
-            weights="Direct inverse-weight nuisance in a fitted [1,20] bounded calibration class; no propensity-probability fit" if use_weights else "Not fitted by this estimator",
-            weight_objective="19/n_train * sum_arm(logaddexp(0, intercept + B@slopes)) - 1/n_train * sum_other_arm(intercept + B@slopes) + .01/2 * ||slopes||^2" if use_weights else None,
-            inverse_weight="1 + 19*expit(intercept + B@slopes)" if use_weights else None,
-            score={"aipw":"m1 - m0 + I(A=1)*alpha1*(Y-m1) - I(A=0)*alpha0*(Y-m0)",
-                   "outcome_regression":"m1 - m0", "ipw":"I(A=1)*alpha1*Y - I(A=0)*alpha0*Y"}[estimator],
-            cross_fitting="2 treatment-stratified folds; preprocessing and selected nuisance fits use training rows only"),
-        normalization=("Unpenalized intercept learns training arm mass n_train up to solver tolerance. Raw heldout score averaged over all n rows; no posthoc normalization or clipping." if use_weights else "Raw heldout predicted outcome contrast averaged over all n rows; no inverse weights are fitted or normalized."),
+    use_weights=estimator!="outcome_regression"
+    options=dict(seed=seed,intervention=intervention,reference=reference,max_seconds=max_seconds,estimator=estimator,
+        folds=2,xgboost_version="2.1.4",xgboost=dict(XGBOOST_PARAMS,num_boost_round=XGBOOST_ROUNDS),
+        basis="Original verified adjustment-witness coordinates, including all full one-hot coordinates",
+        diagnostic_basis="Whole-training standardized original witness coordinates, linear only",
+        weight_floor=WEIGHT_FLOOR if use_weights else None,constraint_tolerance=CONSTRAINT_TOLERANCE if use_weights else None,
+        ridge=None,balance_penalty=None,weight_cap=None)
+    details=dict(method_id=METHOD_IDS[estimator],options=options,
+        implementation=dict(file="balancing_aipw.py",entry="estimate_balancing_aipw",sha256=_implementation_sha256()),
+        nuisance=dict(outcome="Arm-specific XGBoost 2.1.4 conditional outcome mean; 64 fixed rounds",
+            used=dict(outcome=True,weights=use_weights),fitted=dict(outcome=False,weights=False),
+            fit_calls=dict(outcome=0,weights=0),fit_completed=dict(outcome=0,weights=0),
+            weights="Minimum-second-moment weights with exact training mass and scalar fitted-outcome balance" if use_weights else "Not fitted by this estimator",
+            weight_objective="min sum_arm(w^2)/n_train subject to sum_arm(w)/n_train=1 and sum_arm(w*mu_a)/n_train=mean_cohort(mu_a), w>=1e-8" if use_weights else None,
+            inverse_weight="max(1e-8, dual_intercept + dual_slope * standardized_mu_a(X))" if use_weights else None,
+            score={"aipw":"m1 - m0 + I(A=1)*w1*(Y-m1) - I(A=0)*w0*(Y-m0)",
+                "outcome_regression":"m1 - m0","ipw":"I(A=1)*w1*Y - I(A=0)*w0*Y"}[estimator],
+            cross_fitting="2 treatment-stratified folds; XGBoost, prediction scaling and weight fitting use outer training rows only"),
+        normalization="Exact training mass constraint; raw heldout score averaged over total n; no heldout normalization, trimming or propensity conversion" if use_weights else "Raw heldout XGBoost prediction contrast averaged over total n; no weights",
         sources=SOURCE_URLS,
-        limitations=[("Finite basis, fixed regularization and the [1,20] inverse-weight class can leave bias; true inverse weights outside the class are not consistently represented." if use_weights else "Finite-basis, fixed-ridge outcome regression can be misspecified and biased."),
-                     ("Weights balance selected training moments approximately; this does not certify positivity." if use_weights else "No weight-based overlap diagnostics are computed; outcome extrapolation and poor support can leave bias."),
-                     "No unconditional double robustness, finite-sample unbiasedness or confidence interval is claimed."])
-    if estimator == "ipw":
-        details["nuisance"].update(
-            weights="UCA-style adjacent-source finite-dictionary quadratic density-ratio fit; no propensity-probability fit",
-            weight_objective="0.5*coef.T@(E_arm[phi*phi.T]+.002*I)@coef - E_cohort[phi].T@coef; coef>=0",
-            inverse_weight="clip(phi@coef,.01,50)/(training_ratio_normalizer*training_arm_prevalence)")
-        details["normalization"] = "Projected RN ratio divided by its training-arm mean, then by training-arm prevalence. Raw heldout weighted outcome contrast uses total n; no heldout normalization."
-        details["weight_provenance"] = dict(recipe="UCA adjacent-source quadratic RN finite-dictionary one-stage baseline adaptation",
-            source="uca_sdr.py::PositiveFeatures/fit_local_weight; jmlr-5.tex adjacent-source quadratic loss",
-            adaptation="C-only: no binary proposal gates; training-only standardization then tanh; positive/complement/squares plus RBF24",
-            frozen_paper_benchmark_literal_port=False,
-            source_optimizer="L-BFGS-B",product_optimizer="Cholesky-transformed nonnegative least squares on exactly the same quadratic")
-        details["limitations"] = ["Finite dictionary, fixed ridge, train-normalized ratio projection and imperfect overlap can bias IPW; balancing is not a true RN-ratio or positivity certificate.",
-            "The raw ratio projection [.01,50] is not a bound of 50 on final inverse weights; bounds depend on the training normalizer and prevalence.",
-            "No finite-sample unbiasedness or confidence interval is claimed."]
-    result = dict(status="UNKNOWN", method=METHODS[estimator], n=n, approximate=True,
-                  diagnostics=dict(folds=2, covariate_coordinates=p,
-                      data_uncertainty="not estimated", fold_details=[]),
-                  estimation_details=details)
+        limitations=["Only the scalar fitted-outcome prediction is balanced, not every covariate or function.",
+            "XGBoost misspecification, extrapolation and heldout weight concentration can bias results; engineering guards do not certify positivity.",
+            "No unconditional double robustness, finite-sample unbiasedness or confidence interval is claimed."])
+    result=dict(status="UNKNOWN",method=METHODS[estimator],n=n,approximate=True,
+        diagnostics=dict(folds=2,covariate_coordinates=p,data_uncertainty="not estimated",fold_details=[]),estimation_details=details)
     def check():
-        if perf_counter() - started >= max_seconds:
+        if perf_counter()-started>=max_seconds:
             raise TimeoutError("Estimator deadline exhausted; no partial estimate is returned")
     def fail(reason):
-        return dict(result, status="UNKNOWN", reason=reason)
-    if n < 128:
+        return dict(result,status="UNKNOWN",reason=reason)
+    if n<128:
         return fail("INSUFFICIENT_DATA: use at least 128 rows")
-    if intervention == reference:
-        check()
-        details["fit_performed"] = False
-        result["diagnostics"]["identical_regimes"] = True
-        return dict(result, status="OK", estimate=0.0)
-    fold = np.empty(n, dtype=int)
-    rng = np.random.default_rng(seed)
-    for arm in (0, 1):
-        indices = np.flatnonzero(a == arm)
-        fold[rng.permutation(indices)] = np.arange(len(indices)) % 2
-    predictions = np.empty((n, 2)) if use_outcome else None
-    weights = np.zeros((n, 2)) if use_weights else None
-    warnings = []
+    if intervention==reference:
+        details["fit_performed"]=False
+        result["diagnostics"]["identical_regimes"]=True
+        return dict(result,status="OK",estimate=0.)
+    fold=np.empty(n,dtype=int);rng=np.random.default_rng(seed)
+    for arm in (0,1):
+        ids=np.flatnonzero(a==arm);fold[rng.permutation(ids)]=np.arange(len(ids))%2
+    predictions=np.empty((n,2));weights=np.zeros((n,2)) if use_weights else None;warnings=[]
     try:
-        with np.errstate(over="raise", invalid="raise", divide="raise"):
-            for heldout in (0, 1):
+        for heldout in (0,1):
+            check();train=np.flatnonzero(fold!=heldout);test=np.flatnonzero(fold==heldout)
+            info=dict(heldout=heldout,n_train=len(train),n_test=len(test),arms={});result["diagnostics"]["fold_details"].append(info)
+            center=z[train].mean(0);scale=z[train].std(0);scale=np.where(scale>1e-12,scale,1.)
+            diagnostic_train=(z[train]-center)/scale
+            for arm in (0,1):
+                check();selected=a[train]==arm;observed=a[test]==arm
+                count,test_count=int(selected.sum()),int(observed.sum())
+                if count<32 or (use_weights and test_count<8):
+                    return fail("INSUFFICIENT_DATA: each training arm needs 32 rows"+(" and each heldout arm 8" if use_weights else ""))
+                diag=dict(n_train_arm=count,n_test_arm=test_count);info["arms"][str(arm)]=diag
+                fit_seed=(seed+104729*(heldout+1)+1009*(arm+1))%2**32
+                details["nuisance"]["fit_calls"]["outcome"]+=1
+                predicted,fit_info=fit_xgboost_mean(z[train][selected],y[train][selected],np.vstack([z[train],z[test]]),seed=fit_seed,check=check)
+                training_mu,heldout_mu=predicted[:len(train),0],predicted[len(train):,0]
+                predictions[test,arm]=heldout_mu
+                diag.update(outcome_fit=fit_info,train_outcome_rmse=fit_info["fits"][0]["train_outcome_rmse"])
+                details["nuisance"]["fit_completed"]["outcome"]+=1
+                details["nuisance"]["fitted"]["outcome"]=details["nuisance"]["fit_completed"]["outcome"]==4
+                if not use_weights:
+                    continue
+                details["nuisance"]["fit_calls"]["weights"]+=1
+                training_w,alpha,weight_info=_fit_minimum_variance_weights(training_mu,selected,heldout_mu,check)
+                diag.update(weight_info);weights[test,arm]=alpha
+                details["nuisance"]["fit_completed"]["weights"]+=1
+                details["nuisance"]["fitted"]["weights"]=details["nuisance"]["fit_completed"]["weights"]==4
+                w=alpha[observed];mass=float(w.sum()/len(test));ess=float(w.sum()**2/(w@w));share=float(w.max()/w.sum())
+                imbalance=float(np.max(np.abs(diagnostic_train[selected].T@training_w/len(train)-diagnostic_train.mean(0)),initial=0.))
+                diag.update(training_max_moment_imbalance=imbalance,heldout_weight_mass=mass,heldout_ess=ess,
+                    heldout_max_normalized_share=share,heldout_max_inverse_weight=float(w.max()))
                 check()
-                train, test = np.flatnonzero(fold != heldout), np.flatnonzero(fold == heldout)
-                info = dict(heldout=heldout, n_train=len(train), n_test=len(test), arms={})
-                result["diagnostics"]["fold_details"].append(info)
-                center, scale = z[train].mean(axis=0), z[train].std(axis=0)
-                scale = np.where(scale > 1e-12, scale, 1.)
-                standardized = (z-center)/scale
-                basis = np.concatenate([standardized, standardized**2], axis=1)
-                bcenter, bscale = basis[train].mean(axis=0), basis[train].std(axis=0)
-                bscale = np.where(bscale > 1e-12, bscale, 1.)
-                basis = (basis-bcenter)/bscale
-                if not np.isfinite(basis).all():
-                    return fail("Nonfinite train-only basis transformation")
-                bt, bv = basis[train], basis[test]
-                target = bt.mean(axis=0)
-                info["basis_coordinates"] = int(basis.shape[1])
-                for arm in (0, 1):
-                    check()
-                    selected = a[train] == arm
-                    observed = a[test] == arm
-                    count, test_count = int(selected.sum()), int(observed.sum())
-                    if count < 32 or (use_weights and test_count < 8):
-                        return fail("INSUFFICIENT_DATA: each training arm needs 32 rows" + (" and each heldout arm 8" if use_weights else ""))
-                    ba = bt[selected]
-                    diagnostics = dict(n_train_arm=count, n_test_arm=test_count)
-                    info["arms"][str(arm)] = diagnostics
-                    if use_outcome:
-                        ya = y[train][selected]
-                        bx, my = ba.mean(axis=0), float(ya.mean())
-                        x = ba-bx
-                        details["nuisance"]["fit_calls"]["outcome"] += 1
-                        coefficients = np.linalg.solve(x.T@x/count + RIDGE*np.eye(x.shape[1]),
-                                                        x.T@(ya-my)/count)
-                        predictions[test, arm] = my+(bv-bx)@coefficients
-                        diagnostics["train_outcome_rmse"] = float(np.sqrt(np.mean((my+x@coefficients-ya)**2)))
-                        details["nuisance"]["fit_completed"]["outcome"] += 1
-                        details["nuisance"]["fitted"]["outcome"] = details["nuisance"]["fit_completed"]["outcome"] == 4
-                    if not use_weights:
-                        check()
-                        continue
-                    if estimator == "ipw":
-                        details["nuisance"]["fit_calls"]["weights"] += 1
-                        ratio_seed = (seed+104729*(heldout+1)+1009*(arm+1)) % 2**32
-                        training_alpha, alpha, ratio_info = _fit_uca_ipw_ratio(
-                            standardized[train], selected, standardized[test], ratio_seed, check)
-                        weights[test,arm] = alpha
-                        w = alpha[observed]
-                        mass = float(w.sum()/len(test));ess = float(w.sum()**2/(w@w));share = float(w.max()/w.sum())
-                        max_balance = float(np.max(np.abs(ba.T@training_alpha/len(train)-target),initial=0.))
-                        diagnostics.update(ratio_info,training_weight_mass=float(training_alpha.sum()/len(train)),
-                            training_mass_residual=float(training_alpha.sum()/len(train)-1),
-                            training_max_moment_imbalance=max_balance,heldout_weight_mass=mass,heldout_ess=ess,
-                            heldout_max_normalized_share=share,heldout_max_inverse_weight=float(w.max()))
-                        details["nuisance"]["fit_completed"]["weights"] += 1
-                        details["nuisance"]["fitted"]["weights"] = details["nuisance"]["fit_completed"]["weights"] == 4
-                        check()
-                        if not np.isfinite([ess,share,mass,max_balance]).all():
-                            return fail("Nonfinite UCA balancing diagnostics")
-                        if ess < max(10.,.05*test_count) or share > .20 or max_balance > .5:
-                            return fail("WEAK_OVERLAP: inverse weights or covariate imbalance exceed the fixed safety limits")
-                        if ess < .25*test_count or share > .05 or not .5 <= mass <= 2. or max_balance > .1:
-                            warnings.append("UCA-style finite-feature balance or weight concentration is imperfect; the estimate may be unreliable and this does not certify positivity.")
-                        continue
-                    prevalence = count/len(train)
-                    if not 1/WEIGHT_CAP < prevalence < 1:
-                        return fail("WEIGHT_FEASIBILITY: each training arm must have prevalence strictly greater than 1/20 for finite bounded calibration")
-                    other = bt[~selected]
-                    def objective(theta):
-                        check()
-                        arm_score = theta[0]+ba@theta[1:]
-                        other_score = theta[0]+other@theta[1:]
-                        arm_alpha = 1+(WEIGHT_CAP-1)*expit(arm_score)
-                        value = ((WEIGHT_CAP-1)*np.logaddexp(0,arm_score).sum()-other_score.sum())/len(train)
-                        value += BALANCE_PENALTY/2*(theta[1:]@theta[1:])
-                        gradient = np.r_[(arm_alpha.sum()-len(train))/len(train),
-                            ba.T@arm_alpha/len(train)-target+BALANCE_PENALTY*theta[1:]]
-                        if not np.isfinite(value) or not np.isfinite(gradient).all():
-                            raise FloatingPointError("Nonfinite bounded calibration objective/gradient")
-                        return float(value), gradient
-                    initial = np.zeros(bt.shape[1]+1)
-                    inverse_prevalence = len(train)/count
-                    initial[0] = np.log((inverse_prevalence-1)/(WEIGHT_CAP-inverse_prevalence))
-                    details["nuisance"]["fit_calls"]["weights"] += 1
-                    fitted = minimize(objective, initial, jac=True, method="L-BFGS-B",
-                        options=dict(maxiter=400, ftol=1e-12, gtol=1e-7))
-                    theta = fitted.x
-                    objective_value, gradient = objective(theta)
-                    training_logit = theta[0]+bt@theta[1:]
-                    test_logit = theta[0]+bv@theta[1:]
-                    training_alpha = 1+(WEIGHT_CAP-1)*expit(training_logit[selected])
-                    imbalance = ba.T@training_alpha/len(train)-target
-                    max_balance = float(np.max(np.abs(imbalance), initial=0.))
-                    alpha = 1+(WEIGHT_CAP-1)*expit(test_logit)
-                    if not np.isfinite(alpha).all() or np.any(alpha <= 0):
-                        return fail("Inverse weights are nonfinite or numerically zero")
-                    weights[test, arm] = alpha
-                    w = alpha[observed]
-                    mass = float(w.sum()/len(test))
-                    ess = float(w.sum()**2/(w@w))
-                    share = float(w.max()/w.sum())
-                    diagnostics.update(solver_success=bool(fitted.success),
-                        solver_message=str(fitted.message),
-                        iterations=int(fitted.nit),
-                        objective=objective_value, gradient_max=float(np.max(np.abs(gradient), initial=0.)),
-                        training_max_moment_imbalance=max_balance,
-                        training_weight_mass=float(training_alpha.sum()/len(train)),
-                        training_mass_residual=float(training_alpha.sum()/len(train)-1),
-                        cap_saturation_fraction_train_arm=float(np.mean(training_alpha >= .99*WEIGHT_CAP)),
-                        cap_saturation_fraction_heldout_arm=float(np.mean(w >= .99*WEIGHT_CAP)),
-                        max_abs_logit_train_cohort=float(np.max(np.abs(training_logit))),
-                        max_abs_logit_heldout_cohort=float(np.max(np.abs(test_logit))),
-                        heldout_weight_mass=mass, heldout_ess=ess,
-                        heldout_max_normalized_share=share, heldout_max_inverse_weight=float(w.max()))
-                    info["arms"][str(arm)] = diagnostics
-                    check()
-                    if (not diagnostics["solver_success"] or diagnostics["gradient_max"] > 1e-5):
-                        return fail("Bounded calibration did not converge to the fixed numerical tolerance")
-                    if not np.isfinite([ess,share,mass,max_balance]).all():
-                        return fail("Nonfinite weight diagnostics")
-                    details["nuisance"]["fit_completed"]["weights"] += 1
-                    details["nuisance"]["fitted"]["weights"] = details["nuisance"]["fit_completed"]["weights"] == 4
-                    if ess < max(10., .05*test_count) or share > .20 or max_balance > .5:
-                        return fail("WEAK_OVERLAP: inverse weights or covariate imbalance exceed the fixed safety limits")
-                    if (ess < .25*test_count or share > .05 or not .5 <= mass <= 2. or max_balance > .1
-                            or diagnostics["cap_saturation_fraction_heldout_arm"] > .05):
-                        warnings.append("Weight diagnostics show imperfect balance, concentration or active weight bounds; this is not a positivity certificate and the estimate may be unreliable.")
-            if estimator == "aipw":
-                score = (predictions[:,1]-predictions[:,0]
-                         +(a==1)*weights[:,1]*(y-predictions[:,1])
-                         -(a==0)*weights[:,0]*(y-predictions[:,0]))
-            elif estimator == "outcome_regression":
-                score = predictions[:,1]-predictions[:,0]
-            else:
-                score = (a==1)*weights[:,1]*y-(a==0)*weights[:,0]*y
-            value = float(score.mean())*(intervention-reference)
-            check()
-            if not np.isfinite(value) or not np.isfinite(score).all():
-                return fail("Selected estimator score produced nonfinite values")
-    except (TimeoutError, FloatingPointError, np.linalg.LinAlgError, OverflowError, _UCABalancingError) as error:
-        if isinstance(error,_UCABalancingError):
-            diagnostics.update(error.diagnostics)
+                if not np.isfinite([mass,ess,share,imbalance]).all():
+                    return fail("Nonfinite minimum-variance weight diagnostics")
+                if ess<max(10.,.05*test_count) or share>.20:
+                    return fail("WEAK_OVERLAP: heldout inverse-weight concentration exceeds the fixed safety limits")
+                if ess<.25*test_count or share>.05 or not .5<=mass<=2. or imbalance>.1:
+                    warnings.append("Weight concentration, extrapolation or raw-covariate imbalance is imperfect; only fitted-outcome training balance is constrained and this does not certify positivity.")
+        if estimator=="aipw":
+            score=predictions[:,1]-predictions[:,0]+(a==1)*weights[:,1]*(y-predictions[:,1])-(a==0)*weights[:,0]*(y-predictions[:,0])
+        elif estimator=="outcome_regression":
+            score=predictions[:,1]-predictions[:,0]
+        else:
+            score=(a==1)*weights[:,1]*y-(a==0)*weights[:,0]*y
+        value=float(score.mean())*(intervention-reference);check()
+        if not np.isfinite(value) or not np.isfinite(score).all():
+            return fail("Selected estimator score produced nonfinite values")
+    except (TimeoutError,FloatingPointError,ValueError,OverflowError,xgb.core.XGBoostError) as error:
+        if isinstance(error,_BalanceError):
+            diag.update(error.diagnostics)
         return fail(str(error))
-    details["fit_performed"] = True
-    if use_outcome:
-        result["diagnostics"]["outcome_contrast_mean"] = float((predictions[:,1]-predictions[:,0]).mean())*(intervention-reference)
-    if estimator == "aipw":
-        result["diagnostics"]["augmentation_mean"] = float((score-(predictions[:,1]-predictions[:,0])).mean())*(intervention-reference)
-    if estimator == "ipw":
-        result["diagnostics"]["raw_weighted_outcome_contrast_mean"] = value
+    details["fit_performed"]=True
+    result["diagnostics"]["outcome_contrast_mean"]=float((predictions[:,1]-predictions[:,0]).mean())*(intervention-reference)
+    if estimator=="aipw":
+        result["diagnostics"]["augmentation_mean"]=value-result["diagnostics"]["outcome_contrast_mean"]
+    if estimator=="ipw":
+        result["diagnostics"]["raw_weighted_outcome_contrast_mean"]=value
     if warnings:
-        result["warning"] = warnings[0]
-    return dict(result, status="OK", estimate=value)
+        result["warning"]=warnings[0]
+    return dict(result,status="OK",estimate=value)

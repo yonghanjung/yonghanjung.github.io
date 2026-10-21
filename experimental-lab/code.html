@@ -57,14 +57,15 @@ python -c "import causalengine; print(causalengine.__version__)"</code></pre>
             <code>.venv\Scripts\Activate.ps1</code> in PowerShell. See the full guide for alternatives.
           </p>
           <p>
-            The package installs its NumPy, SciPy, pandas, and NetworkX requirements. This local release is supplied as downloads; use the downloaded
-            wheel rather than an unqualified package-name install.
+            The package installs its NumPy, SciPy, pandas, NetworkX, and XGBoost 2.1.4 requirements. This local release is supplied as downloads; use
+            the downloaded wheel rather than an unqualified package-name install.
           </p>
           <p>
-            Already installed an earlier beta? Download the new wheel and activate your existing virtual environment. This beta still uses version
-            0.1.0, so replace the installed package explicitly without reinstalling its dependencies:
+            Already installed an earlier beta? Download the new wheel and activate your existing virtual environment. This beta now requires XGBoost
+            2.1.4. Install it first, then explicitly replace the 0.1.0 wheel without reinstalling the other dependencies:
           </p>
-          <pre><code>python -m pip install --force-reinstall --no-deps ./causalengine-0.1.0-py3-none-any.whl</code></pre>
+          <pre><code>python -m pip install "xgboost==2.1.4"
+python -m pip install --force-reinstall --no-deps ./causalengine-0.1.0-py3-none-any.whl</code></pre>
         </section>
         <section id="demo">
           <h2>Run a complete example</h2>

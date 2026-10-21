@@ -21,12 +21,30 @@
     const kind = list.dataset.method,
       direct = kind !== "legacy";
     const ucaIPW = kind === "uca-ipw",
-      aipw = kind?.startsWith("aipw"),
+      minimum = kind?.startsWith("minimum-"),
+      xgboost = list.dataset.xgboost === "true";
+    const aipw = kind?.startsWith("aipw") || kind === "minimum-aipw",
       bounded = kind === "aipw-v2" || kind === "ipw";
     const outcomeFit = list.dataset.outcomeFit !== "false",
       weightFit = list.dataset.weightFit !== "false";
     const methodTopic =
-      kind === "outcome-regression" ? "outcomeRegression" : ucaIPW ? "ipw" : kind === "ipw" ? "actualSettings" : aipw ? "aipw" : "legacy";
+      kind === "minimum-aipw"
+        ? "minimumAIPW"
+        : kind === "minimum-ipw"
+          ? "minimumIPW"
+          : kind === "xgboost-outcome"
+            ? "xgboostOR"
+            : kind === "outcome-regression"
+              ? "outcomeRegression"
+              : ucaIPW
+                ? "ipw"
+                : kind === "ipw"
+                  ? "actualSettings"
+                  : aipw
+                    ? "aipw"
+                    : xgboost
+                      ? "xgboostGraph"
+                      : "legacy";
     const keys = {
       Status: "status",
       Estimator: methodTopic,
@@ -34,19 +52,31 @@
       "Graph criterion": "criterion",
       "Adjustment variables": "adjustment",
       "AIPW (augmented inverse probability weighting)": methodTopic,
-      "Outcome models": direct ? (outcomeFit ? "outcome" : "unused") : "legacyOutcome",
-      "Inverse weights": direct ? (weightFit ? (ucaIPW ? "ucaWeights" : "weights") : "unused") : "legacyWeights",
-      "Inverse-weight function": ucaIPW ? "ucaLink" : bounded ? "link" : "actualSettings",
+      "Outcome models": direct ? (outcomeFit ? (xgboost ? "xgboostOutcome" : "outcome") : "unused") : xgboost ? "xgboostGraph" : "legacyOutcome",
+      "Inverse weights": direct ? (weightFit ? (minimum ? "minimumWeights" : ucaIPW ? "ucaWeights" : "weights") : "unused") : "legacyWeights",
+      "Inverse-weight function": minimum ? "minimumLink" : ucaIPW ? "ucaLink" : bounded ? "link" : "actualSettings",
       "Fitted weight bound": "cap",
       "Cross-fitting": "crossfit",
-      "Balance objective": ucaIPW ? "ucaBalance" : bounded ? "balance" : "actualSettings",
-      Score: kind === "outcome-regression" ? "orScore" : ["ipw", "uca-ipw"].includes(kind) ? "ipwScore" : "score",
+      "Balance objective": minimum ? "minimumBalance" : ucaIPW ? "ucaBalance" : bounded ? "balance" : "actualSettings",
+      Score: ["outcome-regression", "xgboost-outcome"].includes(kind)
+        ? "orScore"
+        : kind === "minimum-ipw"
+          ? "minimumIPWScore"
+          : ["ipw", "uca-ipw"].includes(kind)
+            ? "ipwScore"
+            : "score",
       Folds: direct ? "folds" : "legacyFolds",
       "Fold seed": "seed",
       "Outcome ridge penalty": "ridge",
       "Balance penalty": ucaIPW ? "ucaPenalty" : bounded ? "penalty" : "actualSettings",
-      Basis: ucaIPW ? "ucaBasis" : "basis",
-      "Normalization / clipping": ucaIPW ? "ucaNormalization" : weightFit && bounded ? "normalization" : "actualSettings",
+      Basis: xgboost ? "xgboostBasis" : ucaIPW ? "ucaBasis" : "basis",
+      "Normalization / clipping": minimum
+        ? "minimumNormalization"
+        : ucaIPW
+          ? "ucaNormalization"
+          : weightFit && bounded
+            ? "normalization"
+            : "actualSettings",
       "Raw ratio projection": "ucaProjection",
       "RBF center budget": "ucaBasis",
       "RBF distance denominator": "ucaBasis",
@@ -54,11 +84,25 @@
       "Data uncertainty": "uncertainty",
       "Near-bound weights": "saturation",
       "Actual nuisance fits": "fitCalls",
+      "XGBoost version": "xgboostOutcome",
+      "XGBoost parameters": "xgboostParameters",
+      "Weight floor": "weightFloor",
+      "Constraint tolerance": "muBalance",
+      "Balanced training quantity": "muBalance",
     };
     const title = element("dt", label);
     CausalMethodHelp.add(
       title,
-      keys[label] || (/training mass residual/.test(label) ? "mass" : /near-bound fraction/.test(label) ? "saturation" : undefined)
+      keys[label] ||
+        (/training mass residual/.test(label)
+          ? "mass"
+          : /near-bound fraction/.test(label)
+            ? "saturation"
+            : /fitted-outcome|dual slope|dual intercept|weight objective|reported KKT/.test(label)
+              ? "muBalance"
+              : /floor fraction/.test(label)
+                ? "weightFloor"
+                : undefined)
     );
     list.append(title, element("dd", typeof value === "string" ? value : JSON.stringify(value)));
   }
@@ -104,10 +148,15 @@
   }
   function attach(section, estimate, context) {
     const metadata = estimate?.estimation_details;
-    const aipw = ["balancing_aipw_v1", "balancing_aipw_v2"].includes(metadata?.method_id);
-    const outcomeRegression = metadata?.method_id === "outcome_regression_v1",
+    const minimumAIPW = metadata?.method_id === "minimum_variance_aipw_v1",
+      minimumIPW = metadata?.method_id === "minimum_variance_ipw_v1";
+    const minimum = minimumAIPW || minimumIPW,
+      xgboostOR = metadata?.method_id === "xgboost_outcome_regression_v1";
+    const aipw = minimumAIPW || ["balancing_aipw_v1", "balancing_aipw_v2"].includes(metadata?.method_id);
+    const outcomeRegression = xgboostOR || metadata?.method_id === "outcome_regression_v1",
       ucaIPW = metadata?.method_id === "uca_balancing_ipw_v1",
-      ipw = ucaIPW || metadata?.method_id === "balancing_ipw_v1";
+      ipw = minimumIPW || ucaIPW || metadata?.method_id === "balancing_ipw_v1";
+    const xgboost = minimum || xgboostOR || /XGBoost/.test(metadata?.nuisance?.outcome || "");
     const direct = aipw || outcomeRegression || ipw;
     const fitted = metadata?.nuisance?.used || metadata?.nuisance?.fitted || { outcome: aipw, weights: aipw };
     const method = estimate?.method || "Not available";
@@ -122,23 +171,48 @@
     const methodName = element("p", "Estimator: " + shownMethod, "estimator-name");
     CausalMethodHelp.add(
       methodName,
-      aipw ? "aipw" : outcomeRegression ? "outcomeRegression" : ucaIPW ? "ipw" : ipw ? "actualSettings" : metadata?.method_id ? "legacy" : "estimator"
+      minimumAIPW
+        ? "minimumAIPW"
+        : minimumIPW
+          ? "minimumIPW"
+          : xgboostOR
+            ? "xgboostOR"
+            : aipw
+              ? "aipw"
+              : outcomeRegression
+                ? "outcomeRegression"
+                : ucaIPW
+                  ? "ipw"
+                  : ipw
+                    ? "actualSettings"
+                    : xgboost
+                      ? "xgboostGraph"
+                      : metadata?.method_id
+                        ? "legacy"
+                        : "estimator"
     );
     section.append(methodName);
     const details = element("details", undefined, "estimation-details");
     details.append(element("summary", "Details"));
     const list = element("dl", undefined, "estimation-facts");
-    list.dataset.method = aipw
-      ? metadata.method_id === "balancing_aipw_v2"
-        ? "aipw-v2"
-        : "aipw-v1"
-      : outcomeRegression
-        ? "outcome-regression"
-        : ucaIPW
-          ? "uca-ipw"
-          : ipw
-            ? "ipw"
-            : "legacy";
+    list.dataset.method = minimumAIPW
+      ? "minimum-aipw"
+      : minimumIPW
+        ? "minimum-ipw"
+        : xgboostOR
+          ? "xgboost-outcome"
+          : aipw
+            ? metadata.method_id === "balancing_aipw_v2"
+              ? "aipw-v2"
+              : "aipw-v1"
+            : outcomeRegression
+              ? "outcome-regression"
+              : ucaIPW
+                ? "uca-ipw"
+                : ipw
+                  ? "ipw"
+                  : "legacy";
+    list.dataset.xgboost = String(xgboost);
     list.dataset.outcomeFit = String(fitted.outcome);
     list.dataset.weightFit = String(fitted.weights);
     field(list, "Status", estimate?.status || "UNAVAILABLE");
@@ -188,6 +262,10 @@
       field(list, "Actual nuisance fits", metadata.fit_calls || metadata.nuisance?.fit_calls);
       field(list, "Folds", metadata.options?.folds);
       field(list, "Fold seed", metadata.options?.seed);
+      field(list, "XGBoost version", metadata.options?.xgboost_version);
+      field(list, "XGBoost parameters", metadata.options?.xgboost);
+      field(list, "Weight floor", metadata.options?.weight_floor);
+      field(list, "Constraint tolerance", metadata.options?.constraint_tolerance);
       field(list, "Outcome ridge penalty", metadata.options?.ridge);
       field(list, "Balance penalty", metadata.options?.balance_penalty);
       field(list, "Basis", metadata.options?.basis);
@@ -203,6 +281,7 @@
       if (arms) for (const [name, arm] of Object.entries(arms)) field(list, name + " fit", arm.method);
       field(list, "Folds", estimate?.diagnostics?.folds);
       field(list, "Data uncertainty", estimate?.diagnostics?.data_uncertainty);
+      for (const [i, regression] of (estimate?.diagnostics?.regressions || []).entries()) field(list, "Conditional mean fit " + (i + 1), regression);
     }
     if (estimate?.reason) field(list, "Reason", estimate.reason);
     details.append(list);
@@ -239,6 +318,32 @@
         }
         more.append(fit);
       }
+      if (minimum && fitted.weights) {
+        const fit = element("dl", undefined, "estimation-facts");
+        fit.dataset.method = list.dataset.method;
+        fit.dataset.xgboost = list.dataset.xgboost;
+        fit.dataset.outcomeFit = list.dataset.outcomeFit;
+        fit.dataset.weightFit = list.dataset.weightFit;
+        field(fit, "Balanced training quantity", "Arm-specific fitted-outcome prediction only; raw covariate imbalance remains diagnostic.");
+        for (const [index, fold] of (estimate?.diagnostics?.fold_details || []).entries()) {
+          for (const [arm, values] of Object.entries(fold.arms || {})) {
+            const label = "Fold " + (index + 1) + ", arm " + arm;
+            field(fit, label + " solver", values.solver);
+            field(fit, label + " training mass residual", values.training_mass_residual);
+            field(fit, label + " standardized fitted-outcome residual", values.training_standardized_mu_residual);
+            field(fit, label + " raw fitted-outcome residual", values.training_mu_balance_residual);
+            field(fit, label + " fitted-outcome target", values.training_mu_target);
+            field(fit, label + " fitted-outcome scale", values.training_mu_scale);
+            field(fit, label + " dual intercept", values.dual_intercept);
+            field(fit, label + " dual slope", values.dual_slope);
+            field(fit, label + " weight objective", values.objective);
+            field(fit, label + " reported KKT residual", values.training_kkt_residual);
+            field(fit, label + " training floor fraction", values.training_floor_fraction);
+            field(fit, label + " held-out floor fraction", values.heldout_floor_fraction);
+          }
+        }
+        more.append(fit);
+      }
       more.append(element("pre", JSON.stringify(diagnostics, null, 2), "estimation-code"));
       const diagnosticHeading = element("div", undefined, "method-help-heading");
       diagnosticHeading.append(more);
@@ -253,7 +358,7 @@
         element(
           "p",
           direct
-            ? "The implementation below is the code used by this estimate. Run it with the retained data; the model reference is not an input. Requires NumPy and SciPy."
+            ? "The implementation below is the code used by this estimate. Run it with the retained data; the model reference is not an input. Requires NumPy, SciPy and XGBoost 2.1.4."
             : "The replay uses the retained data and the installed CausalEngine package. The actual implementation source is available below."
         )
       );

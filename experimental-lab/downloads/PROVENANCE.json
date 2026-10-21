@@ -95,9 +95,10 @@
       "categorical_covariate_feature_view": "Explicit full K one-hot; lossless original data; selected estimator disclosed per request",
       "whole_node_data_binding": "Ordered source-column tuples and component domains/codebooks; public graph/dimension unchanged; data_id+binding_key guards; verified baseline BD/AC witnesses only",
       "sample_reference": "Snapshot/source/query-validated original scalar reference; explicit-vector no-evidence mean contrasts delegate to existing paired sample_interventional calls with MCSE, cell/time bounds and no stored-sample mutation.",
-      "random_baseline_adapter": "Validated observed continuous baseline vector1-50 injected only after public cap8 validation; public graph key, private schema and random_key bindings retained; existing SCM/registry and legacy estimator functions preserved; eligible estimate_data binary baseline requests dispatch to the separately documented additional balancing-weight routine.",
-      "baseline_balancing_aipw": "Additional estimate_data-only binary scalar baseline BD/AC branch imports balancing_aipw.py. Original _estimate_mean/_estimate_uca_mean/_uca_schedule/_reference AST preserved; not a claim that all estimation behavior is unchanged.",
-      "explicit_estimation_method": "auto default selects eligible balancing AIPW; explicit legacy_knn chooses preserved original graph estimator. No automatic fallback or gate/regularization change."
+      "random_baseline_adapter": "Validated observed continuous baseline vector1-50 injected only after public cap8 validation; public graph key, private schema and random_key bindings retained; existing SCM/registry preserved simulator/registry; learned conditional means deliberately changed; eligible estimate_data binary baseline requests dispatch to the separately documented additional balancing-weight routine.",
+      "baseline_balancing_aipw": "Eligible binary scalar baseline BD/AC selected three-method branch imports actual XGBoost + hard scalar fitted-outcome minimum-variance solver. Both AIPW/IPW weights changed; OR and all learned conditional means now XGBoost. No former numerical-parity claim.",
+      "explicit_estimation_method": "auto selects eligible minimum-variance AIPW; explicit legacy_knn is a compatibility alias for graph plug-in with actual XGBoost conditional means. No automatic fallback.",
+      "regression_extension": "_estimate_mean conditional means and _estimate_uca_mean terminal conditional means intentionally use fit_xgboost_mean, including zero/constant contexts. Nonterminal sampling, _uca_schedule, _reference, _paired_vector_reference, simulator/ID remain unchanged."
     },
     "examples.py": {
       "relative_imports": false,
@@ -135,61 +136,54 @@
     },
     "balancing_aipw.py": {
       "additional_module": true,
-      "method": "Selected baseline routine: default AIPW and outcome-regression arithmetic preserved; IPW-only UCA-style adjacent-source quadratic RN finite-dictionary adaptation",
-      "fixed_penalties": {
-        "outcome": 0.001,
-        "balance_aipw": 0.01,
-        "ratio_ipw": 0.002
-      },
+      "method": "Real XGBoost means plus minimum-variance scalar fitted-outcome balance for both AIPW/IPW; OR means only",
+      "source_sha256": "1c1c9719f25fb0691603976acf641c6ba1c2d842448b81fc4177d96d2d60da76",
+      "new_dependency": "xgboost==2.1.4 explicitly requested by user",
       "truth_as_training_input": false,
-      "new_dependencies": false,
-      "rights_note": "No new ownership or license-clearance claim; upstream notice and rights caveats remain.",
+      "xgboost": {
+        "version": "2.1.4",
+        "rounds": 64,
+        "max_depth": 3,
+        "eta": 0.05,
+        "tree_method": "hist",
+        "nthread": 1,
+        "reg_lambda": 1,
+        "min_child_weight": 5,
+        "subsample": 1,
+        "colsample_bytree": 1,
+        "base_score": "training response mean"
+      },
       "weight_class": {
-        "bound": 20,
-        "link": "1+19*expit(intercept+B@slopes)",
-        "posthoc_clipping_or_rescaling": false,
-        "finite_intercept_feasibility": "train arm prevalence > 1/20",
-        "basis_outcome_and_guards_unchanged": true,
-        "applies_to": "aipw only"
+        "floor": 1e-8,
+        "objective": "min sum_arm(w^2)/N",
+        "constraints": ["sum_arm(w)/N=1", "sum_arm(w*mu_a)/N=mean_whole_training(mu_a)"],
+        "solver": "O(m logm) sorted affine-positive active set",
+        "mass_and_standardized_mu_tolerance": 1e-8,
+        "heldout_normalization": false,
+        "propensity_or_ratio_conversion": false
       },
-      "source_sha256": "0791bf32634e2d3d620d4f437c6c0f19527f7eafc32195a4775a361794200c91",
-      "selected_scores": {
-        "aipw": "m1-m0+I1*alpha1*(Y-m1)-I0*alpha0*(Y-m0)",
-        "outcome_regression": "m1-m0",
-        "ipw": "I1*alpha1*Y-I0*alpha0*Y"
-      },
-      "score_denominator": "total observed row count n; no H\u00e1jek normalization, trimming or posthoc clipping",
-      "default_aipw_numerical_parity": "Exact estimate and diagnostics on three recorded e955 baseline fixtures; three-methods-default-parity-report.json",
-      "ipw_ratio_fit": {
-        "method_id": "uca_balancing_ipw_v1",
-        "source_recipe": "uca_sdr.py::PositiveFeatures/fit_local_weight; jmlr-5.tex adjacent-source quadratic loss",
-        "source_code_sha256": "d398ce36d4fdf503e4d9e1a2368043085fd298ac1573b46280efabbf7f48656f",
-        "source_paper_section_sha256": "419062a1f479a548999918883130a9b0d0a0159c9b072e8abf728b3d862a3a1f",
-        "literal_frozen_benchmark_reproduction": false,
-        "baseline_adaptation": "current P(C|A=a), target P(C); training-standardized tanh C-only positive/complement/squares+RBF24, no binary proposal gates",
-        "ridge": 0.002,
-        "coefficient_constraint": "nonnegative",
-        "raw_ratio_projection": [0.01, 50],
-        "rbf_mean_squared_distance_denominator": 0.35,
-        "normalization": "training-arm projected-ratio mean, then training-arm prevalence; no heldout renormalization",
-        "optimizer": "Primary SciPy NNLS on explicitly triangular Cholesky-transformed identical SPD quadratic, maxiter=3*feature_count; normal return, finite/nonnegative and projected-KKT/deadline acceptance; actual iterations unknown/null",
-        "projected_kkt_tolerance": 0.0001,
-        "truth_as_training_input": false,
-        "generic_source_optimizer": "L-BFGS-B maxiter120 (not the product optimizer)"
-      }
+      "score_denominator": "total original observed row count n",
+      "rights_note": "Original notice and caveats unchanged; no new rights-clearance claim"
     }
   },
   "license_note": "Upstream repository MIT notice preserved verbatim; the notice credits the original site template author. No new ownership attribution is asserted.",
   "web_theme_source": "/tmp/causal-science-lab-preview-20261019/apps/causalengine/",
-  "web_changes": "Website preview/data download/benchmark UI and standalone guides; worker/editor data-only adapter, ordered covariate-cluster bindings and categorical feature view; identification API graph cap100 and bounded observational display metadata. Original estimator functions/identification algorithms preserved; additional selected baseline AIPW/outcome-regression/IPW routine and narrow estimate_data dispatch explicitly documented. Other10 browser Python modules byte-identical to upstream.",
-  "web_ui_sha256": "94b51de7a5f7fe9cc79597e8369fd67d961d824b6f7c2163ff6164d54b6a850e",
+  "web_changes": "Deliberate changes: selected baseline three-method XGBoost/scalar-outcome balance; graph plug-in learned conditional means now XGBoost. Nonterminal conditional sampling kernels, analytic/MC references and ID algorithms unchanged. Prior adapters, explicit data bindings and display extensions retained. Other10 browser Python modules remain raw-upstream byte-identical.",
+  "web_ui_sha256": "fb2e437acd27141fdac267da66dde5f0fb5a8cec7fda19dd2280e15139f19b8a",
   "benchmark_assets": "web/benchmarks/manifest.json records dataset-specific versions, sources, transforms, hashes and terms; not covered by engine MIT notice",
   "benchmark_reference_assets": "web/benchmarks/ground-truth.json: separate aggregate mean(mu1-mu0) over unchanged released rows, source SHA/alignment/definition; factual CSV hashes unchanged; LaLonde unavailable. Never an estimation input.",
   "method_documentation": {
     "path": "web/methods.html",
     "canonical_source": "preview/apps/causalengine/methods.html",
-    "sha256": "210dd9cdb9c55ec3f2ab736699e0e2d3b3c3dbdcf0f3a0696e2e5f269b99057b",
-    "numerical_source_sha256": "0791bf32634e2d3d620d4f437c6c0f19527f7eafc32195a4775a361794200c91",
-    "scope": "Exact selected nuisance/score documentation; IPW-only UCA-style finite-dictionary RN adaptation, with AIPW/OR numerical parity and original algorithms preserved."
+    "sha256": "459575c619ec289355ac54085785560d6f56460d471b02446314e0f7fdebf8d9",
+    "numerical_source_sha256": "1c1c9719f25fb0691603976acf641c6ba1c2d842448b81fc4177d96d2d60da76",
+    "scope": "Exact minimum-variance scalar fitted-outcome objective, real XGBoost regressions, three score branches, unchanged sampling/reference distinction and limitations"
+  },
+  "runtime_dependency": {
+    "native": "xgboost==2.1.4",
+    "browser": "official Pyodide0.29.4 xgboost2.1.4",
+    "browser_wheel": "xgboost-2.1.4-py3-none-pyemscripten_2025_0_wasm32.whl",
+    "browser_wheel_sha256": "ff69f3f2a0a46ea0fa5343bb9eae37809f3f1ad6532c67839839bd517bde4201",
+    "compute": "user device; no server"
   }
 }
