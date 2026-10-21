@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Basis Function Explorer</title>
+<style>
+:root {
+  --bg: #FFFFFF; --panel: #F8FAFC; --ink: #11233F; --muted: #53657A; --line: #CBD5E1;
+  --grid: #E2E8F0; --navy: #173B7A; --teal: #0E7490; --rust: #9A3412; --on-teal: #FFFFFF; --ring: #FFFFFF;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F172A; --panel: #16213A; --ink: #E2E8F0; --muted: #94A3B8; --line: #334155;
+    --grid: #1E293B; --navy: #8FB3F0; --teal: #38BDD8; --rust: #F59E73; --on-teal: #0F172A; --ring: #E2E8F0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F172A; --panel: #16213A; --ink: #E2E8F0; --muted: #94A3B8; --line: #334155;
+  --grid: #1E293B; --navy: #8FB3F0; --teal: #38BDD8; --rust: #F59E73; --on-teal: #0F172A; --ring: #E2E8F0;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+       font: 19px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1400px; margin: 0 auto; padding: 18px 16px 28px; }
+.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 24px; margin-bottom: 14px; }
+h1 { font-size: 30px; margin: 0; }
+.sub { color: var(--muted); }
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px 26px;
+            background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+.ctl label { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; font-size: 19px; margin-bottom: 6px; }
+.ctl output { font-variant-numeric: tabular-nums; color: var(--teal); font-size: 22px; }
+.ctl label.check { justify-content: flex-start; align-items: center; gap: 10px; margin-top: 8px; cursor: pointer; font-weight: 400; }
+.check input { width: 22px; height: 22px; accent-color: var(--teal); }
+input[type=range] { width: 100%; height: 28px; accent-color: var(--teal); }
+button { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+         border-radius: 8px; padding: 6px 14px; cursor: pointer; white-space: nowrap; }
+button.primary { background: var(--teal); color: var(--on-teal); border-color: var(--teal); font-weight: 700; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+.buttons { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.readouts { display: flex; flex-wrap: wrap; gap: 8px 40px; margin: 16px 4px 12px; font-size: 26px; }
+.readouts b { font-variant-numeric: tabular-nums; }
+.eq { font-size: 26px; margin: 4px 4px 0; }
+.plots { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (max-width: 900px) { .plots { grid-template-columns: 1fr; } }
+canvas { width: 100%; height: 480px; display: block; border: 1px solid var(--line); border-radius: 12px; }
+select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; width: 100%; }
+.seg { display: flex; flex-wrap: wrap; gap: 8px; }
+.seg button[aria-pressed="true"] { background: var(--teal); color: var(--on-teal); border-color: var(--teal); font-weight: 700; }
+.note { color: var(--muted); font-size: 16px; margin: 10px 4px 0; }
+@media (max-width: 600px) { body { font-size: 17px; } h1 { font-size: 24px; } .readouts, .eq { font-size: 21px; } canvas { height: 360px; } }
+.te { color: var(--teal); } .ru { color: var(--rust); } .mu { color: var(--muted); }
+</style>
+
+</head>
+<body>
+<main>
+  <div class="top">
+    <h1>Make linear flexible: pick the pieces φ<sub>k</sub></h1>
+  </div>
+
+  <div class="controls">
+    <div class="ctl">
+      <label><span>Pieces φ<sub>k</sub>(x)</span></label>
+      <div class="seg" id="basis" role="group" aria-label="Choice of pieces">
+        <button type="button" data-b="line">line: x</button>
+        <button type="button" data-b="poly">powers: x, x², …</button>
+        <button type="button" data-b="sine">sines and cosines</button>
+        <button type="button" data-b="relu">ReLU pieces (network)</button>
+        <button type="button" data-b="bump">bumps</button>
+        <button type="button" data-b="step">steps (Lecture 9)</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <label for="k"><span>Number of pieces K</span> <output id="ko"></output></label>
+      <input id="k" type="range" min="1" max="30" step="1" value="6">
+      <label for="data" style="margin-top:10px"><span>Data</span></label>
+      <select id="data">
+        <option value="curve">A curved example: sin(2πx) plus noise, 30 points</option>
+        <option value="diab">Diabetes: BMI and progression, 331 patients</option>
+      </select>
+    </div>
+    <div class="ctl">
+      <label class="check"><input id="test" type="checkbox"> <span>Show test points</span></label>
+    </div>
+  </div>
+
+  <div class="readouts">
+    <span>Training RMSE: <b class="te" id="trm"></b></span>
+    <span id="tewrap" hidden>Test RMSE: <b class="ru" id="term"></b></span>
+  </div>
+
+  <div class="plots">
+    <canvas id="fit" role="img" aria-label="Data and the least-squares fit for the chosen pieces"></canvas>
+  </div>
+  <p class="note">Data: a simulated curve (seed 1010); diabetes data of Efron et al. (2004), via scikit-learn.</p>
+</main>
+
+<script>
+// DATA-BEGIN (written by the Lecture 10 notebook; do not edit by hand)
+const DATA = {"curve":{"x":[0.0252,0.0401,0.0698,0.0839,0.0891,0.095,0.1098,0.1146,0.1148,0.1694,0.2611,0.263,0.3239,0.4081,0.4094,0.4192,0.5358,0.5649,0.6469,0.6931,0.7098,0.7461,0.8478,0.8488,0.8735,0.8908,0.9177,0.9723,0.9815,0.9911],"y":[0.3003,-0.3291,0.5545,0.7703,0.2919,0.817,1.1461,0.6521,0.6614,0.6726,0.8325,1.1353,0.524,0.6507,0.7791,0.7679,-0.5189,-0.8314,-0.3321,-1.4276,-1.1388,-1.0905,-0.779,-0.818,-1.0395,-0.6238,-0.9159,-0.3789,-0.6368,-0.3127],"xt":[0.0074,0.0161,0.0262,0.0285,0.03,0.0304,0.036,0.0615,0.0627,0.0658,0.0662,0.0664,0.0728,0.0788,0.0848,0.0899,0.0917,0.0991,0.1074,0.1262,0.1385,0.1427,0.1538,0.1594,0.1735,0.174,0.1745,0.177,0.1802,0.1871,0.1942,0.1999,0.2081,0.2082,0.2083,0.2084,0.2267,0.2477,0.2521,0.2538,0.2573,0.263,0.2789,0.284,0.2865,0.3099,0.3245,0.3246,0.3285,0.345,0.3457,0.3508,0.3526,0.3583,0.3606,0.3644,0.3655,0.3779,0.3847,0.3857,0.3919,0.3944,0.4054,0.4096,0.4139,0.4147,0.4277,0.4318,0.4322,0.4331,0.4334,0.4349,0.4375,0.4501,0.4504,0.4594,0.4602,0.4662,0.4785,0.4803,0.4821,0.4828,0.4853,0.4913,0.4959,0.4976,0.4978,0.498,0.4987,0.5012,0.5038,0.5163,0.5199,0.5217,0.5245,0.5267,0.5331,0.5361,0.537,0.5392,0.5489,0.5497,0.5575,0.5616,0.5628,0.5747,0.5769,0.5804,0.5874,0.5888,0.5893,0.5904,0.5942,0.5946,0.5962,0.5995,0.6003,0.6021,0.6091,0.6306,0.6314,0.6509,0.6523,0.6549,0.6656,0.6664,0.6694,0.6853,0.695,0.6956,0.6964,0.6973,0.7017,0.7108,0.7159,0.7185,0.7229,0.7288,0.7321,0.7351,0.7399,0.7447,0.7491,0.7495,0.7515,0.7565,0.7578,0.7624,0.775,0.7796,0.7798,0.7822,0.7844,0.7877,0.788,0.7923,0.7931,0.8027,0.8192,0.8238,0.8276,0.8311,0.8367,0.8407,0.8436,0.8472,0.8506,0.8538,0.8555,0.8567,0.861,0.8619,0.8677,0.8683,0.8743,0.8752,0.8786,0.8927,0.8993,0.9028,0.9029,0.9122,0.9126,0.9227,0.928,0.9286,0.9374,0.9375,0.9405,0.9553,0.9649,0.9687,0.9783,0.9794,0.9811,0.9909,0.9916,0.9978,0.9979,0.9997],"yt":[0.2371,-0.1796,0.0438,0.0931,0.5772,-0.2821,0.4428,0.7939,0.7869,0.4665,0.3758,0.2894,0.4479,0.2403,0.7845,0.8337,0.8326,0.8286,0.9116,1.0655,0.6901,0.3337,0.7975,0.9763,1.1264,0.183,0.9722,0.8758,0.2507,0.6519,0.8115,1.3551,1.0611,1.0102,1.4046,0.6732,0.5538,1.0203,1.1068,0.792,1.0204,1.659,0.6458,1.4533,1.2925,1.1536,0.7304,0.7953,1.1214,1.2188,0.2791,1.1839,0.5294,0.3199,0.7117,1.0616,0.8363,0.2454,0.5922,1.067,0.4937,0.7838,0.5421,0.6934,0.9358,0.849,0.8963,0.4549,-0.0348,0.5856,0.1406,0.3154,1.0553,0.2342,0.3454,0.051,0.6087,0.734,0.0325,-0.2308,0.1894,0.1445,0.5996,0.2549,0.3593,-0.1953,0.3361,0.5031,0.0579,0.4869,-0.1456,0.3275,-0.2888,0.0068,0.1377,0.1828,-0.2492,-0.2544,0.3649,0.0792,-0.6343,-0.0279,-0.6145,-1.0126,-0.3036,-0.6263,-0.7239,-0.5955,-0.7255,0.5418,-0.3567,-0.8713,-0.8313,-0.6955,-0.8595,-0.3968,-0.7395,-0.6019,-0.3998,-1.0011,-0.7567,-0.8618,-0.872,-0.8375,-0.9982,-1.2468,-0.2746,-0.6829,-0.0177,-0.6753,-1.124,-1.1828,-0.6393,-1.4591,-1.3105,-1.3114,-1.0412,-1.1175,-0.8688,-0.6331,-1.5161,-1.4465,-0.6998,-0.9471,-1.3716,-1.1595,-0.8762,-1.6363,-0.5742,-1.0669,-0.949,-1.2629,-0.9246,-0.9064,-1.0012,-1.0418,-0.9969,-1.3045,-0.9778,-0.6906,-0.8281,-0.7622,-1.0613,-1.2265,-0.7699,-1.0246,-1.2974,-0.4093,-0.4834,-1.1189,-0.5382,-0.9302,-0.8094,-0.731,-0.7486,-0.5381,-0.8095,-0.1734,-0.5034,-0.7127,-0.4982,-0.7623,-0.237,-0.535,-0.8635,-0.2062,-0.3015,-0.4526,-0.3555,0.0863,0.1219,0.0848,-0.6257,0.1149,0.2746,0.6758,-0.3048,-0.4858,0.1229,-0.3109]},"diab":{"x":[26.5,31.9,29.9,26.5,25.7,24.5,23.5,29.0,19.8,36.6,23.7,30.7,25.4,28.6,25.8,22.6,27.7,19.6,34.3,20.1,23.0,26.2,20.7,29.0,23.1,28.1,23.1,24.0,30.6,32.0,32.7,20.5,19.2,26.3,24.8,30.2,27.4,32.0,23.3,29.4,22.2,21.0,22.7,33.5,23.6,27.4,25.8,24.3,25.5,31.2,28.7,18.0,30.6,23.0,25.5,32.0,35.0,25.6,23.6,21.9,42.2,22.1,30.8,25.7,28.1,22.0,24.5,23.3,24.5,24.0,24.1,22.0,22.9,27.8,36.7,25.3,21.2,19.3,22.1,28.8,21.0,28.0,24.1,26.0,19.9,29.5,24.5,37.0,33.0,23.0,21.4,24.0,23.4,24.8,25.4,25.9,24.1,22.6,20.2,24.5,23.5,33.6,31.4,25.2,23.4,22.1,20.6,20.4,25.9,26.2,22.8,26.3,22.2,18.9,27.7,25.0,21.0,31.6,31.6,27.0,25.4,32.9,26.2,32.8,24.0,19.4,24.1,27.0,30.3,24.1,27.5,23.8,24.9,23.3,33.0,25.3,24.2,26.0,26.5,21.0,24.4,21.8,25.3,20.3,28.0,25.5,23.5,30.1,30.4,28.3,30.4,29.7,20.9,21.2,23.4,31.9,22.1,23.5,31.5,25.6,22.1,34.6,31.4,22.5,18.8,22.6,23.5,26.9,32.1,31.0,30.6,27.2,21.9,31.8,31.9,21.2,37.8,23.9,23.5,22.5,25.8,23.6,23.6,24.9,27.7,33.2,20.6,25.8,22.8,22.8,24.9,25.5,25.4,28.8,24.7,24.3,28.4,25.2,27.3,22.8,26.5,19.0,34.6,27.3,32.4,35.0,29.6,36.1,24.2,24.7,20.3,25.6,28.0,30.1,22.5,24.2,33.8,20.8,28.3,27.9,30.2,24.6,33.0,22.4,26.5,20.0,26.1,31.2,21.7,31.9,27.5,24.7,28.1,30.5,26.9,25.6,31.6,25.2,23.2,24.7,27.7,38.3,35.1,24.5,23.0,25.3,20.8,29.2,19.2,29.2,23.7,33.1,24.2,18.1,28.5,25.7,26.9,33.0,23.2,32.1,29.0,25.7,24.1,25.4,22.7,22.6,28.5,23.0,31.5,29.3,35.0,29.2,25.2,24.1,24.0,30.8,27.7,23.3,23.4,20.3,30.7,31.4,35.3,34.3,21.1,19.7,20.7,32.3,26.3,22.2,25.1,27.9,20.9,29.6,26.0,26.2,27.0,26.8,27.7,24.6,26.8,24.2,23.5,24.9,26.8,28.1,31.3,25.9,26.9,20.2,27.0,21.6,22.1,28.2,28.8,22.0,22.1,33.9,27.2,28.0,21.3,23.1,23.1,25.6,25.3,32.6,25.9,30.6,18.8,30.0,28.3],"y":[49,91,167,229,182,111,55,145,49,258,179,174,61,121,134,42,220,57,306,55,200,63,99,302,52,113,125,74,175,243,259,65,137,113,80,198,111,245,214,208,90,158,78,332,118,276,262,84,257,164,182,94,272,146,197,215,200,131,160,111,242,72,258,155,265,72,97,94,241,170,84,138,129,242,336,94,63,134,47,52,252,173,65,68,158,198,233,237,295,135,83,199,53,90,25,116,200,72,59,47,91,233,293,292,87,178,45,170,92,44,253,115,93,72,142,97,63,310,303,67,179,288,185,220,252,55,66,182,166,58,144,209,132,54,252,190,71,198,142,88,107,128,206,59,69,81,42,147,195,281,103,184,64,135,104,263,114,172,173,81,77,310,187,75,51,71,154,249,281,221,232,174,96,275,268,109,281,152,66,185,219,69,88,104,191,275,53,164,127,93,53,59,97,196,168,51,178,91,210,40,51,101,264,150,95,140,236,321,92,150,214,100,128,155,178,150,257,70,197,268,52,214,220,64,196,72,217,230,87,178,143,77,248,141,67,39,272,202,140,171,118,259,263,148,102,200,72,244,116,202,88,131,64,104,232,248,60,141,190,110,170,52,110,168,91,97,265,50,68,296,128,222,160,89,71,317,297,65,78,96,99,192,274,261,68,77,89,217,292,102,83,212,86,84,88,109,109,191,90,219,107,144,43,104,200,273,163,126,311,77,131,75,74,237,283,200,69,180,127,139,42,185,53,31,181,78,230,202,85,85,246],"xt":[26.6,38.2,26.4,29.8,22.3,30.1,24.4,31.8,21.3,20.4,22.5,30.0,31.4,22.9,25.8,38.0,31.0,29.8,25.0,26.7,29.5,26.5,23.2,23.6,21.0,33.0,30.3,24.4,24.2,21.7,22.7,32.4,27.3,35.4,21.1,28.7,18.6,29.2,24.9,29.2,32.1,26.6,27.9,32.0,24.3,25.5,36.1,20.6,31.0,35.5,27.8,25.6,29.5,18.5,19.9,24.0,26.8,23.3,28.2,20.4,22.8,30.0,30.5,26.6,24.0,19.9,29.7,25.6,28.2,26.8,27.5,26.1,20.3,32.0,28.6,24.1,21.3,21.2,22.9,32.8,24.3,32.1,20.5,26.8,34.6,21.5,19.5,23.5,20.2,31.9,25.1,27.0,26.1,26.7,33.3,26.0,27.8,39.1,22.7,32.7,26.0,19.6,27.3,30.0,22.6,41.3,23.3,26.9,28.9,25.7,24.7],"yt":[85,308,259,90,71,180,281,136,60,83,103,220,142,128,283,341,280,70,124,129,150,258,120,108,162,55,137,131,71,189,124,109,235,275,183,122,101,122,151,172,151,245,225,132,156,60,270,115,144,243,96,161,270,90,48,98,48,84,262,96,206,310,129,123,118,63,248,177,178,59,235,139,153,186,265,163,143,39,113,277,49,242,37,144,279,181,48,102,79,85,216,277,141,73,275,202,201,233,65,121,61,142,151,246,152,346,168,138,225,95,101]}};
+// DATA-END
+
+const $ = id => document.getElementById(id);
+const SET = {
+  curve: { xr: [0, 1], yr: [-2, 2], xt: [0, 0.25, 0.5, 0.75, 1], yt: [-2, -1, 0, 1, 2], xl: "x", yl: "y" },
+  diab: { xr: [17, 44], yr: [0, 360], xt: [20, 25, 30, 35, 40], yt: [0, 100, 200, 300], xl: "BMI", yl: "progression" }
+};
+let basis = "poly";
+
+function scaler(xs) { const lo = Math.min(...xs), hi = Math.max(...xs); return x => (x - lo) / (hi - lo); }
+function pieces(b, K) {
+  // returns K functions of t in [0, 1] (t is x rescaled to the training range)
+  const f = [];
+  if (b === "line") return [t => t];
+  for (let k = 1; k <= K; k++) {
+    if (b === "poly") f.push(t => legendre(2 * t - 1, k));
+    if (b === "sine") { const m = Math.ceil(k / 2); f.push(k % 2 ? (t => Math.sin(m * Math.PI * t)) : (t => Math.cos(m * Math.PI * t))); }
+    if (b === "relu") { const c = (k - 1) / K; f.push(t => Math.max(0, t - c)); }
+    if (b === "bump") { const c = (k - 0.5) / K, w = 1 / K; f.push(t => Math.exp(-0.5 * ((t - c) / w) ** 2)); }
+    if (b === "step") { const c = k / (K + 1); f.push(t => (t >= c ? 1 : 0)); }
+  }
+  return f;
+}
+function legendre(z, n) { let p0 = 1, p1 = z; if (n === 0) return 1; for (let k = 1; k < n; k++) { const p2 = ((2 * k + 1) * z * p1 - k * p0) / (k + 1); p0 = p1; p1 = p2; } return p1; }
+function solve(A, b) {
+  const n = b.length, M = A.map((r, i) => [...r, b[i]]);
+  for (let c = 0; c < n; c++) {
+    let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    [M[c], M[p]] = [M[p], M[c]];
+    const d = M[c][c] || 1e-12;
+    for (let r = 0; r < n; r++) if (r !== c) { const f = M[r][c] / d; for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k]; }
+  }
+  return M.map((r, i) => r[n] / (r[i] || 1e-12));
+}
+function fit(xs, ys, F, sc) {
+  const rows = xs.map(x => [1, ...F.map(f => f(sc(x)))]), p = rows[0].length;
+  const A = Array.from({ length: p }, () => new Array(p).fill(0)), b = new Array(p).fill(0);
+  rows.forEach((r, i) => { for (let a = 0; a < p; a++) { b[a] += r[a] * ys[i]; for (let c = 0; c < p; c++) A[a][c] += r[a] * r[c]; } });
+  const tr = A.reduce((s, r, i) => s + r[i], 0) / p;
+  for (let a = 1; a < p; a++) A[a][a] += 1e-9 * tr;              // a tiny ridge keeps the solve stable when pieces repeat
+  return solve(A, b);
+}
+const rmse = (xs, ys, h) => Math.sqrt(xs.reduce((s, x, i) => s + (ys[i] - h(x)) ** 2, 0) / xs.length);
+
+function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function setup(c) {
+  const r = c.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  c.width = Math.round(r.width * d); c.height = Math.round(r.height * d);
+  const g = c.getContext("2d"); g.setTransform(d, 0, 0, d, 0, 0);
+  return [g, r.width, r.height];
+}
+const PAD = { l: 64, r: 16, t: 16, b: 52 };
+function axes(g, w, h, xr, yr, xlab, ylab, xt, yt) {
+  const px = x => PAD.l + (x - xr[0]) / (xr[1] - xr[0]) * (w - PAD.l - PAD.r);
+  const py = y => h - PAD.b - (y - yr[0]) / (yr[1] - yr[0]) * (h - PAD.t - PAD.b);
+  g.strokeStyle = css("--grid"); g.lineWidth = 1; g.fillStyle = css("--muted"); g.font = "15px system-ui, sans-serif";
+  g.textAlign = "center"; g.textBaseline = "top";
+  for (const t of xt) { g.beginPath(); g.moveTo(px(t), PAD.t); g.lineTo(px(t), h - PAD.b); g.stroke(); g.fillText(t, px(t), h - PAD.b + 6); }
+  g.textAlign = "right"; g.textBaseline = "middle";
+  for (const t of yt) { g.beginPath(); g.moveTo(PAD.l, py(t)); g.lineTo(w - PAD.r, py(t)); g.stroke(); g.fillText(t, PAD.l - 8, py(t)); }
+  g.textAlign = "center"; g.textBaseline = "bottom"; g.font = "16px system-ui, sans-serif";
+  g.fillText(xlab, (PAD.l + w - PAD.r) / 2, h - 4);
+  g.save(); g.translate(16, (PAD.t + h - PAD.b) / 2); g.rotate(-Math.PI / 2); g.textBaseline = "middle"; g.fillText(ylab, 0, 0); g.restore();
+  return [px, py];
+}
+
+function update() {
+  const key = $("data").value, D = DATA[key], S = SET[key];
+  const K = basis === "line" ? 1 : +$("k").value;
+  $("k").disabled = basis === "line"; $("ko").textContent = K;
+  const sc = scaler(D.x), F = pieces(basis, K), beta = fit(D.x, D.y, F, sc);
+  const h = x => beta[0] + F.reduce((s, f, k) => s + beta[k + 1] * f(sc(x)), 0);
+  $("trm").textContent = rmse(D.x, D.y, h).toFixed(key === "curve" ? 3 : 1);
+  const showT = $("test").checked;
+  $("tewrap").hidden = !showT;
+  if (showT) $("term").textContent = rmse(D.xt, D.yt, h).toFixed(key === "curve" ? 3 : 1);
+
+  const [g, w, hh] = setup($("fit"));
+  g.clearRect(0, 0, w, hh);
+  const [px, py] = axes(g, w, hh, S.xr, S.yr, S.xl, S.yl, S.xt, S.yt);
+  g.save(); g.beginPath(); g.rect(PAD.l, PAD.t, w - PAD.l - PAD.r, hh - PAD.t - PAD.b); g.clip();
+  const lo = Math.min(...D.x), hi = Math.max(...D.x), N = 500, grid = Array.from({ length: N }, (_, i) => lo + (hi - lo) * i / (N - 1));
+  g.fillStyle = css("--navy"); g.globalAlpha = key === "curve" ? 0.9 : 0.5;
+  D.x.forEach((x, i) => { g.beginPath(); g.arc(px(x), py(D.y[i]), key === "curve" ? 5 : 3, 0, 2 * Math.PI); g.fill(); });
+  g.globalAlpha = 1;
+  if (showT) {
+    g.strokeStyle = css("--rust"); g.lineWidth = 1.5; g.globalAlpha = 0.7;
+    D.xt.forEach((x, i) => { g.beginPath(); g.arc(px(x), py(D.yt[i]), key === "curve" ? 3.5 : 3, 0, 2 * Math.PI); g.stroke(); });
+    g.globalAlpha = 1;
+  }
+  g.strokeStyle = css("--teal"); g.lineWidth = 3.5; g.beginPath();
+  grid.forEach((x, i) => { const v = h(x); i ? g.lineTo(px(x), py(v)) : g.moveTo(px(x), py(v)); }); g.stroke();
+  g.restore();
+}
+document.querySelectorAll("#basis button").forEach(b => b.addEventListener("click", () => {
+  basis = b.dataset.b;
+  document.querySelectorAll("#basis button").forEach(o => o.setAttribute("aria-pressed", String(o === b)));
+  update();
+}));
+document.querySelector('#basis button[data-b="poly"]').setAttribute("aria-pressed", "true");
+document.querySelectorAll("#basis button:not([data-b=poly])").forEach(o => o.setAttribute("aria-pressed", "false"));
+["k", "data", "test"].forEach(id => $(id).addEventListener("input", update));
+window.addEventListener("resize", update);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", update);
+new MutationObserver(update).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+update();
+</script>
+</body>
+</html>
