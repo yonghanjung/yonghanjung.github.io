@@ -59,7 +59,6 @@ select { font: inherit; color: var(--ink); background: var(--bg); border: 1px so
 <main>
   <div class="top">
     <h1>Make linear flexible: pick the pieces φ<sub>k</sub></h1>
-    <span class="sub">IS 507 Lecture 10 · least squares on h(x) = β<sub>0</sub> + Σ<sub>k</sub> β<sub>k</sub> φ<sub>k</sub>(x)</span>
   </div>
 
   <div class="controls">
@@ -84,24 +83,19 @@ select { font: inherit; color: var(--ink); background: var(--bg); border: 1px so
       </select>
     </div>
     <div class="ctl">
-      <label class="check"><input id="pieces" type="checkbox" checked> <span>Show each weighted piece β<sub>k</sub>φ<sub>k</sub>(x)</span></label>
-      <label class="check"><input id="test" type="checkbox"> Show test points and test RMSE</label>
+      <label class="check"><input id="test" type="checkbox"> <span>Show test points</span></label>
     </div>
   </div>
 
-  <div class="eq" id="formula"></div>
   <div class="readouts">
     <span>Training RMSE: <b class="te" id="trm"></b></span>
     <span id="tewrap" hidden>Test RMSE: <b class="ru" id="term"></b></span>
-    <span class="mu">Weights fitted: <b id="nw"></b></span>
   </div>
 
   <div class="plots">
     <canvas id="fit" role="img" aria-label="Data and the least-squares fit for the chosen pieces"></canvas>
   </div>
-  <p class="note">Every choice is the same method: pick pieces φ<sub>1</sub>, …, φ<sub>K</sub>, then choose the weights β by least squares on the training points. The rule stays linear in β, yet bends in x.
-  The ReLU pieces max(0, x − c<sub>k</sub>) use fixed, evenly spaced bends; a neural network would also learn where to bend. With enough pieces every family can follow the training points; switch on the test points to see when it stops helping.</p>
-  <p class="note">Data: the curved example is simulated in <code>lecture-10-notebook-2026-10-08-v1.ipynb</code> (seed 1010). Diabetes: Efron, Hastie, Johnstone, and Tibshirani (2004), <i>Annals of Statistics</i> 32(2), the copy in scikit-learn; the Lecture 9 split. The data block below is written by the notebook.</p>
+  <p class="note">Data: a simulated curve (seed 1010); diabetes data of Efron et al. (2004), via scikit-learn.</p>
 </main>
 
 <script>
@@ -173,7 +167,6 @@ function axes(g, w, h, xr, yr, xlab, ylab, xt, yt) {
   return [px, py];
 }
 
-const NAMES = { line: "x", poly: "powers of x", sine: "sines and cosines", relu: "ReLU pieces", bump: "bumps", step: "steps" };
 function update() {
   const key = $("data").value, D = DATA[key], S = SET[key];
   const K = basis === "line" ? 1 : +$("k").value;
@@ -184,20 +177,12 @@ function update() {
   const showT = $("test").checked;
   $("tewrap").hidden = !showT;
   if (showT) $("term").textContent = rmse(D.xt, D.yt, h).toFixed(key === "curve" ? 3 : 1);
-  $("nw").textContent = (F.length + 1);
-  $("formula").innerHTML = "h(x) = β<sub>0</sub> + " + (F.length === 1 ? "β<sub>1</sub>φ<sub>1</sub>(x)" : "β<sub>1</sub>φ<sub>1</sub>(x) + … + β<sub>" + F.length + "</sub>φ<sub>" + F.length + "</sub>(x)") + " &nbsp;<span class='mu'>(" + NAMES[basis] + ")</span>";
 
   const [g, w, hh] = setup($("fit"));
   g.clearRect(0, 0, w, hh);
   const [px, py] = axes(g, w, hh, S.xr, S.yr, S.xl, S.yl, S.xt, S.yt);
   g.save(); g.beginPath(); g.rect(PAD.l, PAD.t, w - PAD.l - PAD.r, hh - PAD.t - PAD.b); g.clip();
   const lo = Math.min(...D.x), hi = Math.max(...D.x), N = 500, grid = Array.from({ length: N }, (_, i) => lo + (hi - lo) * i / (N - 1));
-  if ($("pieces").checked) {
-    g.strokeStyle = css("--muted"); g.globalAlpha = 0.45; g.lineWidth = 1.2;
-    const base = key === "curve" ? 0 : (S.yr[0] + S.yr[1]) / 2;
-    F.forEach((f, k) => { g.beginPath(); grid.forEach((x, i) => { const v = base + beta[k + 1] * f(sc(x)); i ? g.lineTo(px(x), py(v)) : g.moveTo(px(x), py(v)); }); g.stroke(); });
-    g.globalAlpha = 1;
-  }
   g.fillStyle = css("--navy"); g.globalAlpha = key === "curve" ? 0.9 : 0.5;
   D.x.forEach((x, i) => { g.beginPath(); g.arc(px(x), py(D.y[i]), key === "curve" ? 5 : 3, 0, 2 * Math.PI); g.fill(); });
   g.globalAlpha = 1;
@@ -217,7 +202,7 @@ document.querySelectorAll("#basis button").forEach(b => b.addEventListener("clic
 }));
 document.querySelector('#basis button[data-b="poly"]').setAttribute("aria-pressed", "true");
 document.querySelectorAll("#basis button:not([data-b=poly])").forEach(o => o.setAttribute("aria-pressed", "false"));
-["k", "data", "pieces", "test"].forEach(id => $(id).addEventListener("input", update));
+["k", "data", "test"].forEach(id => $(id).addEventListener("input", update));
 window.addEventListener("resize", update);
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", update);
 new MutationObserver(update).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
