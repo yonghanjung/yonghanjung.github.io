@@ -178,14 +178,13 @@ permalink: /experimental-lab/guide.html
             </p>
             <p>
               For a simulated example, use a plain scalar covariate such as <code>X</code>, choose <strong>Random Data</strong>, select 512 or 2,048
-              records, and press <strong>Generate Data</strong>. Declared CSV clusters are not supported by the random simulator; remove the
-              declaration and update the graph to use this mode. <strong>Model seed</strong> fixes the simulated rules;
-              <strong>Data seed</strong> fixes the generated rows within those rules. The same graph, model settings, seeds, and record count
-              reproduce the same data. Changing only Data seed changes the rows, not the underlying model. You can inspect or download these records
-              before estimating. <strong>Run estimate</strong> reuses that dataset when the graph, model settings, and record count are unchanged. One
-              generated dataset is used for every outcome. The estimate uses those records only. A separately labelled model reference is displayed
-              after estimation and never substitutes for a failed estimate. Head and Download CSV beside Generate Data use the same retained rows;
-              they do not generate a new dataset.
+              records, and press <strong>Generate Data</strong>. A declared cluster can be generated when its member count matches the selected Random
+              dimension (1–50). <strong>Model seed</strong> fixes the simulated rules; <strong>Data seed</strong> fixes the generated rows within
+              those rules. The same graph, model settings, seeds, and record count reproduce the same data. Changing only Data seed changes the rows,
+              not the underlying model. You can inspect or download these records before estimating. <strong>Run estimate</strong> reuses that dataset
+              when the graph, model settings, and record count are unchanged. One generated dataset is used for every outcome. The estimate uses those
+              records only. A separately labelled model reference is displayed after estimation and never substitutes for a failed estimate. Head and
+              Download CSV beside Generate Data use the same retained rows; they do not generate a new dataset.
             </p>
             <h3>Head and Download CSV</h3>
             <p>
@@ -220,6 +219,49 @@ permalink: /experimental-lab/guide.html
           </section>
           <section id="results">
             <h2>5. Read each result and its warning</h2>
+            <h3>Which estimator ran?</h3>
+            <p>
+              Every estimate names its actual estimator. For one binary treatment, a scalar outcome, and a verified baseline adjustment set,
+              CausalEngine uses <strong>2-fold balancing-weight AIPW (augmented inverse probability weighting)</strong>. Each training fold fits
+              separate ridge outcome regressions and positive inverse weights by regularized entropy calibration. The basis contains
+              training-standardized covariates and their coordinatewise squares. No separate propensity-probability model is fitted. The augmented
+              score is evaluated on held-out rows without clipping or held-out weight renormalization.
+            </p>
+            <p>
+              Open <strong>Details</strong> for the actual columns, fold seed, penalties, normalization, solver results, effective sample sizes,
+              balance diagnostics, and warnings. Fixed regularization and a finite basis can leave bias; an available estimate is not an accuracy or
+              positivity certificate. Front-door, sequential, continuous-treatment, and other unsupported-for-AIPW questions retain their existing
+              estimator or an explicit unavailable result. Their Details says AIPW is not used; a failed balancing fit is not silently replaced by
+              kNN.
+            </p>
+            <p>
+              For the single-binary-treatment No unmeasured confounding template, Estimate offers <strong>Automatic (balancing AIPW)</strong> and
+              <strong>Graph plug-in (legacy)</strong>. The default keeps the balancing method’s fixed safeguards. Selecting legacy explicitly runs the
+              earlier graph plug-in (kNN g-computation for baseline adjustment); it is not AIPW and can retain substantial smoothing bias. No
+              automatic fallback occurs after an unstable balancing fit. Both choices reuse the retained records, and Details and replay code record
+              the actual selection.
+            </p>
+            <h3>Copy and reproduce the calculation</h3>
+            <ol>
+              <li>Open the estimate’s <strong>Details → Calculation code</strong>.</li>
+              <li>
+                Select <strong>Download data</strong> to save the selected retained rows as <code>causalengine-estimate.csv</code>. No new data or
+                model reference is generated.
+              </li>
+              <li>
+                Select <strong>Copy code</strong> or <strong>Download .py</strong>. The balancing-AIPW script includes the actual implementation plus
+                the exact column recipes, comparison, fold seed, and options used for this result.
+              </li>
+              <li>
+                Put the CSV and <code>reproduce_estimate.py</code> in one folder, then run <code>python reproduce_estimate.py</code>. Use the Python
+                environment prepared in Code &amp; install. The standalone balancing implementation needs NumPy and SciPy; legacy graph-estimator
+                replay uses the installed CausalEngine package.
+              </li>
+            </ol>
+            <p>
+              The source hash is checked before export. A changed source requires a new estimate. Simulation and benchmark ground truth are not
+              estimator inputs.
+            </p>
             <p>
               <strong>Head</strong> opens and closes a preview of the current data. Its Rows, Columns, and Starting column controls change only the
               visible table. <strong>Download CSV</strong> saves the complete current data without generating new rows. Generating again or changing

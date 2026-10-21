@@ -1416,6 +1416,61 @@ permalink: /experimental-lab/
       font-size: 13px;
       margin-top: 14px;
     }
+
+    #easy-result {
+      position: relative;
+      z-index: 1;
+      background: var(--bg);
+    }
+    .outcome-result .estimator-name {
+      font-size: 14px;
+      color: var(--ink);
+      margin-top: 16px;
+    }
+    .estimation-facts {
+      display: grid;
+      grid-template-columns: minmax(120px, 200px) minmax(0, 1fr);
+      gap: 9px 18px;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .estimation-facts dt {
+      font-weight: 600;
+    }
+    .estimation-facts dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+    .outcome-result .estimation-code {
+      white-space: pre;
+      overflow: auto;
+      max-height: 440px;
+      max-width: 100%;
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 14px;
+      background: #eeeee6;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+    }
+    .calculation-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 12px 0;
+    }
+    .outcome-result .calculation-status {
+      font-size: 14px;
+    }
+    @media (max-width: 600px) {
+      .estimation-facts {
+        grid-template-columns: 1fr;
+        gap: 4px;
+      }
+      .estimation-facts dd {
+        margin-bottom: 10px;
+      }
+    }
   </style>
   <main>
     <a class="back" href="./">CausalEngine</a>
@@ -1527,6 +1582,12 @@ permalink: /experimental-lab/
               </div>
               <button id="generate-data" type="button">Generate Data</button>
             </div>
+            <label id="estimation-method-wrap"
+              >Estimator<select id="estimation-method">
+                <option value="auto">Automatic (balancing AIPW)</option>
+                <option value="legacy_knn">Graph plug-in (legacy)</option>
+              </select></label
+            >
             <p id="data-error" role="alert"></p>
             <button id="run-estimate" class="primary" type="button" hidden>Run estimate</button>
           </div>
@@ -3696,6 +3757,7 @@ permalink: /experimental-lab/
   <script src="./data-preview.js"></script>
   <script src="./expectation-formula.js"></script>
   <script src="./cluster-view.js"></script>
+  <script src="./estimation-details.js"></script>
   <script src="./role-ui.js"></script>
   <script src="./benchmark-ui.js"></script>
   <script src="./select-picker.js"></script>

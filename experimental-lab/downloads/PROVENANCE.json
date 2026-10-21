@@ -92,10 +92,12 @@
       "relative_imports": true,
       "module_identity_adjustment": false,
       "data_only_adapter_extension": true,
-      "categorical_covariate_feature_view": "explicit full K one-hot; existing estimator unchanged",
+      "categorical_covariate_feature_view": "Explicit full K one-hot; lossless original data; selected estimator disclosed per request",
       "whole_node_data_binding": "Ordered source-column tuples and component domains/codebooks; public graph/dimension unchanged; data_id+binding_key guards; verified baseline BD/AC witnesses only",
       "sample_reference": "Snapshot/source/query-validated original scalar reference; explicit-vector no-evidence mean contrasts delegate to existing paired sample_interventional calls with MCSE, cell/time bounds and no stored-sample mutation.",
-      "random_baseline_adapter": "Validated observed continuous baseline vector1-50 injected only after public cap8 validation; public graph key, private schema and random_key bindings retained; existing SCM/registry and observed-data estimators unchanged."
+      "random_baseline_adapter": "Validated observed continuous baseline vector1-50 injected only after public cap8 validation; public graph key, private schema and random_key bindings retained; existing SCM/registry and legacy estimator functions preserved; eligible estimate_data binary baseline requests dispatch to the separately documented additional balancing-weight routine.",
+      "baseline_balancing_aipw": "Additional estimate_data-only binary scalar baseline BD/AC branch imports balancing_aipw.py. Original _estimate_mean/_estimate_uca_mean/_uca_schedule/_reference AST preserved; not a claim that all estimation behavior is unchanged.",
+      "explicit_estimation_method": "auto default selects eligible balancing AIPW; explicit legacy_knn chooses preserved original graph estimator. No automatic fallback or gate/regularization change."
     },
     "examples.py": {
       "relative_imports": false,
@@ -130,12 +132,23 @@
     "tian.py": {
       "relative_imports": true,
       "module_identity_adjustment": false
+    },
+    "balancing_aipw.py": {
+      "additional_module": true,
+      "method": "two-fold cross-fitted ridge outcome + regularized entropy-calibration direct inverse weights + raw augmented score",
+      "fixed_penalties": {
+        "outcome": 0.001,
+        "balance": 0.01
+      },
+      "truth_as_training_input": false,
+      "new_dependencies": false,
+      "rights_note": "No new ownership or license-clearance claim; upstream notice and rights caveats remain."
     }
   },
   "license_note": "Upstream repository MIT notice preserved verbatim; the notice credits the original site template author. No new ownership attribution is asserted.",
   "web_theme_source": "/tmp/causal-science-lab-preview-20261019/apps/causalengine/",
-  "web_changes": "Website preview/data download/benchmark UI and standalone guides; worker/editor data-only adapter, ordered covariate-cluster bindings and categorical feature view; identification API graph cap100 and bounded observational display metadata. Existing estimation/identification algorithms unchanged. Other10 browser Python modules byte-identical to upstream.",
-  "web_ui_sha256": "6886a964ef34e508a4551aaf3ea75c7912c51f95a7897dce15dc489dbc64acb8",
+  "web_changes": "Website preview/data download/benchmark UI and standalone guides; worker/editor data-only adapter, ordered covariate-cluster bindings and categorical feature view; identification API graph cap100 and bounded observational display metadata. Original estimator functions/identification algorithms preserved; additional balancing-weight AIPW routine and narrow estimate_data dispatch explicitly documented. Other10 browser Python modules byte-identical to upstream.",
+  "web_ui_sha256": "da5d4e06ab469332e0d20767d92c0284c7669b41549bfd4771606da2d52c7963",
   "benchmark_assets": "web/benchmarks/manifest.json records dataset-specific versions, sources, transforms, hashes and terms; not covered by engine MIT notice",
   "benchmark_reference_assets": "web/benchmarks/ground-truth.json: separate aggregate mean(mu1-mu0) over unchanged released rows, source SHA/alignment/definition; factual CSV hashes unchanged; LaLonde unavailable. Never an estimation input."
 }

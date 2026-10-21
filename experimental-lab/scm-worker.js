@@ -47,7 +47,7 @@ async function prepare(py, action, id) {
     const preloadPandas = ["build", "prepare"].includes(action);
     await (scm ||= Promise.all([
       py.loadPackage(["numpy", "scipy", ...(preloadPandas ? ["pandas"] : [])]),
-      sources(py, ["SCM.py", "scm_registry.py", "editor_engine.py"]),
+      sources(py, ["SCM.py", "scm_registry.py", "balancing_aipw.py", "editor_engine.py"]),
     ])
       .then(() => {
         py.runPython("from editor_engine import Editor\n_editor = Editor()");

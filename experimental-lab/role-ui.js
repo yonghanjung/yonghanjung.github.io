@@ -261,7 +261,24 @@
     $("layout-status").textContent = "Arranged " + nodes.length + " nodes; relationships unchanged.";
   }
   $("auto-arrange").onclick = arrangeGraph;
+  function methodChoice() {
+    const actions = queryNames("query-x"),
+      targets = queryNames("query-y"),
+      action = nodes.find((n) => n.name === actions[0]);
+    const baseline =
+      current === "adjustment" &&
+      !custom &&
+      actions.length === 1 &&
+      targets.length > 0 &&
+      action?.dimension === 1 &&
+      (action.variable_type === "binary" || action.family === "binary") &&
+      targets.every((name) => nodes.find((n) => n.name === name)?.dimension === 1);
+    $("estimation-method-wrap").hidden = !baseline;
+    $("estimation-method").disabled = running;
+    return baseline ? $("estimation-method").value : "auto";
+  }
   function describe() {
+    methodChoice();
     refreshRandomDimensions();
     const legacy = $("dimension").closest("label");
     legacy.hidden = dataSource === "random" && randomCandidates().some((n) => n.name === selected?.name);
@@ -536,6 +553,7 @@
       "benchmark-estimate",
       "benchmark-download",
       "restore-graph",
+      "estimation-method",
     ])
       $(id).disabled =
         value ||
@@ -600,7 +618,8 @@
         status.dataset.status = result.identification.status;
         status.textContent =
           { IDENTIFIABLE: "Identifiable", NOT_IDENTIFIABLE: "Not identifiable" }[result.identification.status] || result.identification.status;
-        section.append(h, status);
+        if (targets.length > 1) section.append(h);
+        section.append(status);
         if (result.identification.status === "IDENTIFIABLE") {
           const formula = document.createElement("div");
           formula.className = "outcome-formula";
@@ -1272,13 +1291,36 @@
     section.append(box);
     groundTruthSignature = truthStamp();
   }
-  function estimateRow(outcome, result, used, omitted) {
+  function replayData(source, projected, graphNodes, graphEdges) {
+    let data = projected;
+    if (source === "random") {
+      const mapping = {},
+        types = {};
+      for (const node of graphNodes.filter((n) => n.observed)) {
+        const variable = model.variables[node.name];
+        const columns = variable.columns;
+        mapping[node.name] = columns.length === 1 ? columns[0] : [...columns];
+        for (const column of columns) types[column] = variable.variable_type;
+      }
+      data = CausalCSV.project(CausalCSV.parse(sample.csv), mapping, graphNodes, types);
+    }
+    return {
+      csv: CausalDataPreview.csv({ headers: data.columns, rows: data.rows }),
+      nodes: graphNodes,
+      edges: graphEdges,
+      mapping: structuredClone(data.mapping),
+      column_types: structuredClone(data.column_types),
+      column_codebooks: structuredClone(data.column_codebooks || {}),
+      data_seed: source === "random" ? sample.source_seed ?? Number($("data-seed").value) : 5,
+    };
+  }
+  function estimateRow(outcome, result, used, omitted, context, multiple) {
     const e = result.data_estimate,
       section = document.createElement("section");
     section.className = "outcome-result";
     const h = document.createElement("h3");
     h.textContent = outcome;
-    section.append(h);
+    if (multiple) section.append(h);
     const values = e?.values || {},
       keys = Object.keys(values),
       ok = e?.status === "OK" && keys.some((k) => Number.isFinite(values[k]));
@@ -1293,16 +1335,19 @@
     }
     if (!ok) {
       const note = document.createElement("p");
-      note.textContent = "The current estimator cannot answer this question from these data.";
+      note.textContent = "No estimate was returned. See Details.";
       section.append(note);
     }
     const raw = [e?.warning, e?.info].filter(Boolean).join(" ");
     if (raw) {
       const warning = document.createElement("p");
       warning.className = "easy-warning";
-      warning.textContent = /weak|coverage|overlap/i.test(raw)
-        ? "Approximate estimate: too few comparable records may make this result unreliable."
-        : raw;
+      warning.textContent =
+        e?.estimation_details?.method_id === "balancing_aipw_v1"
+          ? raw
+          : /weak|coverage|overlap/i.test(raw)
+            ? "Approximate estimate: too few comparable records may make this result unreliable."
+            : raw;
       section.append(warning);
     }
     if (omitted.length) {
@@ -1311,17 +1356,18 @@
         "Computed actions: " + (used.join(", ") || "none") + ". " + omitted.join(", ") + " are not ancestors of this outcome in the drawn graph.";
       section.append(note);
     }
-    if (e?.reason) {
-      const d = document.createElement("details"),
-        sum = document.createElement("summary"),
-        reason = document.createElement("p");
-      sum.textContent = "Details";
-      reason.textContent = e.reason;
-      d.append(sum, reason);
-      section.append(d);
-    }
+    CausalEstimationDetails.attach(section, e, context);
     return section;
   }
+  $("estimation-method").onchange = () => {
+    if (running) return;
+    $("easy-result").hidden = true;
+    $("outcome-results").replaceChildren();
+    window.causalEngineDataResults = null;
+    window.causalEngineDataSource = null;
+    groundTruthSignature = null;
+    progress.textContent = "";
+  };
   run.onclick = async () => {
     if (running) return;
     let projected, fullAction, fullReference;
@@ -1358,7 +1404,8 @@
       graphEdges = structuredClone(edges),
       savedY = $("query-y").value,
       savedSummary = $("query-summary").value,
-      source = dataSource;
+      source = dataSource,
+      requestedMethod = methodChoice();
     setBusy(true, "Estimate");
     resultPanel("Mean difference");
     $("data-error").textContent = "";
@@ -1372,6 +1419,12 @@
       } else {
         sourceInfo = await ensureRandomData();
       }
+      let replay;
+      try {
+        replay = replayData(source, projected, graphNodes, graphEdges);
+      } catch (error) {
+        replay = { error: error.message };
+      }
       for (const target of targets) {
         if (revision !== version || draftDirty) throw Error("The graph changed. Estimate again.");
         const ancestors = ancestorsOf(target),
@@ -1381,6 +1434,7 @@
           pick = (o) => (validKeys ? Object.fromEntries(Object.entries(o).filter(([n]) => used.includes(n))) : o);
         const result = await request("estimate_data", {
           source,
+          estimation_method: requestedMethod,
           ...(source === "csv"
             ? { data_id: sourceInfo.data_id, ...(sourceInfo.binding_key ? { binding_key: sourceInfo.binding_key } : {}) }
             : { token: sourceInfo.token, sample_id: sourceInfo.sample_id, ...(sourceInfo.random_key ? { random_key: sourceInfo.random_key } : {}) }),
@@ -1397,7 +1451,21 @@
         });
         if (revision !== version || draftDirty) throw Error("The graph changed. Estimate again.");
         results.push({ outcome: target, result, computed_actions: used });
-        const section = estimateRow(target, result, used, omitted);
+        const context = {
+          ...replay,
+          query: {
+            type: "interventional",
+            summary: "mean_difference",
+            targets: [target],
+            estimation_method: requestedMethod,
+            intervention: pick(fullAction),
+            reference: pick(fullReference),
+            Z: queryNames("query-z"),
+            max_seconds: 10,
+          },
+          estimate_options: source === "csv" ? structuredClone(window.causalEngineBenchmark?.estimate_options || {}) : {},
+        };
+        const section = estimateRow(target, result, used, omitted, context, targets.length > 1);
         $("outcome-results").append(section);
         await addTruth(
           section,
@@ -1424,10 +1492,8 @@
           .map(([n, v]) => n + "=" + JSON.stringify(v))
           .join(", ");
       $("easy-result").hidden = false;
-      progress.textContent =
-        source === "csv"
-          ? "Estimated from " + sourceInfo.n.toLocaleString() + " CSV rows."
-          : "Estimated from " + sourceInfo.n.toLocaleString() + " random records.";
+      const completion = results.every((row) => row.result.data_estimate?.status === "OK") ? "Estimated from " : "Processed ";
+      progress.textContent = completion + sourceInfo.n.toLocaleString() + (source === "csv" ? " CSV rows." : " random records.");
     } catch (e) {
       $("data-error").textContent = e.message;
       $("easy-result").hidden = true;

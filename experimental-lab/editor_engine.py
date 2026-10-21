@@ -621,6 +621,62 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
     return dict(result, status="OK", values=dict(zip(["Probability"] if event is not None else outcomes, values.tolist())))
 
 
+def _balancing_baseline(data, graph, schema, payload, seed, deadline, original_schema, feature_view):
+    """Narrow baseline adapter; None means the existing estimator owns this query.
+
+    A supported nuisance-fit failure is returned directly, never silently replaced
+    by kNN. Identification, legacy estimators and model references are unchanged.
+    """
+    actions, reference, targets = payload.get("intervention", {}), payload.get("reference", {}), payload.get("targets", [])
+    if (payload.get("type", "interventional") != "interventional" or payload.get("evidence")
+            or len(actions) != 1 or set(actions) != set(reference) or len(targets) != 1):
+        return None
+    action, target = next(iter(actions)), targets[0]
+    if (action not in schema or target not in schema or action == target
+            or schema[action]["type"] != "binary" or schema[action]["shape"] or schema[target]["shape"]
+            or schema[target]["type"] not in {"continuous", "binary"}
+            or actions[action] not in (0, 1) or reference[action] not in (0, 1)):
+        return None
+    from adjustment import construct_minimum_adjustment_set, check_adjustment_criterion, check_backdoor_criterion
+    try:
+        adjustment = construct_minimum_adjustment_set(graph, [action], [target])
+    except ValueError:
+        return None
+    if (not check_adjustment_criterion(graph, [action], [target], adjustment)
+            or any(v not in schema or v in nx.descendants(graph, action) for v in adjustment)
+            or any(schema[v]["type"] == "categorical" for v in adjustment)):
+        return None
+    from balancing_aipw import estimate_balancing_aipw
+    columns = [c for v in adjustment for c in schema[v]["columns"]]
+    left, right = schema[action]["columns"][0], schema[target]["columns"][0]
+    seconds = deadline-perf_counter()
+    if seconds <= 0:
+        return dict(status="UNKNOWN", method="2-fold balancing-weight AIPW (regularized entropy calibration)",
+                    reason="Estimator deadline exhausted; no partial estimate is returned", n=len(data))
+    result = estimate_balancing_aipw(data[columns].to_numpy(dtype=float), data[left].to_numpy(dtype=float),
+        data[right].to_numpy(dtype=float), seed=seed, intervention=actions[action], reference=reference[action],
+        max_seconds=min(seconds, 30))
+    result.update(adjustment=list(adjustment), criterion="BD" if check_backdoor_criterion(graph, [action], [target], adjustment) else "AC")
+    recipes = []
+    encodings = (feature_view or {}).get("encodings", {})
+    for name in adjustment:
+        spec = original_schema[name]
+        for old, source in zip(spec["columns"], spec.get("source_columns", spec["columns"])):
+            if old in encodings:
+                recipes.extend(dict(column=source, equals=code) for code in encodings[old]["codes"])
+            else:
+                recipes.append(dict(column=source))
+    result["estimation_details"]["inputs"] = dict(covariates=recipes, covariate_columns=columns,
+        treatment=original_schema[action].get("source_columns", original_schema[action]["columns"])[0],
+        outcome=original_schema[target].get("source_columns", original_schema[target]["columns"])[0],
+        intervention=actions[action], reference=reference[action],
+        logical_action=action, logical_outcome=target, adjustment=list(adjustment),
+        balance_target="whole training cohort (ATE target), not the treated cohort")
+    if result["status"] == "OK":
+        result["values"] = {right: result.pop("estimate")}
+    return result
+
+
 def _reference(model, payload, n, seed, seconds):
     """Verified scalar linear means/contrasts; otherwise existing paired simulation."""
     started = perf_counter()
@@ -883,7 +939,7 @@ def _categorical_feature_view(data, schema, payload):
     return view, metadata, dict(mode="full_one_hot_covariates", original_rows=len(data),
         logical_categorical_variables=sorted({name for name, _, _ in categorical}), encodings=encodings,
         information="All categories and cluster coordinates retained; temporary feature vectors only. The causal graph and original dataset are unchanged.",
-        limitations="Existing kNN standardizes features; no equal-distance or encoding-invariant estimate is asserted.")
+        limitations="The selected estimator standardizes features; no encoding-invariant estimate or statistical-validity guarantee is asserted.")
 
 
 def _random_cluster_specs(payload):
@@ -1044,6 +1100,9 @@ class Editor:
             return dict(status="READY", source="csv", data_id=self.data_id, graph_key=key, binding_key=binding_key,
                         n=len(rows), columns=list(schema), data_columns=list(columns), bindings=bindings)
         if action == "estimate_data":
+            requested_method = payload.get("estimation_method", "auto")
+            if not isinstance(requested_method, str) or requested_method not in {"auto", "legacy_knn"}:
+                raise ValueError("estimation_method must be auto or legacy_knn")
             source = payload.get("source")
             requested_graph, requested_schema = _data_graph(payload)
             if source == "csv":
@@ -1088,8 +1147,27 @@ class Editor:
                 feature_view = None
             else:
                 fitting_data, fitting_schema, feature_view = _categorical_feature_view(data, schema, payload)
-                estimate = _estimate_mean(fitting_data, graph, fitting_schema,
-                    dict(payload, type="interventional", summary="mean_difference"), seed ^ 0x5A5A5A5A, perf_counter() + seconds)
+                estimate_payload = dict(payload, type="interventional", summary="mean_difference")
+                deadline = perf_counter() + seconds
+                split_seed = seed ^ 0x5A5A5A5A
+                estimate = (_balancing_baseline(fitting_data, graph, fitting_schema,
+                    estimate_payload, split_seed, deadline, schema, feature_view) if requested_method == "auto" else None)
+                if estimate is None:
+                    estimate = _estimate_mean(fitting_data, graph, fitting_schema,
+                        estimate_payload, split_seed, deadline)
+                    import hashlib
+                    from pathlib import Path
+                    estimate["estimation_details"] = dict(method_id="legacy_graph_estimator", method=estimate.get("method"),
+                        implementation=dict(file="editor_engine.py", entry="_estimate_mean",
+                            sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()),
+                        options=dict(seed=split_seed, max_seconds=seconds),
+                        nuisance=dict(outcome="Existing 2-fold kNN conditional-mean/kernel plug-in; inspect arm methods and diagnostics",
+                                      weights="No inverse-probability or balancing weights; no AIPW augmentation"),
+                        limitations=["High-dimensional kNN smoothing and sparse support can leave substantial error.",
+                                     "No data standard error or confidence interval is estimated."],
+                        arm_methods={key:value.get("method") for key,value in estimate.get("diagnostics", {}).get("arms", {}).items()})
+            if "estimation_details" in estimate:
+                estimate["estimation_details"]["requested_method"] = requested_method
             if feature_view is not None:
                 response["feature_view"] = feature_view
             return dict(response, n=len(data), data_estimate=estimate)
