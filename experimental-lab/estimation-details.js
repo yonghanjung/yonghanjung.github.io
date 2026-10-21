@@ -48,6 +48,7 @@
                       ? "xgboostGraph"
                       : "legacy";
     const keys = {
+      "Random generation": "randomGeneration",
       Status: "status",
       Estimator: methodTopic,
       "Requested method": "estimator",
@@ -253,6 +254,7 @@
     list.dataset.xgboost = String(xgboost);
     list.dataset.outcomeFit = String(fitted.outcome);
     list.dataset.weightFit = String(fitted.weights);
+    field(list, "Random generation", context?.generation);
     field(list, "Status", estimate?.status || "UNAVAILABLE");
     field(list, "Estimator", method);
     const queryKind =

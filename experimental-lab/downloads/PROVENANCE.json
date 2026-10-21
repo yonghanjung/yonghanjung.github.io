@@ -186,13 +186,13 @@
   "license_note": "Upstream repository MIT notice preserved verbatim; the notice credits the original site template author. No new ownership attribution is asserted.",
   "web_theme_source": "/tmp/causal-science-lab-preview-20261019/apps/causalengine/",
   "web_changes": "Deliberate changes: selected baseline three-method XGBoost/scalar-outcome balance; graph plug-in learned conditional means now XGBoost. Nonterminal conditional sampling kernels, analytic/MC references and ID algorithms unchanged. Prior adapters, explicit data bindings and display extensions retained. Other10 browser Python modules remain raw-upstream byte-identical.",
-  "web_ui_sha256": "5125f0ae0f8ec0163b765ef7fc601897f61023c3ab8790d35415622f4b5782c1",
+  "web_ui_sha256": "03ba9d0b7b1d25a2950ce9f39fd708e22638aa5daaa8b8864ab3c60ffb758729",
   "benchmark_assets": "web/benchmarks/manifest.json records dataset-specific versions, sources, transforms, hashes and terms; not covered by engine MIT notice",
   "benchmark_reference_assets": "Separate same-pinned-row conditional-mean ATE and APO aggregates only; factual CSVs unchanged and no reference used for estimation. LaLonde unavailable.",
   "method_documentation": {
     "path": "web/methods.html",
     "canonical_source": "preview/apps/causalengine/methods.html",
-    "sha256": "43dc53d61c5edb16e065ae7cdbcb93417c7b110d961043693a1765ae8abdf538",
+    "sha256": "047f34e3f00bff57f990a98c6a3ccb52bdca4b51972b7eca1bed7d7da0995016",
     "numerical_source_sha256": "e56ec6839f7b0b67e3b666bcdbcb829758b7a49165c59f58baf79c9ef94c209d",
     "scope": "ATE/APO scores; actual XGBoost joint propensity IPW; prior AIPW balance/OR fits; scalar/vector treatment schema, guards, Copy and matching benchmark references"
   },
@@ -202,5 +202,18 @@
     "browser_wheel": "xgboost-2.1.4-py3-none-pyemscripten_2025_0_wasm32.whl",
     "browser_wheel_sha256": "ff69f3f2a0a46ea0fa5343bb9eae37809f3f1ad6532c67839839bd517bde4201",
     "compute": "user device; no server"
+  },
+  "random_configuration_ui": {
+    "treatment_dimension_controls": [1, 4],
+    "existing_builder_dimension_limit": 8,
+    "baseline_covariate_dimension_controls": [1, 50],
+    "outcome_families": ["linear", "quadratic", "bounded"],
+    "covariate_family": "linear in default setup; advanced X mechanism edits preserved",
+    "treatment_family": "binary",
+    "noise": "normal",
+    "new_generator_or_estimator": false,
+    "fixed_validation": "model_seed7/data_seed5/n5000/X2; no seed search or truth tuning",
+    "snapshot_contract": "Configuration changes require Generate; Head/CSV/ATE/APO/Copy reuse the sample; model reference uses the same fixed model.",
+    "outcome_picker_effect": "Y family and Normal noise only; resolved model metadata authoritative"
   }
 }

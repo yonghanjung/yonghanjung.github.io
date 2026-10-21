@@ -1,6 +1,11 @@
 /* Contextual explanations only. Estimation and data state are never modified. */
 (() => {
   const topics = {
+    randomGeneration: [
+      "Random generation settings",
+      "These settings produced the retained rows. Treatment dimension 1–4 generates a binary scalar or ordered tuple. Linear, Quadratic, and Bounded outcome select the actual outcome mechanism with normal noise; Quadratic adds parent squares, not interaction terms. Vector mechanisms can mix noise, so member independence is not assumed. Changing generation settings requires Generate Data; changing only the query reuses the same rows.",
+      "data",
+    ],
     estimand: [
       "Query",
       "APO is the interventional mean E[Y(a)] for one complete treatment assignment. ATE is E[Y(a)] − E[Y(a₀)] for two assignments, evaluated on the same retained rows. APO does not define or subtract a reference assignment. Its outcome fits use only the requested assignment; propensity IPW still trains on all observed joint classes.",

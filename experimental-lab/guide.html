@@ -55,8 +55,8 @@ permalink: /experimental-lab/guide.html
               <strong>Treatment value</strong> and <strong>Reference value</strong> start at 1 and 0. The role template creates binary treatments, so
               use 0 or 1. Choose <strong>ATE — mean difference</strong> to compare treatment and reference assignments, or
               <strong>APO — E[Y(a)]</strong> for one interventional mean. APO has no reference assignment. Enter <code>A(a1, a2)</code> in Treatment
-              for one logical treatment cluster: each member gets its own value input, and the whole ordered tuple is one joint assignment. Treatment
-              clusters support up to eight binary members in Random Data; their actual CSV columns keep the declared order.
+              for one logical treatment cluster: each member gets its own value input, and the whole ordered tuple is one joint assignment. The Random
+              Data controls offer one to four binary treatment members; their actual CSV columns keep the declared order.
             </p>
             <p>
               To group CSV columns, enter <code>X (x1, x2, …, x25)</code> in Covariates. Both <code>…</code> and <code>...</code> expand an ascending
@@ -181,19 +181,26 @@ permalink: /experimental-lab/guide.html
             </p>
             <h3>Estimate: Random Data</h3>
             <p>
-              Enter <strong>Records</strong> as a whole number from 1 to 5,000. A baseline covariate has its own dimension control from 1 to 50: X
-              dimension 25 produces x1 through x25 while keeping one logical X in the graph. A named declaration must match that dimension. These
-              Random settings do not change a CSV binding. Model seed fixes the simulated rules; Data seed fixes generated records.
+              Choose <strong>Random Data</strong>, enter <strong>Records</strong> from 1 to 5,000, and set the binary treatment’s dimension from 1 to
+              4. With plain <code>A</code>, dimension 2 generates <code>a1, a2</code> while the graph keeps one logical A. Explicit names such as
+              <code>A(dose, reminder)</code> retain their order; edit the Treatment declaration before changing their count. Set each member’s
+              intervention value and, for ATE, reference value. For example, compare <code>[1, 0]</code> with <code>[0, 0]</code>, or choose APO for
+              the mean under <code>[1, 0]</code>.
             </p>
             <p>
-              For a simulated example, use a plain scalar covariate such as <code>X</code>, choose <strong>Random Data</strong>, select 512 or 2,048
-              records, and press <strong>Generate Data</strong>. A declared cluster can be generated when its member count matches the selected Random
-              dimension (1–50). <strong>Model seed</strong> fixes the simulated rules; <strong>Data seed</strong> fixes the generated rows within
-              those rules. The same graph, model settings, seeds, and record count reproduce the same data. Changing only Data seed changes the rows,
-              not the underlying model. You can inspect or download these records before estimating. <strong>Run estimate</strong> reuses that dataset
-              when the graph, model settings, and record count are unchanged. One generated dataset is used for every outcome. The estimate uses those
-              records only. A separately labelled model reference is displayed after estimation and never substitutes for a failed estimate. Head and
-              Download CSV beside Generate Data use the same retained rows; they do not generate a new dataset.
+              A baseline covariate has a separate dimension from 1 to 50: X dimension 25 produces x1 through x25 inside logical X. The
+              <strong>Outcome model</strong> picker chooses Linear, Quadratic, or Bounded outcome (logistic link) and selects normal noise. Quadratic
+              adds squared parent terms, not interactions; for binary members, squaring does not create a new treatment effect form. Other advanced
+              node settings remain inspectable. Vector mechanisms can mix noise, so treatment members are not asserted to be conditionally
+              independent. These controls describe generated data, not methods fitted to a CSV.
+            </p>
+            <p>
+              <strong>Model seed</strong> fixes the simulated rules; <strong>Data seed</strong> fixes rows within those rules. Select
+              <strong>Generate Data</strong> explicitly after changing dimensions, outcome model, seeds, record count, or other model settings. The
+              same complete settings reproduce the same data. Estimate never creates records. Changing only ATE/APO, member values, or estimator
+              reuses the retained rows. Head and Download CSV use those same rows. Details records the actual generation settings, and the separately
+              labelled model reference never replaces a failed data estimate. Read
+              <a href="./methods.html#random-configurations">Random configurations in Methods</a> for the precise mechanisms and limitations.
             </p>
             <h3>Head and Download CSV</h3>
             <p>

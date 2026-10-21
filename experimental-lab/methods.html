@@ -658,6 +658,35 @@ ATE = mean_n(s(a)-s(a0))</pre
             integration/smoothing error remain possible.
           </p>
         </section>
+        <section id="random-configurations">
+          <h2>Random configurations and treatment members</h2>
+          <p class="brief">
+            Random Data can generate a real binary treatment vector with 1–4 members, alongside 1–50 continuous baseline covariate coordinates. Each
+            treatment member has its own 0/1 assignment in the requested intervention; ATE additionally supplies a complete reference assignment,
+            while APO supplies none.
+          </p>
+          <p>
+            The compact outcome presets reuse existing generator families: <strong>Linear outcome</strong> adds coefficient-weighted parent
+            coordinates and noise; <strong>Quadratic outcome</strong> adds coefficient-weighted squared parent coordinates and noise;
+            <strong>Bounded outcome</strong> applies expit to the affine parent predictor plus noise. Since a binary member satisfies A<sub>j</sub
+            ><sup>2</sup>=A<sub>j</sub>, the quadratic preset is not an added treatment-interaction mechanism. The default setup uses linear X, binary
+            A and Normal noise. The Outcome picker changes the Y family and selects Normal noise; advanced edits to the X mechanism are preserved. The
+            resolved model metadata records the actual configuration. The graph remains the supplied causal assumption.
+          </p>
+          <p>
+            Each vector output reuses the existing scalar family per coordinate. Vector noise uses the generator's fixed dense mixing matrix; this is
+            neither a new independent-treatment sampler nor a guarantee about conditional dependence for every seed. Model seed fixes mechanisms,
+            coefficients and noise laws; data seed fixes rows from that model. The resolved model, ordered physical columns and snapshot IDs record
+            what actually ran.
+          </p>
+          <p>
+            Changing a configuration, dimension or generation seed requires <strong>Generate data</strong> before estimation. Head, Download CSV,
+            selected ATE/APO and Copy reuse that generated sample. An intervention such as A=(1,0,1) uses the recorded member order. IPW learns the
+            whole tuple's joint propensity; it does not multiply independently fitted marginal propensities. Higher dimension can leave an assignment
+            poorly represented: the existing class-count, probability, weight and deadline guards still withhold a result. The interface offers up to
+            four treatment members; the underlying public builder retains its existing dimension limit of eight and its separate support rules.
+          </p>
+        </section>
         <section id="reference">
           <h2>Generated-model reference and Monte Carlo error</h2>
           <p class="brief">

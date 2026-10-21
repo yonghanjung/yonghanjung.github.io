@@ -67,12 +67,20 @@ permalink: /experimental-lab/examples.html
           <a href="./">Open the app</a>
         </article>
         <article>
-          <h2>Random covariate dimensions</h2>
+          <h2>Random treatment and outcome configurations</h2>
           <p>
-            In Random Data, set X dimension to a whole number from 1 to 50, enter Records and seeds, then Generate Data. Dimension 25 generates x1
-            through x25 while retaining one logical X. Head toggles a bounded preview; Download CSV saves all current records without regenerating.
-            Large-vector references are labelled Monte Carlo and show their numerical standard error.
+            Start with plain Treatment <code>A</code>, Covariates <code>X</code>, and Outcomes <code>Y</code>. Open Random Data, set A dimension 2, X
+            dimension 2, Records 5,000, Model seed 7 and Data seed 5. Choose Linear outcome and Generate Data. Set the member assignment to
+            <code>[1, 0]</code> and its ATE reference to <code>[0, 0]</code>; APO instead uses just the first assignment. Compare the three estimators
+            on the same records. A dimension supports 1–4 binary members; X supports 1–50 coordinates. Declared member names retain their order.
           </p>
+          <p>
+            Choose Quadratic outcome or Bounded outcome (logistic link), then Generate Data again to try another outcome mechanism. The picker selects
+            normal noise. Quadratic adds parent squares rather than interactions, and vector mechanisms may mix noise. A new configuration invalidates
+            old records; query or method changes alone do not. Click A or X to expand the member view. Head toggles the preview and Download CSV saves
+            the complete snapshot without regeneration.
+          </p>
+          <a href="./methods.html#random-configurations">Read the exact generation settings</a>
         </article>
         <article>
           <h2>Upload a covariate cluster</h2>

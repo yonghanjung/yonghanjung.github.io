@@ -305,8 +305,9 @@
       $("estimate-query").value = $("query-summary").value === "mean" ? "apo" : "ate";
     methodChoice();
     refreshRandomDimensions();
+    refreshRandomTreatments();
     const legacy = $("dimension").closest("label");
-    legacy.hidden = dataSource === "random" && randomCandidates().some((n) => n.name === selected?.name);
+    legacy.hidden = dataSource === "random" && [...randomCandidates(), ...randomTreatments()].some((n) => n.name === selected?.name);
     for (const [k, id] of [
       ["model-seed", "random-model-seed"],
       ["data-seed", "random-data-seed"],
@@ -705,7 +706,7 @@
     editor.inert = value;
     canvasBox.inert = value;
     for (const el of document.querySelectorAll(
-      "#role-fields input,#role-fields select,#role-fields button,.contrast-controls input,#estimate-query,#random-options input,#csv-paste,#load-pasted-csv,#load-example-csv,#csv-mapping select,#csv-mapping input,#csv-file"
+      "#role-fields input,#role-fields select,#role-fields button,.contrast-controls input,#estimate-query,#random-options input,#random-options select,#csv-paste,#load-pasted-csv,#load-example-csv,#csv-mapping select,#csv-mapping input,#csv-file"
     ))
       el.disabled = value;
     for (const id of [
@@ -1005,6 +1006,7 @@
   $("choose-random").onclick = () => {
     chooseSource("random");
     refreshRandomDimensions();
+    refreshRandomTreatments();
     $("random-model-seed").value = $("model-seed").value;
     $("random-data-seed").value = $("data-seed").value;
   };
@@ -1256,6 +1258,83 @@
       if (generation === fileGeneration) csvReadPending = false;
     }
   };
+  function randomTreatments() {
+    return nodes.filter((n) => queryNames("query-x").includes(n.name) && n.observed && (n.family === "binary" || n.variable_type === "binary"));
+  }
+  function randomModelChanged() {
+    syncAssignmentWidths();
+    baseline = structure();
+    invalidate();
+    invalidateRandomData();
+    clearQueryResult();
+    $("data-error").textContent = "";
+    refreshBinding();
+    describe();
+  }
+  function refreshRandomTreatments() {
+    const box = $("random-treatment-dimensions"),
+      wanted = randomTreatments();
+    if (box.dataset.names !== wanted.map((n) => n.name).join("|")) {
+      box.dataset.names = wanted.map((n) => n.name).join("|");
+      box.replaceChildren();
+      for (const n of wanted) {
+        const label = document.createElement("label"),
+          input = document.createElement("input");
+        label.textContent = n.name + " dimension";
+        input.id = "random-treatment-dimension-" + n.name;
+        input.type = "number";
+        input.min = "1";
+        input.max = "4";
+        input.step = "1";
+        input.onchange = () => {
+          const p = Number(input.value),
+            node = nodes.find((v) => v.name === n.name);
+          if (input.value === "" || !Number.isSafeInteger(p) || p < 1 || p > 4) {
+            $("data-error").textContent = "Use a treatment dimension from 1 to 4.";
+            return;
+          }
+          if (declaredClusters[n.name] && p !== declaredClusters[n.name].length) {
+            $("data-error").textContent =
+              n.name + " declares " + declaredClusters[n.name].length + " members. Edit Treatment first, or use plain " + n.name + ".";
+            input.value = node.dimension;
+            return;
+          }
+          if (node.dimension === p) return;
+          node.dimension = p;
+          if (p > 1)
+            node.members = declaredClusters[n.name]
+              ? [...declaredClusters[n.name]]
+              : Array.from({ length: p }, (_, i) => (n.name === "A" ? "a" + (i + 1) : n.name + "_" + (i + 1)));
+          else delete node.members;
+          ClusterView.clear();
+          randomModelChanged();
+        };
+        label.append(input);
+        box.append(label);
+      }
+    }
+    for (const n of wanted) {
+      const input = $("random-treatment-dimension-" + n.name);
+      if (document.activeElement !== input) input.value = n.dimension;
+      input.disabled = running;
+    }
+    const outcomes = nodes.filter((n) => queryNames("query-y").includes(n.name)),
+      families = new Set(outcomes.map((n) => n.family));
+    const supported =
+      outcomes.length > 0 && outcomes.every((n) => n.dimension === 1 && n.variable_type !== "binary" && n.variable_type !== "categorical");
+    $("random-outcome-label").hidden = !supported;
+    $("random-outcome").value =
+      families.size === 1 && ["linear", "quadratic", "bounded"].includes(outcomes[0]?.family) ? outcomes[0].family : "custom";
+  }
+  $("random-outcome").onchange = () => {
+    const family = $("random-outcome").value;
+    if (running || !["linear", "quadratic", "bounded"].includes(family)) return;
+    const targets = nodes.filter((n) => queryNames("query-y").includes(n.name));
+    if (targets.every((n) => n.family === family) && $("noise").value === "normal") return;
+    for (const n of targets) n.family = family;
+    $("noise").value = "normal";
+    randomModelChanged();
+  };
   function randomCandidates() {
     return nodes.filter((n) => n.observed && clusterEligible(n.name) && n.family !== "binary" && n.variable_type !== "categorical");
   }
@@ -1409,6 +1488,11 @@
       if ($(id).value === "" || !Number.isSafeInteger(v) || v < 0 || v > 4294967295) throw Error("Use whole-number seeds from 0 to 4294967295.");
     }
     randomConfig(true);
+    for (const n of randomTreatments()) {
+      const input = $("random-treatment-dimension-" + n.name),
+        p = Number(input?.value);
+      if (!Number.isSafeInteger(p) || p < 1 || p > 4 || p !== n.dimension) throw Error("Apply a treatment dimension from 1 to 4 before generating.");
+    }
     if (nodes.some((n) => n.variable_type === "categorical"))
       throw Error("Random data for categorical variables is not supported; use CSV or Benchmarks.");
     const version = revision;
@@ -1607,6 +1691,25 @@
       mapping: structuredClone(data.mapping),
       column_types: structuredClone(data.column_types),
       column_codebooks: structuredClone(data.column_codebooks || {}),
+      ...(source === "random"
+        ? {
+            generation: {
+              records: sample.shape[0],
+              model_seed: Number($("model-seed").value),
+              data_seed: sample.source_seed ?? Number($("data-seed").value),
+              noise: $("noise").value,
+              variables: graphNodes
+                .filter((n) => n.observed)
+                .map((n) => ({
+                  name: n.name,
+                  requested_family: n.family,
+                  family: model.variables[n.name].parameters?.family || n.family,
+                  dimension: model.variables[n.name].dimension || model.variables[n.name].columns.length,
+                  members: [...model.variables[n.name].columns],
+                })),
+            },
+          }
+        : {}),
       data_seed: source === "random" ? sample.source_seed ?? Number($("data-seed").value) : 5,
     };
   }
