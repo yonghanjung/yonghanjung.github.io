@@ -18,8 +18,43 @@
     ],
     ipw: [
       "IPW",
-      "Inverse probability weighting uses learned, bounded inverse-weight functions to weight the observed outcomes. It fits no outcome regression. Raw held-out scores are averaged over all rows, without dividing by the held-out weight sum; approximate balance and the weight bound can leave bias.",
+      "Inverse probability weighting uses UCA-style quadratic balancing to learn a covariate-only density-ratio function, then converts it to inverse weights using training-arm normalization and prevalence. It fits no outcome regression. Raw held-out weighted outcomes are averaged over all rows; fixed features, regularization and ratio projection can leave bias.",
       "weights",
+    ],
+    ucaWeights: [
+      "UCA-style IPW weights",
+      "Each arm fits a nonnegative quadratic density-ratio model from the verified adjustment features only. Its raw predictions are projected to [0.01, 50], divided by their training-arm mean, and divided by the training-arm prevalence. No outcome regression or outcome values enter this weight fit.",
+      "ipw",
+    ],
+    ucaLink: [
+      "Inverse-weight function",
+      "The inverse weight is the projected raw ratio divided by its training-arm mean and training-arm prevalence. The raw-ratio interval [0.01, 50] is not the interval of the final inverse weights; Details records their actual bounds.",
+      "ipw",
+    ],
+    ucaProjection: [
+      "Raw ratio projection",
+      "The raw density-ratio prediction is projected to [0.01, 50] before training-arm normalization. Final inverse weights have different bounds because the ratio is divided by the training normalizer and arm prevalence. No rows are trimmed.",
+      "ipw",
+    ],
+    ucaBasis: [
+      "UCA-style feature dictionary",
+      "This covariate-only dictionary uses training-standardized tanh features, their positive/complement and squared components, and a training-derived RBF dictionary. The configured center budget is 24; exp(-mean-squared-distance / 0.35) uses 0.35 as its distance denominator, not a Gaussian standard deviation. The separate diagnostic basis is linear features and coordinatewise squares.",
+      "ipw",
+    ],
+    ucaBalance: [
+      "Quadratic balancing objective",
+      "The arm-specific ratio coefficients minimize the implemented quadratic calibration loss with nonnegative coefficients and a fixed ridge penalty. The fit uses training covariates only. This is a one-stage covariate-only adaptation of the UCA weight-fitting idea, not the general graph UCA estimator.",
+      "ipw",
+    ],
+    ucaPenalty: [
+      "Ratio ridge penalty",
+      "IPW uses a fixed 0.002 ridge penalty in its nonnegative quadratic ratio fit. AIPW retains its separate bounded-logistic calibration with penalty 0.01. Neither fixed penalty guarantees exact balance or an unbiased effect estimate.",
+      "ipw",
+    ],
+    ucaNormalization: [
+      "Training ratio normalization",
+      "After raw-ratio projection, the ratio is normalized by its mean over the observed training arm and divided by that arm's training prevalence. Held-out weights are not renormalized. The final IPW estimate divides by the total row count, not the held-out weight sum.",
+      "ipw",
     ],
     unused: [
       "Not fitted",
@@ -133,7 +168,7 @@
     ],
     actualSettings: [
       "Actual implementation settings",
-      "This value describes the implementation that returned this result. Read its recorded settings and SHA-checked calculation source; the current Methods page documents the current bounded-calibration version.",
+      "This value describes the implementation that returned this result. Read its recorded settings and SHA-checked calculation source; the current Methods page documents the current estimator implementations.",
       "reproduce",
     ],
     seed: [

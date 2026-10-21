@@ -37,8 +37,10 @@ permalink: /experimental-lab/examples.html
             A compatible single-binary-treatment baseline graph uses cross-fitted balancing-weight AIPW. The No unmeasured confounding template offers
             AIPW, Outcome Regression (Plug-in), and IPW. AIPW fits outcome regressions and bounded inverse weights; Outcome Regression fits only the
             outcome models; IPW fits only the weights. All three reuse the same retained records. Details and Calculation code identify the actual
-            selected method, nuisance fits, folds, settings and diagnostics. Where weights are used, their fitted class is bounded between 1 and 20;
-            finite features and regularization can leave bias. No failed fit silently switches methods.
+            selected method, nuisance fits, folds, settings and diagnostics. AIPW keeps its fitted inverse-weight class between 1 and 20. IPW uses a
+            nonnegative quadratic, covariate-only UCA-style ratio fit with penalty 0.002 and a tanh/RBF dictionary. Its raw ratio is projected to
+            [0.01, 50], then normalized on the training arm and divided by training-arm prevalence; the final inverse weights have different bounds.
+            Finite features, regularization and projection can leave bias. No failed fit silently switches methods.
           </p>
         </article>
         <article>

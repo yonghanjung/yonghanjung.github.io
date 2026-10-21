@@ -1365,7 +1365,7 @@
     if (raw) {
       const warning = document.createElement("p");
       warning.className = "easy-warning";
-      warning.textContent = ["balancing_aipw_v1", "balancing_aipw_v2", "outcome_regression_v1", "balancing_ipw_v1"].includes(
+      warning.textContent = ["balancing_aipw_v1", "balancing_aipw_v2", "outcome_regression_v1", "balancing_ipw_v1", "uca_balancing_ipw_v1"].includes(
         e?.estimation_details?.method_id
       )
         ? raw

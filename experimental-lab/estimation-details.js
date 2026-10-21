@@ -20,11 +20,13 @@
     if (value === undefined || value === null || value === "") return;
     const kind = list.dataset.method,
       direct = kind !== "legacy";
-    const aipw = kind?.startsWith("aipw"),
+    const ucaIPW = kind === "uca-ipw",
+      aipw = kind?.startsWith("aipw"),
       bounded = kind === "aipw-v2" || kind === "ipw";
     const outcomeFit = list.dataset.outcomeFit !== "false",
       weightFit = list.dataset.weightFit !== "false";
-    const methodTopic = kind === "outcome-regression" ? "outcomeRegression" : kind === "ipw" ? "ipw" : aipw ? "aipw" : "legacy";
+    const methodTopic =
+      kind === "outcome-regression" ? "outcomeRegression" : ucaIPW ? "ipw" : kind === "ipw" ? "actualSettings" : aipw ? "aipw" : "legacy";
     const keys = {
       Status: "status",
       Estimator: methodTopic,
@@ -33,18 +35,21 @@
       "Adjustment variables": "adjustment",
       "AIPW (augmented inverse probability weighting)": methodTopic,
       "Outcome models": direct ? (outcomeFit ? "outcome" : "unused") : "legacyOutcome",
-      "Inverse weights": direct ? (weightFit ? "weights" : "unused") : "legacyWeights",
-      "Inverse-weight function": bounded ? "link" : "actualSettings",
+      "Inverse weights": direct ? (weightFit ? (ucaIPW ? "ucaWeights" : "weights") : "unused") : "legacyWeights",
+      "Inverse-weight function": ucaIPW ? "ucaLink" : bounded ? "link" : "actualSettings",
       "Fitted weight bound": "cap",
       "Cross-fitting": "crossfit",
-      "Balance objective": bounded ? "balance" : "actualSettings",
-      Score: kind === "outcome-regression" ? "orScore" : kind === "ipw" ? "ipwScore" : "score",
+      "Balance objective": ucaIPW ? "ucaBalance" : bounded ? "balance" : "actualSettings",
+      Score: kind === "outcome-regression" ? "orScore" : ["ipw", "uca-ipw"].includes(kind) ? "ipwScore" : "score",
       Folds: direct ? "folds" : "legacyFolds",
       "Fold seed": "seed",
       "Outcome ridge penalty": "ridge",
-      "Balance penalty": bounded ? "penalty" : "actualSettings",
-      Basis: "basis",
-      "Normalization / clipping": weightFit && bounded ? "normalization" : "actualSettings",
+      "Balance penalty": ucaIPW ? "ucaPenalty" : bounded ? "penalty" : "actualSettings",
+      Basis: ucaIPW ? "ucaBasis" : "basis",
+      "Normalization / clipping": ucaIPW ? "ucaNormalization" : weightFit && bounded ? "normalization" : "actualSettings",
+      "Raw ratio projection": "ucaProjection",
+      "RBF center budget": "ucaBasis",
+      "RBF distance denominator": "ucaBasis",
       "Covariate feature recipes": "adjustment",
       "Data uncertainty": "uncertainty",
       "Near-bound weights": "saturation",
@@ -101,7 +106,8 @@
     const metadata = estimate?.estimation_details;
     const aipw = ["balancing_aipw_v1", "balancing_aipw_v2"].includes(metadata?.method_id);
     const outcomeRegression = metadata?.method_id === "outcome_regression_v1",
-      ipw = metadata?.method_id === "balancing_ipw_v1";
+      ucaIPW = metadata?.method_id === "uca_balancing_ipw_v1",
+      ipw = ucaIPW || metadata?.method_id === "balancing_ipw_v1";
     const direct = aipw || outcomeRegression || ipw;
     const fitted = metadata?.nuisance?.used || metadata?.nuisance?.fitted || { outcome: aipw, weights: aipw };
     const method = estimate?.method || "Not available";
@@ -116,7 +122,7 @@
     const methodName = element("p", "Estimator: " + shownMethod, "estimator-name");
     CausalMethodHelp.add(
       methodName,
-      aipw ? "aipw" : outcomeRegression ? "outcomeRegression" : ipw ? "ipw" : metadata?.method_id ? "legacy" : "estimator"
+      aipw ? "aipw" : outcomeRegression ? "outcomeRegression" : ucaIPW ? "ipw" : ipw ? "actualSettings" : metadata?.method_id ? "legacy" : "estimator"
     );
     section.append(methodName);
     const details = element("details", undefined, "estimation-details");
@@ -128,9 +134,11 @@
         : "aipw-v1"
       : outcomeRegression
         ? "outcome-regression"
-        : ipw
-          ? "ipw"
-          : "legacy";
+        : ucaIPW
+          ? "uca-ipw"
+          : ipw
+            ? "ipw"
+            : "legacy";
     list.dataset.outcomeFit = String(fitted.outcome);
     list.dataset.weightFit = String(fitted.weights);
     field(list, "Status", estimate?.status || "UNAVAILABLE");
@@ -165,6 +173,15 @@
         "Fitted weight bound",
         Number.isFinite(metadata.options?.weight_cap) ? "1 to " + metadata.options.weight_cap + " during fitting; no rows are trimmed." : undefined
       );
+      if (ucaIPW) {
+        field(
+          list,
+          "Raw ratio projection",
+          "[" + metadata.options.ratio_floor + ", " + metadata.options.ratio_cap + "] before training normalization; not inverse-weight bounds."
+        );
+        field(list, "RBF center budget", metadata.options.ratio_centers);
+        field(list, "RBF distance denominator", metadata.options.ratio_rbf_width);
+      }
       field(list, "Cross-fitting", metadata.nuisance?.cross_fitting);
       field(list, "Balance objective", metadata.nuisance?.weight_objective);
       field(list, "Score", metadata.nuisance?.score);

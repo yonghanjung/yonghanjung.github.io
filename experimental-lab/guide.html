@@ -230,10 +230,13 @@ permalink: /experimental-lab/guide.html
               method uses two-fold cross-fitting and the same retained records; changing the method does not generate new data.
             </p>
             <p>
-              Where weights are fitted, their learned function stays between 1 and 20. This is a fitting constraint, not post-hoc clipping. Outcome
-              regression uses the fixed ridge penalty 0.001; weight calibration uses the fixed slope penalty 0.01. Learned preprocessing and the
-              selected nuisance functions use training rows only. The held-out scores are averaged across all rows without weight-sum renormalization.
-              These fixed classes can leave bias. No separate propensity-probability model is fitted.
+              AIPW retains its fitted inverse-weight range 1 to 20 and calibration slope penalty 0.01; that range is a fitting constraint, not
+              post-hoc clipping. IPW instead fits a nonnegative quadratic ratio model using a training-only tanh/RBF dictionary and ridge penalty
+              0.002. Its raw ratio is projected to [0.01, 50], then normalized by the training-arm mean and divided by training-arm prevalence. These
+              are not final inverse-weight bounds. Outcome regression uses the fixed ridge penalty 0.001. Learned preprocessing and the selected
+              nuisance functions use training rows only. The held-out scores are averaged across all rows without weight-sum renormalization. These
+              fixed classes and ratio projection can leave bias. No separate propensity-probability model is fitted. The general graph UCA plug-in is
+              a separate unchanged estimator; this IPW is a one-stage covariate-only adaptation of UCA-style weight learning.
             </p>
             <p>
               Open <strong>Details</strong> to see the actual method, fitted nuisance functions and fit counts, columns, fold seed, settings,

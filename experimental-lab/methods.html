@@ -213,8 +213,8 @@ permalink: /experimental-lab/methods.html
         legacy branches.
       </p>
       <p class="muted">
-        Implementation reference · bounded calibration v2 · 21 October 2026<br />Numerical source SHA256:
-        <code>e9556578f5528ce02001cf1845abc81b68e39decc175b5e0e46e4de9c01343d1</code>
+        Implementation reference · method-specific nuisance recipes · 21 October 2026<br />The exact numerical source SHA256 is recorded in each
+        result’s Details and verified before code export.
       </p>
     </header>
     <main class="layout">
@@ -275,8 +275,8 @@ permalink: /experimental-lab/methods.html
               <tr>
                 <td><code>estimation_method="ipw"</code></td>
                 <td>
-                  Inverse probability weighting (IPW), <code>balancing_ipw_v1</code>; bounded calibration weight nuisances only; raw mean, not a
-                  normalized ratio
+                  Inverse probability weighting (IPW), <code>uca_balancing_ipw_v1</code>; UCA-style quadratic density-ratio balancing only; raw
+                  all-row mean, without heldout ratio normalization
                 </td>
               </tr>
               <tr>
@@ -344,9 +344,11 @@ permalink: /experimental-lab/methods.html
             these nuisance models.
           </p>
           <p>
-            Write this transformed basis as <var>B</var>(<var>c</var>). Every nuisance required by the selected method uses it, with separate
-            arm-specific parameters. Outcome Regression fits no weights; IPW fits no outcome model. Outcome centering is additionally arm-specific.
-            The basis retains every fitting coordinate of the witness, including every one-hot indicator; the twofold split does not discard features.
+            Write this transformed basis as <var>B</var>(<var>c</var>). AIPW and Outcome Regression use this basis for their fitted nuisances, with
+            separate arm-specific parameters. IPW uses the distinct positive/RBF weight dictionary below; the linear-plus-square basis remains its
+            support diagnostic basis only. Outcome Regression fits no weights; IPW fits no outcome model. Outcome centering is additionally
+            arm-specific. The basis retains every fitting coordinate of the witness, including every one-hot indicator; the twofold split does not
+            discard features.
           </p>
         </section>
         <section id="outcome">
@@ -372,9 +374,10 @@ m_a(c) = mean(Y_train_arm) + (B(c) - mean(B_train_arm)) @ beta</pre
           </p>
         </section>
         <section id="weights">
-          <h2>Weight nuisance</h2>
+          <h2>AIPW weight nuisance</h2>
           <p class="brief">
-            For each arm, calibration learns positive correction weights that approximately match the whole training cohort's selected moments.
+            For AIPW, bounded logistic calibration learns correction weights that approximately match the whole training cohort's selected moments.
+            IPW uses the separate quadratic-ratio fit below.
           </p>
           <p>
             The ideal inverse-weight nuisance is <code>alpha_a^*(c) = 1 / P(A=a | C=c)</code>, the reciprocal of the conditional probability of
@@ -430,15 +433,75 @@ loss = 19 / n_train * sum_train_arm(logaddexp(0, s_i))
             causal correctness.
           </p>
         </section>
+        <section id="uca-ipw-weights">
+          <h2>IPW: UCA-style quadratic ratio balancing</h2>
+          <p class="brief">
+            IPW learns a density ratio that reweights each training treatment arm toward the whole training cohort. It fits no outcome model.
+          </p>
+          <p>
+            For arm <var>a</var>, the current source is the outer-training distribution of <var>C</var> conditional on <code>A=a</code>; the target
+            (previous source) is the whole outer-training cohort. The ideal ratio is <code>r_a(c) = dP(C) / dP(C | A=a)</code>. An inverse weight
+            additionally needs the training treatment prevalence: <code>alpha_a(c) = r_a(c) / pi_a</code>, where
+            <code>pi_a = n_train_arm / n_train</code>. A density ratio alone is not the inverse treatment probability.
+          </p>
+          <p>
+            The dictionary uses every coordinate of the actual adjustment witness. Coordinates are centered/scaled using the whole outer-training fold
+            (constant-coordinate scale falls back to 1), then mapped through <code>tanh</code>. For mapped vector <var>x</var>, concatenate 1,
+            <code>z=(x+1)/2</code>, its complement, their coordinatewise squares, and 24 radial-basis features (or all available training centers if
+            fewer). Centers are sampled from the current-arm plus whole-cohort training pool with the recorded derived seed. The radial feature is
+            <code>exp(-mean((x-center)**2)/0.35)</code>; 0.35 is its mean-squared-distance denominator, not a Gaussian standard deviation. There are
+            no binary proposal gates for this fixed-arm covariate-only fit. With no covariates, the dictionary is just the constant 1. Heldout rows
+            never choose scaling, centers, coefficients or normalization.
+          </p>
+          <pre>
+G = mean_arm(phi(C) @ phi(C).T) + 0.002 * I
+moment = mean_whole_training_cohort(phi(C))
+minimize over coef &gt;= 0:
+    0.5 * coef.T @ G @ coef - moment.T @ coef
+raw_ratio(c) = phi(c) @ coef
+projected_ratio(c) = clip(raw_ratio(c), 0.01, 50)
+scale = mean_training_arm(projected_ratio(C))
+r_hat(c) = projected_ratio(c) / scale
+alpha_hat(c) = r_hat(c) / pi_train_arm</pre
+          >
+          <p>
+            The outer products in <code>G</code> are formed row by row before averaging. The coefficient constraint makes the unprojected
+            finite-dictionary function nonnegative. The implementation checks the projected Karush–Kuhn–Tucker (KKT) residual
+            <code>max(abs(coef - maximum(0, coef - (G @ coef - moment)))) &lt;= 1e-4</code>, solver success, finite arithmetic and the request
+            deadline. The product solves exactly this positive-definite quadratic by Cholesky-transformed nonnegative least squares (NNLS). With
+            <code>G=L @ L.T</code>, explicitly use its lower triangular factor, <code>A=L.T</code> and <code>b=solve_triangular(L, moment)</code>.
+            Then minimizing <code>0.5*||A@coef-b||²</code> over nonnegative coefficients differs from the quadratic above only by a constant. SciPy
+            <code>nnls</code> uses <code>maxiter=3*feature_count</code>. A normal solver return, finite/nonnegative coefficients, the unchanged
+            projected KKT tolerance and the post-call deadline check are all required. A solver error withholds the estimate and retains diagnostics.
+            The API does not return actual iteration counts, so they are <code>null</code>; the fixed maximum is recorded. The generic UCA recipe used
+            L-BFGS-B; this product uses NNLS as a numerical solution of the same statistical objective, not a different weight target or
+            regularization setting.
+          </p>
+          <p>
+            The source raw-ratio projection is <code>[0.01,50]</code>. The final inverse-weight range is
+            <code>[0.01/(scale*pi), 50/(scale*pi)]</code>, not 1–20 and not capped at 50. Training normalization makes the mean ratio in the training
+            arm equal to one and its inverse weights represent the whole training cohort. The same fitted scale and prevalence are reused on heldout
+            rows; there is no heldout normalization, trimming or target-cohort change. Diagnostics distinguish raw/post-projection ratio balance from
+            balance in the original standardized linear-plus-square diagnostic basis, as well as projection fractions, effective bounds, weight mass,
+            ESS and concentration.
+          </p>
+          <p>
+            This is a one-stage, fixed-arm finite-dictionary adaptation of the adjacent-source quadratic loss in UCA
+            (<code>uca_sdr.py::fit_local_weight</code>, with its positive feature/RBF recipe). It is not a literal reproduction of the latest frozen
+            UCA paper benchmark, which uses a separate saturated-indicator recipe, and does not enable general UCA/Front-door/Sequential IPW in this
+            product. Finite feature balance, projection and normalization can leave density-ratio bias; none certifies positivity or causal
+            assumptions. AIPW and Outcome Regression keep their previous fits and arithmetic.
+          </p>
+        </section>
         <section id="cross-fitting">
           <h2>Cross-fitting and seeds</h2>
           <p class="brief">Each row's score uses functions fitted without that row.</p>
           <p>
             A seeded permutation within each treatment arm allocates rows alternately to two outer folds. For each heldout fold, preprocessing, only
-            the nuisance fits needed by the selected method use the other fold. AIPW fits two arm-specific outcome regressions and two calibration
-            functions per fold; Outcome Regression fits only the regressions; IPW fits only calibration functions. The resulting functions are
-            evaluated on the heldout rows. This is treatment-stratified twofold cross-fitting; there is no inner cross-validation or fitted
-            hyperparameter selection.
+            the nuisance fits needed by the selected method use the other fold. AIPW fits two arm-specific outcome regressions and two
+            bounded-logistic calibration functions per fold; Outcome Regression fits only the regressions; IPW fits only two quadratic density-ratio
+            functions. The resulting functions are evaluated on the heldout rows. This is treatment-stratified twofold cross-fitting; there is no
+            inner cross-validation or fitted hyperparameter selection.
           </p>
           <p>
             The actual split seed is the dataset seed XOR <code>0x5A5A5A5A</code>, recorded in <code>estimation_details.options.seed</code>. Changing
@@ -477,10 +540,10 @@ score_i = I(A_i == 1) * alpha_1(C_i) * Y_i
 estimate = sum(score_i) / n</pre
           >
           <p>
-            This uses the same bounded-calibration weight nuisance, cohort target and weight safeguards as AIPW. It does not solve an outcome
-            regression or report outcome-fit RMSE. It is raw IPW: there is no division by an arm's sum of weights (Hájek normalization). The
-            separately fitted inverse weights need not define a single coherent propensity probability model. Fixed basis, regularization and the
-            fitted bound can bias IPW.
+            This uses the quadratic density-ratio nuisance above, the whole-cohort ATE target and the existing concentration/support safeguards. It
+            does not solve an outcome regression or report outcome-fit RMSE. It is raw IPW: there is no division by an arm's sum of weights (Hájek
+            normalization). The separately fitted inverse weights need not define a single coherent propensity probability model. Finite dictionary,
+            regularization, ratio projection and train-normalization can bias IPW.
           </p>
           <p>
             The denominator is the total number of observed rows, not the number in one arm or the sum of heldout weights. There is no heldout weight
@@ -517,11 +580,17 @@ estimate = sum(score_i) / n</pre
               </tr>
               <tr>
                 <td>Finite calibration feasibility</td>
-                <td>Each training-arm prevalence strictly greater than 1/20 and less than 1</td>
+                <td>
+                  AIPW only: each training-arm prevalence strictly greater than 1/20 and less than 1. IPW requires both arms but does not use that
+                  logistic-class feasibility restriction.
+                </td>
               </tr>
               <tr>
                 <td>Numerical fit</td>
-                <td>Successful solver; finite objective/gradient/weights/predictions/score; final gradient maximum ≤ 1e-5</td>
+                <td>
+                  Successful required solver and finite arithmetic. AIPW calibration: gradient maximum ≤ 1e-5. IPW quadratic fit: projected KKT
+                  residual ≤ 1e-4. Outcome Regression: finite ridge solve/predictions.
+                </td>
               </tr>
               <tr>
                 <td>Heldout effective sample size (ESS)</td>
@@ -550,12 +619,13 @@ estimate = sum(score_i) / n</pre
             </tbody>
           </table>
           <p>
-            Calibration feasibility, solver, ESS, concentration, imbalance, weight mass and cap-saturation checks apply only to AIPW/IPW. Outcome
-            Regression does not fit weights and does not run those checks. Its finite-input, arm-count, ridge-solve, score and deadline checks still
-            apply. <code>nuisance.used</code> states which nuisance types the method requires. <code>fitted</code> becomes true only after all four
-            required arm/fold fits of that type complete; identical regimes leave both false. <code>fit_calls</code> records actual attempts
-            (including partial attempts on failure), while <code>fit_completed</code> counts completed fits. A complete fit has outcome/weight call
-            counts 4/4 for AIPW, 4/0 for Outcome Regression and 0/4 for IPW. Identical regimes make 0/0 calls.
+            The bounded-logistic prevalence check and near-20 cap-saturation diagnostics apply only to AIPW. IPW records ratio projection and
+            effective inverse bounds instead. The appropriate solver, ESS, concentration, original diagnostic-basis imbalance and weight-mass checks
+            apply to AIPW/IPW. Outcome Regression does not fit weights and does not run those checks. Its finite-input, arm-count, ridge-solve, score
+            and deadline checks still apply. <code>nuisance.used</code> states which nuisance types the method requires. <code>fitted</code> becomes
+            true only after all four required arm/fold fits of that type complete; identical regimes leave both false. <code>fit_calls</code> records
+            actual attempts (including partial attempts on failure), while <code>fit_completed</code> counts completed fits. A complete fit has
+            outcome/weight call counts 4/4 for AIPW, 4/0 for Outcome Regression and 0/4 for IPW. Identical regimes make 0/0 calls.
           </p>
           <p>
             For positive observed-arm heldout weights <var>w</var>, ESS is <code>sum(w)² / sum(w²)</code> and maximum share is

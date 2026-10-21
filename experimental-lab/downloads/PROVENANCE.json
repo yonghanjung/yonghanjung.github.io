@@ -135,10 +135,11 @@
     },
     "balancing_aipw.py": {
       "additional_module": true,
-      "method": "Shared two-fold baseline routine: default v2 bounded-calibration AIPW unchanged; selected ridge outcome-regression plug-in or raw bounded-calibration IPW fit only their required nuisance functions",
+      "method": "Selected baseline routine: default AIPW and outcome-regression arithmetic preserved; IPW-only UCA-style adjacent-source quadratic RN finite-dictionary adaptation",
       "fixed_penalties": {
         "outcome": 0.001,
-        "balance": 0.01
+        "balance_aipw": 0.01,
+        "ratio_ipw": 0.002
       },
       "truth_as_training_input": false,
       "new_dependencies": false,
@@ -148,16 +149,34 @@
         "link": "1+19*expit(intercept+B@slopes)",
         "posthoc_clipping_or_rescaling": false,
         "finite_intercept_feasibility": "train arm prevalence > 1/20",
-        "basis_outcome_and_guards_unchanged": true
+        "basis_outcome_and_guards_unchanged": true,
+        "applies_to": "aipw only"
       },
-      "source_sha256": "9f1d9fe712dfa0e29a2ebb71386578b388c3e3cf79559de308dcd2770b4a28b2",
+      "source_sha256": "0791bf32634e2d3d620d4f437c6c0f19527f7eafc32195a4775a361794200c91",
       "selected_scores": {
         "aipw": "m1-m0+I1*alpha1*(Y-m1)-I0*alpha0*(Y-m0)",
         "outcome_regression": "m1-m0",
         "ipw": "I1*alpha1*Y-I0*alpha0*Y"
       },
       "score_denominator": "total observed row count n; no H\u00e1jek normalization, trimming or posthoc clipping",
-      "default_aipw_numerical_parity": "Exact estimate and diagnostics on three recorded e955 baseline fixtures; three-methods-default-parity-report.json"
+      "default_aipw_numerical_parity": "Exact estimate and diagnostics on three recorded e955 baseline fixtures; three-methods-default-parity-report.json",
+      "ipw_ratio_fit": {
+        "method_id": "uca_balancing_ipw_v1",
+        "source_recipe": "uca_sdr.py::PositiveFeatures/fit_local_weight; jmlr-5.tex adjacent-source quadratic loss",
+        "source_code_sha256": "d398ce36d4fdf503e4d9e1a2368043085fd298ac1573b46280efabbf7f48656f",
+        "source_paper_section_sha256": "419062a1f479a548999918883130a9b0d0a0159c9b072e8abf728b3d862a3a1f",
+        "literal_frozen_benchmark_reproduction": false,
+        "baseline_adaptation": "current P(C|A=a), target P(C); training-standardized tanh C-only positive/complement/squares+RBF24, no binary proposal gates",
+        "ridge": 0.002,
+        "coefficient_constraint": "nonnegative",
+        "raw_ratio_projection": [0.01, 50],
+        "rbf_mean_squared_distance_denominator": 0.35,
+        "normalization": "training-arm projected-ratio mean, then training-arm prevalence; no heldout renormalization",
+        "optimizer": "Primary SciPy NNLS on explicitly triangular Cholesky-transformed identical SPD quadratic, maxiter=3*feature_count; normal return, finite/nonnegative and projected-KKT/deadline acceptance; actual iterations unknown/null",
+        "projected_kkt_tolerance": 0.0001,
+        "truth_as_training_input": false,
+        "generic_source_optimizer": "L-BFGS-B maxiter120 (not the product optimizer)"
+      }
     }
   },
   "license_note": "Upstream repository MIT notice preserved verbatim; the notice credits the original site template author. No new ownership attribution is asserted.",
@@ -169,8 +188,8 @@
   "method_documentation": {
     "path": "web/methods.html",
     "canonical_source": "preview/apps/causalengine/methods.html",
-    "sha256": "f8dbf20b47a9e9c0c9d8a5cf84278311348e5c3b0d8ce57529f4c8a435cdf26e",
-    "numerical_source_sha256": "9f1d9fe712dfa0e29a2ebb71386578b388c3e3cf79559de308dcd2770b4a28b2",
-    "scope": "Exact implemented selected-score/nuisance/branch/encoding/failure/reference/uncertainty recipe and related primary sources. Optional OR/IPW score branches added with only required nuisance fits; default AIPW, penalties, basis, data, randomness and legacy algorithms preserved."
+    "sha256": "210dd9cdb9c55ec3f2ab736699e0e2d3b3c3dbdcf0f3a0696e2e5f269b99057b",
+    "numerical_source_sha256": "0791bf32634e2d3d620d4f437c6c0f19527f7eafc32195a4775a361794200c91",
+    "scope": "Exact selected nuisance/score documentation; IPW-only UCA-style finite-dictionary RN adaptation, with AIPW/OR numerical parity and original algorithms preserved."
   }
 }
