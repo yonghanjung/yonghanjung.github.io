@@ -937,16 +937,59 @@
     );
   }
 
+  // Keep this CSV's treatment column editor available after reducing a tuple to one column.
+  const treatmentColumnEditors = new Set();
   const mappingEligible = (name) =>
-    clusterEligible(name) || (queryNames("query-x").includes(name) && (nodes.find((n) => n.name === name)?.dimension > 1 || declaredClusters[name]));
+    clusterEligible(name) ||
+    (queryNames("query-x").includes(name) &&
+      (nodes.find((n) => n.name === name)?.dimension > 1 || declaredClusters[name] || treatmentColumnEditors.has(name)));
+  function updateTreatmentDeclaration(name, members) {
+    if (members.length > 1) declaredClusters[name] = [...members];
+    else delete declaredClusters[name];
+    const inputs = current === "sequential" ? [...document.querySelectorAll('#role-stages input[data-role="a"]')] : [$("role-a")];
+    for (const input of inputs) {
+      const parsed = ClusterSyntax.parse(input.value);
+      if (!parsed.names.includes(name)) continue;
+      input.value = parsed.names
+        .map((alias) => {
+          const list = alias === name ? (members.length > 1 ? members : null) : parsed.clusters[alias];
+          return list ? alias + "(" + list.join(", ") + ")" : alias;
+        })
+        .join(", ");
+      if (input.dataset.stage !== undefined) stages[Number(input.dataset.stage)].a = input.value;
+    }
+  }
+  function clearCSV() {
+    csvTable = null;
+    csvRaw = csvName = csvBindingGraph = mappingGraph = "";
+    columnMapping = {};
+    treatmentColumnEditors.clear();
+    bindingActive = false;
+    window.causalEngineDataBindings = null;
+    $("csv-mapping").replaceChildren();
+    $("csv-status").textContent = "";
+    CausalDataPreview.clear();
+    clearQueryResult();
+    refreshBinding();
+  }
   function csvSnapshot() {
     if (csvTable)
       CausalDataPreview.set({ csv: csvRaw, table: csvTable, name: csvName, source: "csv", key: { graph: dataGraphKey(), file: fileGeneration } });
   }
   function acceptCSV(text, name) {
+    let table;
+    try {
+      table = CausalCSV.parse(text);
+    } catch (error) {
+      clearCSV();
+      throw error;
+    }
     bindingActive = true;
     csvBindingGraph = dataGraphKey();
-    csvTable = CausalCSV.parse(text);
+    csvTable = table;
+    treatmentColumnEditors.clear();
+    for (const name of queryNames("query-x"))
+      if (nodes.find((n) => n.name === name)?.dimension > 1 || declaredClusters[name]) treatmentColumnEditors.add(name);
     csvRaw = text;
     csvName = name;
     mappingGraph = "";
@@ -1097,7 +1140,7 @@
           input.dataset.binding = n.name;
           input.onchange = () => {
             const checked = [...choices.querySelectorAll("input:checked")].map((e) => e.value),
-              prior = Array.isArray(columnMapping[n.name]) ? columnMapping[n.name] : [];
+              prior = [columnMapping[n.name]].flat().filter(Boolean);
             if (queryNames("query-x").includes(n.name) && checked.length > 8) {
               input.checked = false;
               $("data-error").textContent = "Treatment clusters support at most 8 members.";
@@ -1119,13 +1162,17 @@
                   } catch {}
                 }
                 n.dimension = next.length;
-                n.members = [...next];
+                if (next.length > 1) n.members = [...next];
+                else delete n.members;
+                updateTreatmentDeclaration(n.name, next);
                 originalInvalidate();
                 retainedRandomSignature = null;
               }
             }
 
-            summary.textContent = n.name + " · " + columnMapping[n.name].length + " columns";
+            const count = columnMapping[n.name].length;
+            if (queryNames("query-x").includes(n.name) && count === 1) columnMapping[n.name] = columnMapping[n.name][0];
+            summary.textContent = n.name + " · " + count + " column" + (count === 1 ? "" : "s");
             mappingChanged();
           };
           label.append(input, document.createTextNode(h));
@@ -1175,6 +1222,8 @@
     $("csv-file").value = "";
   });
   $("csv-file").onchange = async () => {
+    const file = $("csv-file").files[0];
+    if (!file) return; // A cancelled chooser must not clear the loaded CSV.
     const generation = ++fileGeneration;
     window.causalEngineBenchmark = null;
     bindingActive = false;
@@ -1189,11 +1238,6 @@
     $("csv-status").textContent = "";
     $("data-error").textContent = "";
     $("easy-result").hidden = true;
-    const file = $("csv-file").files[0];
-    if (!file) {
-      csvReadPending = false;
-      return;
-    }
     try {
       const text = await file.text();
       if (generation !== fileGeneration) return;
@@ -2056,7 +2100,18 @@
     describe();
   }
   window.causalEngineEnterBenchmark = () => {
-    if (benchmarkMode) return;
+    if (benchmarkMode) {
+      if (
+        draftDirty ||
+        (benchmarkActionState &&
+          nodes.includes(benchmarkActionState.node) &&
+          dataGraphKey() === benchmarkActionState.guard &&
+          $("role-a").value === benchmarkActionState.alias)
+      )
+        return;
+      // Update graph can replace the treatment schema while the benchmark panel remains open.
+      benchmarkActionState = null;
+    }
     benchmarkMode = true;
     const previousBindingGraph = dataGraphKey();
     const reusableCSV = bindingActive && dataSource === "csv" && csvTable && window.causalEngineBenchmark && csvBindingGraph === previousBindingGraph;
