@@ -18,6 +18,7 @@ Interactive demos:
 - [Lecture 10: Make linear flexible with basis functions, interactive demo](/teaching/2026F/IS507/lecture-10-basis-demo.html)
 - [Lecture 10: Credit approval with logistic regression, interactive demo](/teaching/2026F/IS507/lecture-10-logistic-demo.html)
 - [Lecture 10: How a tree picks a cut, interactive demo](/teaching/2026F/IS507/lecture-10-cut-demo.html)
+- [Lecture 10: Boosting fits the residuals with small trees, interactive demo](/teaching/2026F/IS507/lecture-10-boost-demo.html)
 
 ## IS 455: Database Design & Prototyping
 
