@@ -43,7 +43,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outl
 .readouts { display: flex; flex-wrap: wrap; gap: 8px 40px; margin: 16px 4px 12px; font-size: 26px; }
 .readouts b { font-variant-numeric: tabular-nums; }
 .eq { font-size: 26px; margin: 4px 4px 0; }
-.plots { display: grid; grid-template-columns: 1fr; gap: 16px; }
+.plots { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @media (max-width: 900px) { .plots { grid-template-columns: 1fr; } }
 canvas { width: 100%; height: 480px; display: block; border: 1px solid var(--line); border-radius: 12px; }
 select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; width: 100%; }
@@ -78,8 +78,8 @@ select { font: inherit; color: var(--ink); background: var(--bg); border: 1px so
       <input id="k" type="range" min="1" max="30" step="1" value="6">
       <label for="data" style="margin-top:10px"><span>Data</span></label>
       <select id="data">
-        <option value="curve">A curved example: sin(2πx) plus noise, 30 points</option>
-        <option value="diab">Diabetes: BMI and progression, 331 patients</option>
+        <option value="curve">Curved example (30 points)</option>
+        <option value="diab">Diabetes BMI (331 patients)</option>
       </select>
     </div>
     <div class="ctl">
@@ -94,6 +94,7 @@ select { font: inherit; color: var(--ink); background: var(--bg); border: 1px so
 
   <div class="plots">
     <canvas id="fit" role="img" aria-label="Data and the least-squares fit for the chosen pieces"></canvas>
+    <canvas id="curve" role="img" aria-label="Training and test RMSE against the number of pieces K; the current K is marked"></canvas>
   </div>
   <p class="note">Data: a simulated curve (seed 1010); diabetes data of Efron et al. (2004), via scikit-learn.</p>
 </main>
@@ -194,6 +195,36 @@ function update() {
   g.strokeStyle = css("--teal"); g.lineWidth = 3.5; g.beginPath();
   grid.forEach((x, i) => { const v = h(x); i ? g.lineTo(px(x), py(v)) : g.moveTo(px(x), py(v)); }); g.stroke();
   g.restore();
+  drawCurve(key, D, sc, K);
+}
+
+// Training and test RMSE for every K = 1, ..., 30 with the chosen pieces: the overfitting picture.
+function drawCurve(key, D, sc, K) {
+  const KS = Array.from({ length: 30 }, (_, i) => i + 1), tr = [], te = [];
+  for (const k of KS) {
+    const F = pieces(basis, k), beta = fit(D.x, D.y, F, sc);
+    const h = x => beta[0] + F.reduce((s, f, j) => s + beta[j + 1] * f(sc(x)), 0);
+    tr.push(rmse(D.x, D.y, h)); te.push(rmse(D.xt, D.yt, h));
+  }
+  const top = Math.max(...tr.slice(0, 3), ...te.slice(0, 3)) * 1.3;
+  const mag = 10 ** Math.floor(Math.log10(top / 4)), step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(v => v * 4 >= top);
+  const yr = [0, step * 4], yt = [0, 1, 2, 3, 4].map(i => +(i * step).toPrecision(3));
+  const [g, w, hh] = setup($("curve"));
+  g.clearRect(0, 0, w, hh);
+  const [px, py] = axes(g, w, hh, [1, 30], yr, "number of pieces K", "RMSE", [1, 5, 10, 15, 20, 25, 30], yt);
+  g.save(); g.beginPath(); g.rect(PAD.l, PAD.t, w - PAD.l - PAD.r, hh - PAD.t - PAD.b); g.clip();
+  g.strokeStyle = css("--muted"); g.setLineDash([6, 4]); g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(px(K), PAD.t); g.lineTo(px(K), hh - PAD.b); g.stroke(); g.setLineDash([]);
+  for (const [arr, col] of [[tr, "--navy"], [te, "--rust"]]) {
+    g.strokeStyle = css(col); g.lineWidth = 2.5; g.beginPath();
+    KS.forEach((k, i) => { const v = Math.min(arr[i], yr[1] * 2); i ? g.lineTo(px(k), py(v)) : g.moveTo(px(k), py(v)); }); g.stroke();
+    g.fillStyle = css(col); g.beginPath(); g.arc(px(K), py(Math.min(arr[K - 1], yr[1] * 2)), 5, 0, 2 * Math.PI); g.fill();
+  }
+  g.restore();
+  g.font = "15px system-ui, sans-serif"; g.textAlign = "left"; g.textBaseline = "middle";
+  const lx = PAD.l + 14, ly = PAD.t + 14;
+  g.fillStyle = css("--navy"); g.fillRect(lx, ly - 2, 18, 4); g.fillStyle = css("--ink"); g.fillText("training", lx + 24, ly);
+  g.fillStyle = css("--rust"); g.fillRect(lx + 100, ly - 2, 18, 4); g.fillStyle = css("--ink"); g.fillText("test", lx + 124, ly);
 }
 document.querySelectorAll("#basis button").forEach(b => b.addEventListener("click", () => {
   basis = b.dataset.b;
