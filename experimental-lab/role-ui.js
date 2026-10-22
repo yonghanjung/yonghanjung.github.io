@@ -1043,6 +1043,7 @@
     $("choose-random").setAttribute("aria-pressed", String(source === "random"));
     $("data-error").textContent = "";
     if (source === "csv" && csvTable) csvSnapshot();
+    if (source === "random" && randomDataReady()) showRandomSnapshot();
     refreshBinding();
     run.disabled = draftDirty || Boolean(temporalIssue()) || (source === "random" && !randomDataReady());
   }
@@ -1490,11 +1491,26 @@
       message("Random data for categorical variables is not supported; use CSV or Benchmarks.", true);
       return;
     }
-    const previous = sample;
-    await originalGenerate();
-    if (model && sample && sample !== previous) {
-      retainedRandomSignature = randomSignature();
-      if (dataSource === "random") showRandomSnapshot();
+    if (running && !window.causalEngineBatch) return;
+    const ownsLock = !running,
+      previous = sample;
+    if (ownsLock) {
+      setBusy(true, "Generate");
+      clearQueryResult();
+      CausalDataPreview.clear();
+    }
+    try {
+      await originalGenerate();
+      if (model && sample && sample !== previous) {
+        retainedRandomSignature = randomSignature();
+        if (dataSource === "random") showRandomSnapshot();
+      }
+    } finally {
+      if (ownsLock) {
+        setBusy(false);
+        checkChanges();
+        if (dataSource === "random" && randomDataReady()) showRandomSnapshot();
+      }
     }
   };
   function randomSignature() {

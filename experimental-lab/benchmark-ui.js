@@ -177,6 +177,7 @@
     window.causalEngineCancelCSVRead?.();
     const turn = ++generation;
     close();
+    $("benchmark-status").textContent = "";
     $("easy-result").hidden = true;
     $("easy-progress").textContent = "";
     CausalDataPreview.clear();

@@ -186,7 +186,7 @@
   "license_note": "Upstream repository MIT notice preserved verbatim; the notice credits the original site template author. No new ownership attribution is asserted.",
   "web_theme_source": "/tmp/causal-science-lab-preview-20261019/apps/causalengine/",
   "web_changes": "Deliberate changes: selected baseline three-method XGBoost/scalar-outcome balance; graph plug-in learned conditional means now XGBoost. Nonterminal conditional sampling kernels, analytic/MC references and ID algorithms unchanged. Prior adapters, explicit data bindings and display extensions retained. Other10 browser Python modules remain raw-upstream byte-identical.",
-  "web_ui_sha256": "ebc76929226225821e3e68422c4a461bb4e42b9711e1d602b78f12475fb8305d",
+  "web_ui_sha256": "caa07222eb5b2ef7da80bac777f556bc53f2905a4ae693c5f333237901af64c1",
   "benchmark_assets": "web/benchmarks/manifest.json records dataset-specific versions, sources, transforms, hashes and terms; not covered by engine MIT notice",
   "benchmark_reference_assets": "Separate same-pinned-row conditional-mean ATE and APO aggregates only; factual CSVs unchanged and no reference used for estimation. LaLonde unavailable.",
   "method_documentation": {
