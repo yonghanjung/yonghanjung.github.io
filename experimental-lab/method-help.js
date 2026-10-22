@@ -28,7 +28,7 @@
     ],
     propensityParameters: [
       "Classifier settings",
-      "The actual fit records binary:logistic for two classes or multi:softprob for more classes, the joint class map, training base score, seed and fixed tree settings. It never multiplies separately fitted marginal propensities.",
+      "The actual fit records binary:logistic for two classes or multi:softprob for more classes, the joint class map, seed and fixed tree settings. Binary fits start from the training class-1 proportion. Multiclass fits use log training-class proportions as base margins on both training and prediction rows, overriding the common base score. Initialization uses only outer-training treatment labels, never held-out labels, outcomes or ground truth. It never multiplies separately fitted marginal propensities.",
       "ipw",
     ],
     probabilityGuard: [

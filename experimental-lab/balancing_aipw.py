@@ -212,6 +212,7 @@ def fit_xgboost_propensity(train_x, labels, query_x, *, n_classes, seed, check):
         x,q=np.zeros((len(x),1)),np.zeros((len(q),1))
     params=dict(XGBOOST_PARAMS,seed=int(seed))
     params['objective']='binary:logistic' if n_classes==2 else 'multi:softprob'
+    training_priors=np.bincount(labels,minlength=n_classes)/len(labels)
     if n_classes==2:
         params['base_score']=float(labels.mean())
     else:
@@ -219,8 +220,15 @@ def fit_xgboost_propensity(train_x, labels, query_x, *, n_classes, seed, check):
     class Deadline(xgb.callback.TrainingCallback):
         def after_iteration(self,model,epoch,evals_log):
             check();return False
-    booster=xgb.train(params,xgb.DMatrix(x,label=labels,nthread=1),num_boost_round=XGBOOST_ROUNDS,callbacks=[Deadline()])
-    check();pred=booster.predict(xgb.DMatrix(q,nthread=1)).astype(float);check()
+    training_matrix=xgb.DMatrix(x,label=labels,nthread=1)
+    prediction_matrix=xgb.DMatrix(q,nthread=1)
+    training_logits=None
+    if n_classes>2:
+        training_logits=np.log(training_priors)
+        training_matrix.set_base_margin(np.tile(training_logits,(len(x),1)))
+        prediction_matrix.set_base_margin(np.tile(training_logits,(len(q),1)))
+    booster=xgb.train(params,training_matrix,num_boost_round=XGBOOST_ROUNDS,callbacks=[Deadline()])
+    check();pred=booster.predict(prediction_matrix).astype(float);check()
     probabilities=np.column_stack([1-pred,pred]) if n_classes==2 else pred
     if (probabilities.shape!=(len(q),n_classes) or not np.isfinite(probabilities).all()
             or np.any(probabilities<0) or np.any(probabilities>1)
@@ -229,6 +237,11 @@ def fit_xgboost_propensity(train_x, labels, query_x, *, n_classes, seed, check):
     return probabilities,dict(regression='XGBoost joint-treatment classifier',version=xgb.__version__,
         params=params,rounds=XGBOOST_ROUNDS,original_coordinates=original,constant_zero_feature=not original,
         n_classes=n_classes,class_counts=np.bincount(labels,minlength=n_classes).tolist(),
+        initialization=dict(kind='training_class_log_prior_margin' if n_classes>2 else 'training_class1_prevalence_base_score',
+            source='Outer-training treatment labels only; no outcomes or heldout class frequencies',
+            class_order=list(range(n_classes)),training_priors=training_priors.tolist(),base_score=params['base_score'],
+            base_score_overridden=n_classes>2,base_margin_log_priors=training_logits.tolist() if training_logits is not None else None,
+            base_margin_applied_to=['training','prediction'] if n_classes>2 else []),
         max_probability_sum_residual=float(np.max(np.abs(probabilities.sum(1)-1))),
         normalization='Native binary logistic / multiclass softmax probabilities; no posthoc clipping or renormalization')
 
@@ -284,6 +297,7 @@ def estimate_balancing_aipw(covariates,treatment,outcome,*,seed=5,intervention=1
     if use_propensity:
         options['xgboost']=dict(XGBOOST_PARAMS,objective='binary:logistic'if len(classes)==2 else'multi:softprob',num_boost_round=XGBOOST_ROUNDS)
         if len(classes)>2:options['xgboost']['num_class']=len(classes)
+        options['propensity_initialization']='Binary: training class1 prevalence base_score; multiclass: training log-class-prior base_margin on both training and prediction matrices, overriding base_score'
     nuisance=dict(outcome='Arm-specific XGBoost 2.1.4 conditional mean' if use_outcome else 'Not fitted: IPW propensity training does not use outcomes',
         used=dict(outcome=use_outcome,weights=use_weights or use_propensity,propensity=use_propensity),direct_weight_solver=use_weights,
         fitted=dict(outcome=False,weights=False,propensity=False),fit_calls=dict(outcome=0,weights=0,propensity=0),

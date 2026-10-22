@@ -117,7 +117,7 @@
     CausalMethodHelp.add(
       title,
       keys[label] ||
-        (/propensity parameters/.test(label)
+        (/propensity parameters|propensity initialization/.test(label)
           ? "propensityParameters"
           : /joint classes/.test(label)
             ? "jointTreatment"
@@ -299,6 +299,7 @@
           const fit = fold.propensity_fit;
           if (fit) {
             field(list, "Fold " + (i + 1) + " propensity parameters", fit.params || fit);
+            field(list, "Fold " + (i + 1) + " propensity initialization", fit.initialization);
             field(list, "Fold " + (i + 1) + " joint classes", fit.classes || fit.class_mapping);
           }
         }

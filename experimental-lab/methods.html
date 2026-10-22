@@ -463,8 +463,16 @@ w = max(epsilon, b0+b1*z)</pre
             same fixed64/depth3/eta.05/hist/nthread1/lambda1/min_child_weight5/subsample1/colsample1 settings. Two classes use
             <code>binary:logistic</code> (the other probability is its complement); more than two use <code>multi:softprob</code> with the recorded
             class count. Every stored class must occur in each training fold; no rare class is pooled or omitted. Class frequencies are not rebalanced
-            or oversampled, and no outcome values enter fitting. Binary base_score is training class1 prevalence; multiclass common initial score
-            is0.5. Actual parameters and class counts are recorded per fold.
+            or oversampled, and no outcome values enter fitting. Binary <code>base_score</code> remains the outer-training class1 prevalence. For more
+            than two classes, each outer fold computes its own class-prior vector from training treatment labels only and repeats its natural
+            logarithms in the fixed class-codebook order as <code>base_margin</code> on both training and prediction matrices. The softmax of these
+            initial logits equals the training class priors; this margin overrides the common <code>base_score=0.5</code>, which is not the effective
+            initial probability vector. Heldout class frequencies, outcomes and query assignment do not choose the offset. Actual class counts,
+            priors, log-prior offsets, override flag and matrix scope are recorded per fold. No clipping or weight renormalization is added;
+            finite-round learning can still leave imperfect probability estimates and weight mass. See the
+            <a href="https://raw.githubusercontent.com/dmlc/xgboost/v2.1.4/doc/tutorials/intercept.rst"
+              >pinned official XGBoost2.1.4 intercept and base-margin documentation</a
+            >.
           </p>
           <p>
             The heldout probability matrix must match the stored class order/shape, contain finite probabilities in[0,1] and sum to1 per row
