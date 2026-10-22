@@ -1790,33 +1790,34 @@
       p.dataset.outcome = name;
       p.dataset.status = e?.status || "UNAVAILABLE";
       p.dataset.value = ok && Number.isFinite(values[name]) ? values[name] : "";
-      p.textContent = ok && Number.isFinite(values[name]) ? values[name].toFixed(3) : "Not available";
+      p.textContent = ok && Number.isFinite(values[name]) ? values[name].toFixed(3) : "Could not compute";
       section.append(p);
     }
     if (!ok) {
       const note = document.createElement("p");
-      note.textContent = "No estimate was returned. See Details.";
+      note.className = "estimate-reason";
+      note.textContent = e?.reason || "The estimator returned no finite value (" + (e?.status || "UNAVAILABLE") + ").";
+      CausalMethodHelp.add(note, "computationFailure");
       section.append(note);
     }
-    const raw = [e?.warning, e?.info].filter(Boolean).join(" ");
-    if (raw) {
-      const warning = document.createElement("p");
+    const messages = (e?.warnings || []).filter((warning) => warning?.message).map((warning) => warning.message);
+    if (!messages.length) messages.push(...[e?.warning, e?.info].filter(Boolean));
+    if (messages.length) {
+      const warning = document.createElement("div");
       warning.className = "easy-warning";
-      warning.textContent = [
-        "minimum_variance_aipw_v1",
-        "xgboost_outcome_regression_v1",
-        "minimum_variance_ipw_v1",
-        "xgboost_propensity_ipw_v1",
-        "balancing_aipw_v1",
-        "balancing_aipw_v2",
-        "outcome_regression_v1",
-        "balancing_ipw_v1",
-        "uca_balancing_ipw_v1",
-      ].includes(e?.estimation_details?.method_id)
-        ? raw
-        : /weak|coverage|overlap/i.test(raw)
-          ? "Approximate estimate: too few comparable records may make this result unreliable."
-          : raw;
+      const title = document.createElement("p");
+      title.textContent = ok ? "Estimate with warnings" : "Computation warnings";
+      CausalMethodHelp.add(title, "estimateWarnings");
+      const list = document.createElement("ul");
+      for (const message of messages) {
+        const item = document.createElement("li");
+        item.textContent = message;
+        list.append(item);
+      }
+      const link = document.createElement("a");
+      link.href = "./methods.html#diagnostics";
+      link.textContent = "Read the warning definitions";
+      warning.append(title, list, link);
       section.append(warning);
     }
     if (omitted.length) {
@@ -1981,8 +1982,16 @@
               .join(", ")
           : "");
       $("easy-result").hidden = false;
-      const completion = results.every((row) => row.result.data_estimate?.status === "OK") ? "Estimated from " : "Processed ";
-      progress.textContent = completion + sourceInfo.n.toLocaleString() + (source === "csv" ? " CSV rows." : " random records.");
+      const computed = results.filter(
+        (row) => row.result.data_estimate?.status === "OK" && Object.values(row.result.data_estimate.values || {}).some(Number.isFinite)
+      ).length;
+      const rowsLabel = sourceInfo.n.toLocaleString() + (source === "csv" ? " CSV rows." : " random records.");
+      progress.textContent =
+        computed === results.length
+          ? "Estimated from " + rowsLabel
+          : computed
+            ? "Computed " + computed + " of " + results.length + " estimates from " + rowsLabel
+            : "Could not compute an estimate from " + rowsLabel;
     } catch (e) {
       $("data-error").textContent = e.message;
       $("easy-result").hidden = true;

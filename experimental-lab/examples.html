@@ -38,9 +38,10 @@ permalink: /experimental-lab/examples.html
             ATE to compare two complete assignments or APO for one interventional mean. AIPW retains XGBoost outcome predictions and scalar
             fitted-outcome balancing weights. Outcome Regression uses only XGBoost outcome predictions. IPW fits an actual XGBoost classifier for the
             whole observed treatment tuple, then averages raw inverse-probability-weighted outcomes; no outcome model or balancing-weight solver is
-            fitted. The requested probability guard is 1e-6, without clipping or held-out renormalization. Details and Calculation code record the
-            actual query, nuisance fits, classifier class map, original retained columns, folds and diagnostics. These fitted probabilities do not
-            prove positivity, and no failed fit silently switches methods.
+            fitted. Small positive probabilities, small groups, and concentrated weights produce warnings beside a computable number, without
+            probability clipping or held-out renormalization. A genuinely failed computation states its specific reason on the result card. Details
+            and Calculation code record the actual query, nuisance fits, classifier class map, original retained columns, folds and diagnostics. These
+            fitted probabilities do not prove positivity, and no failed fit silently switches methods.
           </p>
           <p>
             For a treatment cluster, enter <code>A(a1, a2)</code> in Treatment and keep the two binary source columns in that order. Set each member’s

@@ -76,7 +76,10 @@
       "Propensity model": "propensity",
       "Propensity parameters": "propensityParameters",
       "Joint classes": "jointTreatment",
-      "Probability guard": "probabilityGuard",
+      "Probability warning threshold": "probabilityGuard",
+      Warnings: "estimateWarnings",
+      Reason: "computationFailure",
+      "Reason code": "computationFailure",
       Score: ["outcome-regression", "xgboost-outcome"].includes(kind)
         ? "orScore"
         : propensity
@@ -256,6 +259,7 @@
     list.dataset.weightFit = String(fitted.weights);
     field(list, "Random generation", context?.generation);
     field(list, "Status", estimate?.status || "UNAVAILABLE");
+    field(list, "Warnings", estimate?.warnings);
     field(list, "Estimator", method);
     const queryKind =
       metadata?.options?.estimand || metadata?.inputs?.estimand || context?.query?.estimand || (context?.query?.summary === "mean" ? "apo" : "ate");
@@ -292,8 +296,11 @@
         field(list, "Propensity model", metadata.nuisance?.propensity);
         field(
           list,
-          "Probability guard",
-          metadata.options?.minimum_propensity ?? metadata.options?.propensity_floor ?? metadata.options?.probability_floor
+          "Probability warning threshold",
+          metadata.options?.propensity_warning_threshold ??
+            metadata.options?.minimum_propensity ??
+            metadata.options?.propensity_floor ??
+            metadata.options?.probability_floor
         );
         for (const [i, fold] of (estimate?.diagnostics?.fold_details || []).entries()) {
           const fit = fold.propensity_fit;
@@ -346,6 +353,7 @@
       field(list, "Data uncertainty", estimate?.diagnostics?.data_uncertainty);
       for (const [i, regression] of (estimate?.diagnostics?.regressions || []).entries()) field(list, "Conditional mean fit " + (i + 1), regression);
     }
+    if (estimate?.reason_code) field(list, "Reason code", estimate.reason_code);
     if (estimate?.reason) field(list, "Reason", estimate.reason);
     details.append(list);
     const documentLink = element("a", "Full methods documentation");

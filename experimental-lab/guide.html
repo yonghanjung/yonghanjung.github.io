@@ -166,10 +166,11 @@ permalink: /experimental-lab/guide.html
             <p>
               Use a scalar outcome and a scalar or ordered binary-cluster treatment, at most 5,000 rows, 100 selected columns, and 500,000 selected
               cells. Cluster assignment support depends on the actual graph and estimator. Baseline covariates may group several columns when the
-              current graph has a certified adjustment set. At least 128 rows are needed for estimation, and some questions require more. Selected
-              cells must contain finite numbers: no missing values, NaN, or infinity. Binary variables require 0/1. Missing values, duplicate headers,
-              reused columns, and invalid cells stop the calculation with an error; rows are not dropped or imputed. Unused columns may contain text
-              because only mapped columns are sent to the estimator.
+              current graph has a certified adjustment set. There is no fixed statistical minimum row count: the engine attempts a supported
+              calculation and reports small-group warnings when it can compute a finite value. Empty required training groups or actual numerical
+              failures are reported with their reasons. Selected cells must contain finite numbers: no missing values, NaN, or infinity. Binary
+              variables require 0/1. Missing values, duplicate headers, reused columns, and invalid cells stop the calculation with an error; rows are
+              not dropped or imputed. Unused columns may contain text because only mapped columns are sent to the estimator.
             </p>
             <h3>Try an upload example</h3>
             <p>
@@ -246,10 +247,11 @@ permalink: /experimental-lab/guide.html
               same retained rows. AIPW fits arm-specific XGBoost outcome predictions and minimum-second-moment weights constrained by training mass
               and the scalar fitted-outcome mean. Outcome Regression uses only XGBoost outcome predictions and fits no weights. IPW fits an actual
               XGBoost joint-treatment classifier and uses raw inverse probabilities, with no outcome model or balancing-weight fit. For a cluster, the
-              classifier predicts the whole tuple; it never multiplies marginal propensities. Requested probabilities below 1e-6 return unavailable
-              rather than being clipped; at most 32 observed joint classes are supported. APO outcome models fit only its requested arm; ATE compares
-              two arms. IPW classifiers train on all observed joint classes for either query. Details and Calculation code record the actual query,
-              class map, nuisance fits, parameters, column recipes, diagnostics and exact implementation. No failed fit silently changes methods.
+              classifier predicts the whole tuple; it never multiplies marginal propensities. Small positive requested probabilities produce warnings
+              rather than rejection and are not clipped. Zero or nonfinite denominators prevent computation; at most 32 observed joint classes are
+              supported as a resource bound. APO outcome models fit only its requested arm; ATE compares two arms. IPW classifiers train on all
+              observed joint classes for either query. Details and Calculation code record the actual query, class map, nuisance fits, parameters,
+              column recipes, diagnostics and exact implementation. No failed fit silently changes methods.
             </p>
             <p>
               The fixed XGBoost settings use version 2.1.4, 64 rounds, depth 3, learning rate 0.05, histogram trees, one thread, L2 regularization 1
@@ -311,8 +313,9 @@ permalink: /experimental-lab/guide.html
             </p>
             <p>
               Identification and estimation answer different questions. A graph can be identifiable while the current estimator cannot calculate a
-              reliable value from the available rows. Every estimated outcome has its own value or <strong>Not available</strong> status. One
-              unsupported outcome does not hide the others.
+              reliable value from the available rows. Every outcome shows a finite value with any returned warnings, or a concrete computation-failure
+              reason directly on its result card. Small training groups and concentrated weights do not automatically suppress a computable estimate.
+              One unsupported outcome does not hide the others.
             </p>
             <p>
               <strong>Ground truth (exact)</strong> is a separate analytic query value in the fixed simulated model: one interventional mean for APO
@@ -336,8 +339,10 @@ permalink: /experimental-lab/guide.html
             <p>
               <strong>Approximate estimate: too few comparable records may make this result unreliable</strong> is a warning, not an accuracy
               certificate. More rows do not guarantee it disappears. No sampling standard error or confidence interval for the data estimate is
-              provided. A Monte Carlo standard error, when shown for the separate model reference, describes numerical simulation error only. Open
-              Details to read a returned reason when a result is unavailable; a simulated-model answer is never used as a fallback.
+              provided. A Monte Carlo standard error, when shown for the separate model reference, describes numerical simulation error only. Warnings
+              remain visible beside the number and in Details, with the observed counts and diagnostic reference thresholds. These thresholds are
+              guidance rather than minimum sample-size requirements. A genuinely failed computation shows its reason directly on the result card; a
+              simulated-model answer is never used as a fallback.
             </p>
           </section>
           <section id="model-details">
@@ -373,10 +378,12 @@ permalink: /experimental-lab/guide.html
               include multiple distinct columns. Binary treatments must contain only 0/1. Empty, nonnumeric, or nonfinite selected values are
               rejected. Unused text columns do not need conversion. After changing the graph or mapping, run again to load the current selection.
             </p>
-            <h3>I see Not available or UNKNOWN</h3>
+            <h3>I see a computation failure or a warning</h3>
             <p>
-              The calculation was unsupported, lacked sufficient data, or did not finish within its budget. Read the outcome’s Details. An unavailable
-              estimate does not by itself prove that the effect is mathematically unidentifiable. Use Identify for the separate graph-only result.
+              A computable estimate is shown even with small samples or unstable weights; read its warnings before interpreting it. A missing
+              requested assignment, an empty training group, an invalid denominator, or a failed fit can prevent computation. The exact reason appears
+              on the outcome’s result card and in Details. A failed computation does not by itself prove that the effect is mathematically
+              unidentifiable. Use Identify for the separate graph-only result.
             </p>
             <h3>Which other methods work?</h3>
             <p>

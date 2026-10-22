@@ -13,9 +13,11 @@ XGBoost 2.1.4 uses fixed 64 rounds/depth3/eta.05/hist/single thread/lambda1/
 min_child_weight5, all original numeric witness coordinates, train-only means
 and seeds. Zero real coordinates use a constant-zero feature and actual XGBoost.
 No truth, test-label fitting, density approximation or simulator is used here.
-Constraint infeasibility, required fit failure, extreme heldout concentration,
-nonfinite arithmetic and deadlines return no value. Engineering checks do not
-certify positivity, model correctness, double robustness or confidence coverage.
+Small samples, small positive propensities and concentrated weights add warnings.
+Actually empty required training data, undefined inverses, constraint/fit failure,
+nonfinite arithmetic and deadlines return a specific reason with no value.
+Reliability diagnostics do not certify positivity, model correctness, double
+robustness or confidence coverage.
 """
 import hashlib
 from pathlib import Path
@@ -115,8 +117,8 @@ def _fit_minimum_variance_weights(training_mu, selected, heldout_mu, check):
             or not np.isfinite(g).all() or not np.isfinite(evaluation).all()):
         raise _BalanceError("Invalid fitted-outcome balance inputs")
     N,m=len(g),int(selected.sum());eps=WEIGHT_FLOOR
-    if not 0 < m < N:
-        raise _BalanceError("WEIGHT_FEASIBILITY: both training arms are required")
+    if not 0 < m <= N:
+        raise _BalanceError("WEIGHT_FEASIBILITY: the requested training assignment has no rows")
     target=float(g.mean());scale=float(g.std())
     if scale<=1e-12:
         scale=1.
@@ -292,7 +294,7 @@ def estimate_balancing_aipw(covariates,treatment,outcome,*,seed=5,intervention=1
         basis='Original verified adjustment-witness coordinates, including all full one-hot coordinates',
         diagnostic_basis='Whole-training standardized original witness coordinates, linear only',
         weight_floor=WEIGHT_FLOOR if use_weights else None,constraint_tolerance=CONSTRAINT_TOLERANCE if use_weights else None,
-        minimum_propensity=MIN_PROPENSITY if use_propensity else None,probability_clipping=False,
+        minimum_propensity=0. if use_propensity else None,propensity_warning_threshold=MIN_PROPENSITY if use_propensity else None,probability_clipping=False,
         ridge=None,balance_penalty=None,weight_cap=None)
     if use_propensity:
         options['xgboost']=dict(XGBOOST_PARAMS,objective='binary:logistic'if len(classes)==2 else'multi:softprob',num_boost_round=XGBOOST_ROUNDS)
@@ -315,12 +317,16 @@ def estimate_balancing_aipw(covariates,treatment,outcome,*,seed=5,intervention=1
         normalization='Raw heldout score over total n; no probability clipping, stabilization, trimming or heldout weight normalization',sources=SOURCE_URLS,
         limitations=['Joint-class probability learning and finite samples can misspecify inverse weights; scalar-mu balance is not all-function balance.',
             'No positivity certificate, unconditional double robustness or observed-data confidence interval is claimed.'])
-    result=dict(status='UNKNOWN',method=METHODS[estimator],estimand=estimand,n=n,approximate=True,
-        diagnostics=dict(folds=2,covariate_coordinates=p,treatment_coordinates=k,data_uncertainty='not estimated',fold_details=[]),estimation_details=details)
+    warnings=[]
+    result=dict(status='UNKNOWN',method=METHODS[estimator],estimand=estimand,n=n,approximate=True,warnings=warnings,
+        diagnostics=dict(folds=2,covariate_coordinates=p,treatment_coordinates=k,data_uncertainty='not estimated',fold_details=[],
+            reliability_policy='Sample counts, positive propensity size, ESS and weight concentration are warning diagnostics, not computation cutoffs'),estimation_details=details)
+    def warn(code,message,**context):
+        warnings.append(dict(code=code,message=message,**context));result.setdefault('warning',message)
     def check():
         if perf_counter()-started>=max_seconds:raise TimeoutError('Estimator deadline exhausted; no partial estimate is returned')
-    def fail(reason):return dict(result,status='UNKNOWN',reason=reason)
-    if n<128:return fail('INSUFFICIENT_DATA: use at least 128 rows')
+    def fail(reason,code='COMPUTATION_FAILED'):return dict(result,status='UNKNOWN',reason=reason,reason_code=code)
+    if n<128:warn('SMALL_SAMPLE',f'This estimate uses only {n} rows; finite-sample learning may be unreliable.',observed=n,reference_threshold=128)
     if estimand=='ate' and np.array_equal(primary,baseline):
         details['fit_performed']=False;result['diagnostics']['identical_regimes']=True
         return dict(result,status='OK',estimate=0.)
@@ -328,25 +334,32 @@ def estimate_balancing_aipw(covariates,treatment,outcome,*,seed=5,intervention=1
     requested=[]
     for value in [primary]+([baseline] if baseline is not None else []):
         match=np.flatnonzero(np.all(classes==value,axis=1))
-        if not len(match):return fail('JOINT_SUPPORT: a requested whole treatment assignment is not observed')
+        if not len(match):return fail(f'MISSING_ASSIGNMENT: requested treatment assignment {value.tolist()} has no observed rows.','MISSING_ASSIGNMENT')
         requested.append(int(match[0]))
     wanted=sorted(set(requested));primary_code=requested[0];reference_code=requested[1] if len(requested)>1 else None
     expected=2*len(wanted);fold=np.empty(n,int);rng=np.random.default_rng(seed)
     for code in range(len(classes)):
         ids=np.flatnonzero(codes==code);fold[rng.permutation(ids)]=np.arange(len(ids))%2
     predictions={code:np.empty(n)for code in wanted} if use_outcome else {}
-    weights={code:np.zeros(n)for code in wanted} if(use_weights or use_propensity)else{};warnings=[]
+    weights={code:np.zeros(n)for code in wanted} if(use_weights or use_propensity)else{}
     try:
         for heldout in (0,1):
             check();train=np.flatnonzero(fold!=heldout);test=np.flatnonzero(fold==heldout)
             info=dict(heldout=heldout,n_train=len(train),n_test=len(test),arms={});result['diagnostics']['fold_details'].append(info)
+            if not len(train):return fail(f'EMPTY_TRAINING_FOLD: fold {heldout} has no training rows; the requested two-fold fit cannot run.','EMPTY_TRAINING_FOLD')
+            if not len(test):continue
             center=z[train].mean(0);scale=z[train].std(0);scale=np.where(scale>1e-12,scale,1.);diagnostic_train=(z[train]-center)/scale
             for code in wanted:
                 count=int(np.sum(codes[train]==code));test_count=int(np.sum(codes[test]==code))
-                if count<32 or ((use_weights or use_propensity)and test_count<8):return fail('INSUFFICIENT_DATA: each requested training class needs32 rows and weighted heldout class8')
+                assignment=classes[code].tolist();info['arms'][str(code)]=dict(n_train_arm=count,n_test_arm=test_count,assignment=assignment)
+                if not count:return fail(f'NO_TRAINING_ASSIGNMENT: fold {heldout}, requested assignment {assignment} has zero training rows.','NO_TRAINING_ASSIGNMENT')
+                if count<32:warn('SMALL_TRAINING_ARM',f'Fold {heldout}, assignment {assignment}: only {count} training rows; the estimate may be unstable.',fold=heldout,assignment=assignment,observed=count,reference_threshold=32,metrics=dict(n_train_arm=count,n_test_arm=test_count))
+                if(use_weights or use_propensity)and test_count<8:warn('SMALL_HELDOUT_ARM',f'Fold {heldout}, assignment {assignment}: only {test_count} heldout rows contribute weighted outcomes.',fold=heldout,assignment=assignment,observed=test_count,reference_threshold=8)
             probabilities=None
             if use_propensity:
-                if len(classes)<2 or set(np.unique(codes[train]))!=set(range(len(classes))):return fail('JOINT_SUPPORT: every stored joint class must be observed in each classifier training fold')
+                if len(classes)<2:return fail('PROPENSITY_CLASS_DOMAIN: the XGBoost joint classifier requires at least two distinct observed assignments.','PROPENSITY_CLASS_DOMAIN')
+                missing=sorted(set(range(len(classes)))-set(np.unique(codes[train])))
+                if missing:return fail(f'SPLIT_CLASS_MISSING: fold {heldout} has no training rows for assignments {classes[missing].tolist()}; their training log-prior offsets are undefined.','SPLIT_CLASS_MISSING')
                 nuisance['fit_calls']['propensity']+=1
                 probabilities,propensity_info=fit_xgboost_propensity(z[train],codes[train],z[test],n_classes=len(classes),seed=(seed+104729*(heldout+1))%2**32,check=check)
                 info['propensity_fit']=propensity_info
@@ -354,7 +367,7 @@ def estimate_balancing_aipw(covariates,treatment,outcome,*,seed=5,intervention=1
                 nuisance['fit_completed']['propensity']+=1;nuisance['fitted']['propensity']=nuisance['fit_completed']['propensity']==2
             for code in wanted:
                 check();selected=codes[train]==code;observed=codes[test]==code
-                count,test_count=int(selected.sum()),int(observed.sum());diag=dict(n_train_arm=count,n_test_arm=test_count,assignment=classes[code].tolist());info['arms'][str(code)]=diag
+                count,test_count=int(selected.sum()),int(observed.sum());diag=info['arms'][str(code)]
                 if use_outcome:
                     nuisance['fit_calls']['outcome']+=1
                     predicted,fit_info=fit_xgboost_mean(z[train][selected],y[train][selected],np.vstack([z[train],z[test]]),seed=(seed+104729*(heldout+1)+1009*(code+1))%2**32,check=check)
@@ -368,14 +381,20 @@ def estimate_balancing_aipw(covariates,treatment,outcome,*,seed=5,intervention=1
                     diag['training_max_moment_imbalance']=float(np.max(np.abs(diagnostic_train[selected].T@training_w/len(train)-diagnostic_train.mean(0)),initial=0.))
                 elif use_propensity:
                     prop=probabilities[:,code];diag['minimum_queried_propensity']=float(prop.min());diag['maximum_queried_propensity']=float(prop.max())
-                    if np.any(prop<MIN_PROPENSITY):return fail('PROPENSITY_SUPPORT: queried joint assignment probability below1e-6; no clipping or estimate')
-                    alpha=1/prop
+                    if np.any(prop<=0)or not np.isfinite(prop).all():return fail(f'INVALID_PROPENSITY: fold {heldout}, assignment {classes[code].tolist()} has a zero or nonfinite probability; its inverse is undefined.','INVALID_PROPENSITY')
+                    if np.any(prop<MIN_PROPENSITY):warn('LOW_PROPENSITY',f'Fold {heldout}, assignment {classes[code].tolist()}: small positive propensity {prop.min():.6g}; inverse weights may be unstable.',fold=heldout,assignment=classes[code].tolist(),observed=float(prop.min()),reference_threshold=MIN_PROPENSITY)
+                    with np.errstate(over='ignore',divide='ignore'):alpha=1/prop
+                    if not np.isfinite(alpha).all():return fail(f'NONFINITE_INVERSE_WEIGHT: fold {heldout}, assignment {classes[code].tolist()} has an inverse probability outside finite numeric range.','NONFINITE_INVERSE_WEIGHT')
                 else:continue
-                weights[code][test]=alpha;w=alpha[observed];mass=float(w.sum()/len(test));ess=float(w.sum()**2/(w@w));share=float(w.max()/w.sum())
-                diag.update(heldout_weight_mass=mass,heldout_ess=ess,heldout_max_normalized_share=share,heldout_max_inverse_weight=float(w.max()));check()
-                if not np.isfinite([mass,ess,share]).all():return fail('Nonfinite inverse-weight diagnostics')
-                if ess<max(10.,.05*test_count)or share>.20:return fail('WEAK_OVERLAP: heldout inverse-weight concentration exceeds the fixed safety limits')
-                if ess<.25*test_count or share>.05 or not .5<=mass<=2. or diag.get('training_max_moment_imbalance',0)>.1:warnings.append('Finite-sample inverse weights or covariate imbalance may be unreliable; this does not certify positivity.')
+                if not np.isfinite(alpha).all():return fail('Fitted inverse weights are nonfinite.','NONFINITE_INVERSE_WEIGHT')
+                weights[code][test]=alpha;w=alpha[observed]
+                maximum=float(w.max())if len(w)else 0.;scaled=w/maximum if maximum>0 else np.empty(0)
+                mass=float(maximum*(scaled.sum()/len(test)));ess=float(scaled.sum()**2/(scaled@scaled))if len(w)else None;share=float(1/scaled.sum())if len(w)else None
+                diag.update(heldout_weight_mass=mass,heldout_ess=ess,heldout_max_normalized_share=share,heldout_max_inverse_weight=maximum);check()
+                if len(w)and(not np.isfinite([mass,ess,share]).all()):return fail('Inverse-weight diagnostics exceeded finite numeric range.','NONFINITE_WEIGHT_DIAGNOSTICS')
+                if ess is not None and ess<max(10.,.05*test_count):warn('LOW_EFFECTIVE_SAMPLE_SIZE',f'Fold {heldout}, assignment {classes[code].tolist()}: effective sample size is {ess:.6g}; the estimate may be dominated by few rows.',fold=heldout,assignment=classes[code].tolist(),observed=ess,reference_threshold=max(10.,.05*test_count))
+                if share is not None and share>.20:warn('CONCENTRATED_WEIGHTS',f'Fold {heldout}, assignment {classes[code].tolist()}: one row carries {share:.1%} of the arm weight.',fold=heldout,assignment=classes[code].tolist(),observed=share,reference_threshold=.20)
+                if (ess is not None and ess<.25*test_count)or(share is not None and share>.05)or not .5<=mass<=2. or diag.get('training_max_moment_imbalance',0)>.1:warn('WEIGHT_RELIABILITY',f'Fold {heldout}, assignment {classes[code].tolist()}: finite-sample inverse weights or covariate imbalance may be unreliable; this does not certify positivity.',fold=heldout,assignment=classes[code].tolist(),metrics=dict(weight_mass=mass,effective_sample_size=ess,maximum_weight_share=share))
         scores={}
         for code in wanted:
             indicator=codes==code
@@ -401,5 +420,5 @@ def estimate_balancing_aipw(covariates,treatment,outcome,*,seed=5,intervention=1
         result['diagnostics']['outcome_contrast_mean' if estimand=='ate' else 'outcome_mean']=float(outcome_score.mean())
         if estimator=='aipw':result['diagnostics']['augmentation_mean']=value-float(outcome_score.mean())
     if use_propensity:result['diagnostics']['raw_weighted_outcome_contrast_mean' if estimand=='ate' else 'raw_weighted_outcome_mean']=value
-    if warnings:result['warning']=warnings[0]
+    if warnings:result['warning']=warnings[0]['message']
     return dict(result,status='OK',estimate=value)

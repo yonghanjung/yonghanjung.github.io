@@ -264,12 +264,17 @@ def _event_hits(values, columns, event):
     return hits
 
 
+def _sample_warning(result, code, message, **context):
+    result.setdefault("warnings", []).append(dict(code=code, message=message, **context))
+    result.setdefault("warning", message)
+
+
 def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
     """Approximate certified UCA: XGBoost terminal conditional means, unchanged kNN sampling kernels."""
     extrapolate = payload.get("allow_continuous_extrapolation", True)
     if type(extrapolate) is not bool:
         raise ValueError("Allow continuous extrapolation must be true or false.")
-    result = dict(status="UNSUPPORTED", method="UCA plug-in (XGBoost conditional means; normalized kNN sampling kernels)", n=len(data), approximate=True,
+    result = dict(status="UNSUPPORTED", method="UCA plug-in (XGBoost conditional means; normalized kNN sampling kernels)", n=len(data), approximate=True, warnings=[],
                   diagnostics={"folds": 2, "data_uncertainty": "not estimated",
                                "limitations": "XGBoost conditional-mean approximation, nonterminal kernel smoothing and integration error; sparse support",
                                 "support_checks": "per-kernel/fold engineering checks, not a positivity certificate",
@@ -277,6 +282,9 @@ def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
 
     def fail(status, reason):
         return dict(result, status=status, reason=reason)
+
+    if len(data) < 128:
+        _sample_warning(result, "SMALL_SAMPLE", f"This estimate uses only {len(data)} rows; finite-sample learning may be unreliable.", observed=len(data), reference_threshold=128)
 
     try:
         event = _sample_event(payload, schema, payload["targets"])
@@ -327,6 +335,8 @@ def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
 
     for heldout in (0, 1):
         training, evaluation = matrix[fold != heldout], matrix[fold == heldout]
+        if not len(evaluation):
+            continue
         values = {}
         for stage, (head, context) in enumerate(schedule):
             if perf_counter() >= deadline:
@@ -336,7 +346,8 @@ def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
             h = indices(v for v, _, _ in head)
             output = np.empty((len(evaluation), len(h)))
             diagnostic = dict(fold=heldout, stage=stage, head=[v for v, _, _ in head], context=[v for v, _, _ in context],
-                              terminal_mean=terminal, weak_rows=0, off_range_rows=0, k=[])
+                              terminal_mean=terminal, weak_rows=0, off_range_rows=0, k=[], requested_k=[])
+            diagnostic["actual_k"] = diagnostic["k"]
             if not context:
                 source = evaluation[:, h]
                 output[:] = source.mean(axis=0) if terminal else source[rng.integers(len(source), size=len(evaluation))]
@@ -353,11 +364,18 @@ def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
                     test = np.flatnonzero(np.all(q[:, discrete] == group, axis=1))
                     eligible = np.all(x[:, discrete] == group, axis=1)
                     source, observed = training[eligible][:, h], x[eligible][:, ~discrete]
-                    k = max(8, int(np.sqrt(len(source))))
-                    if len(source) < 2*k:
-                        return fail("UNKNOWN", "INSUFFICIENT_DATA: a UCA context has too few exact-match source rows.")
+                    if not len(source):
+                        return fail("UNKNOWN", f"EMPTY_KERNEL_SOURCE: fold {heldout}, stage {stage}, discrete context {group.tolist()} has no exact-match training rows.")
+                    requested_k = max(8, int(np.sqrt(len(source))))
+                    k = min(requested_k, len(source))
+                    diagnostic["requested_k"].append(requested_k)
                     query = q[test][:, ~discrete]
                     constant = observed.std(axis=0) <= 1e-12
+                    actual_k = len(source) if not np.any(~constant) else k
+                    if len(source) < 2*requested_k:
+                        _sample_warning(result, "SMALL_KERNEL_SOURCE", f"Fold {heldout}, stage {stage}: only {len(source)} matched source rows; the neighborhood estimate may be unstable.",
+                            fold=heldout, observed=len(source), reference_threshold=2*requested_k,
+                            metrics=dict(stage=stage, discrete_context=group.tolist(), requested_k=requested_k, actual_k=actual_k, reason="entire matched source used for constant context" if not np.any(~constant) else "k is limited to available source rows" if k<requested_k else "small matched source pool"))
                     if np.any(query[:, constant] != observed[0, constant]):
                         return fail("UNKNOWN", "INSUFFICIENT_DATA: a constant UCA context does not match the query.")
                     outside = (query < observed.min(axis=0)) | (query > observed.max(axis=0))
@@ -459,7 +477,7 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
     Support cutoffs are engineering diagnostics, not a proof of positivity.
     Finite-sample regression approximation remains; no data standard error is asserted.
     """
-    result = dict(status="UNSUPPORTED", method="2-fold XGBoost g-computation", n=len(data), approximate=True,
+    result = dict(status="UNSUPPORTED", method="2-fold XGBoost g-computation", n=len(data), approximate=True, warnings=[],
                   diagnostics={"folds": 2, "data_uncertainty": "not estimated",
                                "limitations": "XGBoost approximation bias and sparse support; nearest-neighbor coverage diagnostics are not the regression",
                                "support_checks": "empirical engineering checks, not a positivity certificate"})
@@ -492,6 +510,8 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
             arm_deadline = started + max(0, deadline - started) / 2 if i == 0 else deadline
             arms[label] = _estimate_mean(data, graph, schema,
                 dict(payload, type="interventional", summary="mean", intervention=values, evidence={}), seed, arm_deadline)
+            for warning in arms[label].get("warnings", []):
+                _sample_warning(result, warning["code"], warning["message"], **dict({k:v for k,v in warning.items() if k not in {"code","message"}}, arm=label))
             if arms[label]["status"] != "OK":
                 return fail(arms[label]["status"], f"{label} mean: {arms[label].get('reason', arms[label]['status'])}")
         outcomes = [c for v in targets for c in schema[v]["columns"]]
@@ -528,7 +548,7 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
     if any(schema[v]["type"] == "binary" and not np.isin(a, [0, 1]).all() for v, a in constants.items()):
         raise ValueError("Binary intervention values must be 0 or 1.")
     if len(data) < 128:
-        return fail("UNKNOWN", "INSUFFICIENT_DATA: generate at least 128 rows (512 recommended).")
+        _sample_warning(result, "SMALL_SAMPLE", f"This estimate uses only {len(data)} rows; finite-sample learning may be unreliable.", observed=len(data), reference_threshold=128)
     if perf_counter() >= deadline:
         return fail("UNKNOWN", "Sample estimator deadline exhausted.")
     outcomes = [c for v in targets for c in schema[v]["columns"]]
@@ -581,6 +601,7 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
     fold[np.random.default_rng(seed).permutation(len(data))] = np.arange(len(data)) % 2
     predictions = np.empty_like(y)
     sizes, radii, poor_coverage = [], [], 0
+    result["diagnostics"]["neighbor_pools"] = []
 
     def neighbors(train, test, k):
         indices, radii = [], []
@@ -606,9 +627,17 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
             if not len(test):
                 continue
             train = np.flatnonzero((fold != heldout) & stratum & eligible)
-            k = max(8, int(np.sqrt(len(train))))
-            if len(train) < 2 * k:
-                return fail("UNKNOWN", "INSUFFICIENT_DATA: a requested finite arm or adjustment stratum has too few training rows.")
+            if not len(train):
+                return fail("UNKNOWN", f"EMPTY_TRAINING_SOURCE: fold {heldout}, adjustment stratum {group.tolist()} has no rows for requested intervention {actions}.")
+            requested_k = max(8, int(np.sqrt(len(train))))
+            k = min(requested_k, len(train))
+            actual_k = len(train) if not features or not np.any(x[train].std(axis=0)) else k
+            pool = dict(fold=heldout, discrete_stratum=group.tolist(), source_rows=len(train), requested_k=requested_k, actual_k=actual_k)
+            result["diagnostics"]["neighbor_pools"].append(pool)
+            if len(train) < 2*requested_k:
+                _sample_warning(result, "SMALL_TRAINING_SOURCE", f"Fold {heldout}: only {len(train)} matched training rows; the regression may be unstable.",
+                    fold=heldout, observed=len(train), reference_threshold=2*requested_k,
+                    metrics=dict(pool, reason="entire matched source used for constant predictors" if actual_k!=k else "k is limited to available training rows" if k<requested_k else "small matched training pool"))
             if action_columns and (np.any(requested[test, :len(action_columns)] < x[train, :len(action_columns)].min(axis=0))
                                    or np.any(requested[test, :len(action_columns)] > x[train, :len(action_columns)].max(axis=0))):
                 return fail("UNKNOWN", "INSUFFICIENT_DATA: intervention lies outside a training stratum's action range.")

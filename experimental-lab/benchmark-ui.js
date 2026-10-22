@@ -225,7 +225,17 @@
         if (stamp !== window.causalEngineBenchmarkStamp()) throw Error("The graph or inputs changed. Select Estimate again.");
         const results = await window.causalEngineEstimateBenchmark(entry, text);
         if (!results?.length) throw Error($("data-error").textContent || "Estimation did not finish.");
-        $("benchmark-status").textContent = entry.label + " · " + entry.rows.toLocaleString() + " rows estimated.";
+        const computed = results.filter(
+          (row) => row.result.data_estimate?.status === "OK" && Object.values(row.result.data_estimate.values || {}).some(Number.isFinite)
+        ).length;
+        $("benchmark-status").textContent =
+          entry.label +
+          " · " +
+          (computed === results.length
+            ? entry.rows.toLocaleString() + " rows estimated."
+            : computed
+              ? "Computed " + computed + " of " + results.length + " estimates. See the result reasons."
+              : "Could not compute an estimate. See the result reason.");
         $("result-heading").textContent = ($("estimate-query").value === "apo" ? "APO · E[Y(a)]" : "ATE · Mean difference") + " · " + entry.label;
         $("easy-result").scrollIntoView({ block: "start", behavior: "smooth" });
       } else {

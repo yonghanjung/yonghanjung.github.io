@@ -32,8 +32,8 @@
       "ipw",
     ],
     probabilityGuard: [
-      "Probability support guard",
-      "If a requested joint class is absent from training, or its evaluated probability is below 1e-6, this estimator returns unavailable. Probabilities are not clipped. At most 32 observed joint classes are supported; this is an engineering guard, not a positivity proof.",
+      "Low-probability warning threshold",
+      "A small positive requested probability produces a warning, not a sample-size rejection. It is used without clipping or held-out normalization. A zero or nonfinite denominator, an unobserved requested assignment, or a failed fit can prevent computation; the result then states the actual reason. Fitted probabilities do not establish true positivity.",
       "diagnostics",
     ],
     propensityScore: [
@@ -43,7 +43,7 @@
     ],
     propensityNormalization: [
       "Raw inverse probability weights",
-      "The estimator uses raw inverse joint probabilities. It does not clip or stabilize probabilities, multiply marginal probabilities, normalize held-out weights, or trim rows. Requested probabilities below the fixed support threshold produce no estimate.",
+      "The estimator uses raw inverse joint probabilities. It does not clip or stabilize probabilities, multiply marginal probabilities, normalize held-out weights, or trim rows. Small positive probabilities and concentrated weights produce warnings; a zero or nonfinite denominator prevents a finite estimate.",
       "ipw",
     ],
     propensityDiagnostics: [
@@ -208,7 +208,17 @@
     ],
     status: [
       "Result status",
-      "OK means this computation returned an estimate under its supported graph and numerical checks. It does not certify the causal assumptions or accuracy. An unavailable result has its actual reason in Details.",
+      "OK means this computation returned a finite estimate. Small samples or unstable weights can still produce warnings beside the number. This does not certify the causal assumptions or accuracy. If computation fails, its actual reason appears on the result card and in Details.",
+      "diagnostics",
+    ],
+    estimateWarnings: [
+      "Estimate warnings",
+      "These messages report small training or held-out groups, small positive probabilities, or concentrated weights. Their reference thresholds are diagnostic guidance, not minimum sample-size requirements. A finite result stays visible; warnings do not certify its accuracy, positivity, or a confidence interval. Details records the actual counts and diagnostics.",
+      "diagnostics",
+    ],
+    computationFailure: [
+      "Why no estimate was computed",
+      "The result shows the actual computation failure, such as a requested assignment with no observed rows, an empty training group, a zero or nonfinite denominator, or a fit that did not complete. This differs from a small-sample warning and does not by itself prove that the causal effect is unidentifiable.",
       "diagnostics",
     ],
     criterion: [

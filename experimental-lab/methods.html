@@ -476,16 +476,18 @@ w = max(epsilon, b0+b1*z)</pre
           </p>
           <p>
             The heldout probability matrix must match the stored class order/shape, contain finite probabilities in[0,1] and sum to1 per row
-            within1e-6. Every requested class probability is checked on the entire heldout cohort. A value below1e-6 returns <code>UNKNOWN</code> with
-            no estimate. There is no clipping, probability renormalization, prevalence stabilization or Hájek denominator. The inverse weight is
-            exactly <code>1/p_hat_a(c)</code>.
+            within1e-6. Every requested class probability is checked on the entire heldout cohort. A strictly positive value below1e-6 adds a warning
+            and computation continues without modification. A zero or nonfinite probability, or a nonfinite inverse, returns a specific failure
+            reason. There is no clipping, probability renormalization, prevalence stabilization or Hájek denominator. The inverse weight is exactly
+            <code>1/p_hat_a(c)</code>.
           </p>
           <p>
-            The implementation supports at most32 observed joint classes as a computation limit, not a causal-identification theorem. Requested
-            classes need32 training rows and8 heldout rows per fold; absent joint assignments return no value even if each member's marginal
-            assignment is observed. Finite discrete binary treatment coordinates are required; continuous observed values are never silently turned
-            into class labels. CSV tuples use the existing100physical-column/500000cell budget. Generated binary clusters use the existing public2–8
-            vector shape and actual binary mechanisms; <code>nodes[].members</code> names the ordered output columns.
+            The implementation supports at most32 observed joint classes as a computation limit, not a causal-identification theorem. Fewer than32
+            training rows or8 weighted heldout rows per requested class add warnings; those numbers are diagnostics, not minimums for computation.
+            Absent requested assignments or empty training data needed by the selected estimator return a specific reason, even if each member's
+            marginal assignment is observed. Finite discrete binary treatment coordinates are required; continuous observed values are never silently
+            turned into class labels. CSV tuples use the existing100physical-column/500000cell budget. Generated binary clusters use the existing
+            public2–8 vector shape and actual binary mechanisms; <code>nodes[].members</code> names the ordered output columns.
           </p>
         </section>
         <section id="cross-fitting">
@@ -552,15 +554,16 @@ ATE = mean_n(s(a)-s(a0))</pre
             <tr>
               <td>Inputs</td>
               <td>
-                Finite numeric rows, binary scalar/ordered binary-tuple action, scalar outcome; at most 5,000 rows, 100 physical coordinates and
-                500,000 cells; at least 128 rows.
+                Finite numeric rows, binary scalar/ordered binary-tuple action, scalar outcome; 1–5,000 rows, at most100 physical coordinates
+                and500,000 cells. Fewer than128 rows add a small-sample warning, rather than blocking a finite computation.
               </td>
             </tr>
             <tr>
               <td>Arm counts</td>
               <td>
-                Each training arm needs at least 32 rows. AIPW/IPW additionally need8 heldout rows per requested joint class. APO checks only its
-                requested class.
+                Training counts below32 and weighted-heldout counts below8 are warning reference values, not cutoffs. Required training rows must
+                actually exist; the two-fold split and selected fit are otherwise unchanged. APO fits only its requested outcome arm. OR has no
+                propensity or inverse-weight requirement.
               </td>
             </tr>
             <tr>
@@ -576,7 +579,10 @@ ATE = mean_n(s(a)-s(a0))</pre
             </tr>
             <tr>
               <td>Extreme concentration</td>
-              <td>Withhold if heldout arm ESS &lt; max(10, .05*n_arm) or maximum normalized arm share &gt; .20.</td>
+              <td>
+                Low ESS and a large normalized weight share produce warnings while a finite score is returned. ESS/share use max-scaled weights to
+                avoid avoidable diagnostic overflow; the raw estimator score is unchanged.
+              </td>
             </tr>
             <tr>
               <td>Warnings</td>
@@ -594,7 +600,10 @@ ATE = mean_n(s(a)-s(a0))</pre
             AIPW arm diagnostics include actual duals, training objective, prediction mean/scale and range, mass/μ/KKT residuals and floor fractions.
             IPW instead reports actual joint classifier parameters/counts and minimum/maximum queried probabilities. Both weighted methods report
             heldout mass/ESS/share; no unused solver diagnostics are presented as fitted. ESS/share are engineering concentration diagnostics, not
-            positivity or confidence certificates. Failed required fits return <code>UNKNOWN</code>; invalid/stale inputs raise validation errors.
+            positivity or confidence certificates. Public <code>warnings</code> is a list of code/message plus fold, assignment and observed/reference
+            values where relevant; the legacy <code>warning</code> string remains. Reference thresholds describe diagnostics, not computational
+            cutoffs. Empty required training data, an undefined inverse, failed required fits/constraints, nonfinite output or deadline return
+            <code>UNKNOWN</code> with a concrete reason; invalid/stale inputs raise validation errors.
           </p>
           <p>
             No observed-data standard error or confidence interval is estimated for AIPW, OR, IPW or graph plug-in results. Exact training balance
@@ -607,9 +616,10 @@ ATE = mean_n(s(a)-s(a0))</pre
           <p>
             <code>_estimate_mean</code> uses the verified minimum adjustment witness and two seeded, unstratified folds. Discrete
             treatments/covariates are matched as exact whole-node arms/strata. For each training stratum, requested continuous action values must lie
-            inside its observed range; constant predictors must match. The prior <code>k=max(8,floor(sqrt(n_train)))</code>,
-            <code>n_train≥2k</code> support rule and neighbor-radius coverage diagnostics remain, but neighbors no longer define the outcome
-            regression.
+            inside its observed range; constant predictors must match. The requested neighborhood size remains
+            <code>k=max(8,floor(sqrt(n_train)))</code>. A small matched source adds a warning; actual k is capped only to the available positive
+            source size, with requested_k/actual_k recorded. Constant contexts use the entire matched pool, as before. Empty required sources return
+            their exact fold/stratum reason. Neighbors remain coverage diagnostics rather than the outcome regression.
           </p>
           <p>
             Each learned conditional mean uses <code>fit_xgboost_mean</code> with the same fixed settings above. Each output coordinate has an actual
@@ -640,10 +650,11 @@ ATE = mean_n(s(a)-s(a0))</pre
             may be available for display but unavailable for this numerical compiler.
           </p>
           <p>
-            There are two seeded, unstratified folds. Conditional kernels use exact discrete context matching in the opposite training fold, with the
-            same <code>k=max(8,floor(sqrt(n_source)))</code> and <code>n_source≥2k</code> rule. Continuous context features use source-group
-            means/standard deviations; values with standard deviation ≤ 1e-12 are treated as constant and must match the query. Neighborhood weights
-            are uniform and normalized to sum to one.
+            There are two seeded, unstratified folds. Conditional kernels use exact discrete context matching in the opposite training fold, with
+            requested <code>k=max(8,floor(sqrt(n_source)))</code>. Small positive pools add warnings and cap k to available source rows;
+            requested_k/actual_k and the reason are disclosed. Empty exact-match sources return a specific reason. Continuous context features use
+            source-group means/standard deviations; values with standard deviation ≤ 1e-12 are treated as constant and must match the query.
+            Neighborhood weights are uniform and normalized to sum to one.
           </p>
           <p>
             <strong>Unconditional kernels use the heldout evaluation fold's empirical marginal.</strong> They do not fit a conditional regression on
@@ -691,8 +702,9 @@ ATE = mean_n(s(a)-s(a0))</pre
             Changing a configuration, dimension or generation seed requires <strong>Generate data</strong> before estimation. Head, Download CSV,
             selected ATE/APO and Copy reuse that generated sample. An intervention such as A=(1,0,1) uses the recorded member order. IPW learns the
             whole tuple's joint propensity; it does not multiply independently fitted marginal propensities. Higher dimension can leave an assignment
-            poorly represented: the existing class-count, probability, weight and deadline guards still withhold a result. The interface offers up to
-            four treatment members; the underlying public builder retains its existing dimension limit of eight and its separate support rules.
+            poorly represented: small class counts, small positive probabilities and concentrated weights now add warnings. Actual missing training
+            data, undefined/nonfinite computations or deadlines still return a specific reason. The interface offers up to four treatment members; the
+            underlying public builder retains its existing dimension limit of eight and its separate support rules.
           </p>
         </section>
         <section id="reference">
