@@ -16,6 +16,7 @@ Interactive demos:
 - [Lecture 9: Overfitting and double descent, interactive demo](/teaching/2026F/IS507/lecture-09-overfitting-demo.html)
 - [Lecture 10: Choosing a line by least squares, interactive demo](/teaching/2026F/IS507/lecture-10-line-demo.html)
 - [Lecture 10: Make linear flexible with basis functions, interactive demo](/teaching/2026F/IS507/lecture-10-basis-demo.html)
+- [Lecture 10: Credit approval with logistic regression, interactive demo](/teaching/2026F/IS507/lecture-10-logistic-demo.html)
 - [Lecture 10: How a tree picks a cut, interactive demo](/teaching/2026F/IS507/lecture-10-cut-demo.html)
 
 ## IS 455: Database Design & Prototyping
