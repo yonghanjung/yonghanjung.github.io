@@ -196,13 +196,13 @@
   "license_note": "Upstream repository MIT notice preserved verbatim; the notice credits the original site template author. No new ownership attribution is asserted.",
   "web_theme_source": "/tmp/causal-science-lab-preview-20261019/apps/causalengine/",
   "web_changes": "Deliberate changes: selected baseline three-method XGBoost/scalar-outcome balance; graph plug-in learned conditional means now XGBoost. Nonterminal conditional sampling kernels, analytic/MC references and ID algorithms unchanged. Prior adapters, explicit data bindings and display extensions retained. Other10 browser Python modules remain raw-upstream byte-identical.",
-  "web_ui_sha256": "b8aa505d3415c0eb19f0d3f20f94d89148cf011bde94479b4ac2442d0d9b5434",
+  "web_ui_sha256": "6c24e859d6252b948af863649b50f4335588569aedd1e459a0d6501de64c61a2",
   "benchmark_assets": "web/benchmarks/manifest.json records dataset-specific versions, sources, transforms, hashes and terms; not covered by engine MIT notice",
   "benchmark_reference_assets": "Separate same-pinned-row conditional-mean ATE and APO aggregates only; factual CSVs unchanged and no reference used for estimation. LaLonde unavailable.",
   "method_documentation": {
     "path": "web/methods.html",
     "canonical_source": "preview/apps/causalengine/methods.html",
-    "sha256": "5f34a8aa678d79ad494f0d04d1dc3ff99549c4862db19aa68385a4641d01df05",
+    "sha256": "c315ce6c0c10be665dddf4cbd974f0a5c91bbe959e2855547211282cafd58ca7",
     "numerical_source_sha256": "a515c4fecc37171e4c6349627a299c266753264425f7104556563caa2798089d",
     "scope": "ATE/APO scores; actual XGBoost joint propensity IPW; prior AIPW balance/OR fits; scalar/vector treatment schema, guards, Copy and matching benchmark references"
   },
@@ -217,13 +217,15 @@
     "treatment_dimension_controls": [1, 4],
     "existing_builder_dimension_limit": 8,
     "baseline_covariate_dimension_controls": [1, 50],
-    "outcome_families": ["linear", "quadratic", "bounded"],
+    "outcome_families": ["linear", "binary", "neural_network"],
     "covariate_family": "linear in default setup; advanced X mechanism edits preserved",
     "treatment_family": "binary",
     "noise": "normal",
     "new_generator_or_estimator": false,
-    "fixed_validation": "model_seed7/data_seed5/n5000/X2; no seed search or truth tuning",
+    "fixed_validation": "model_seed7/data_seed5/n512/X5, scalar/A2, all3 actual outcome families; fixed seeds and no tuning",
     "snapshot_contract": "Configuration changes require Generate; Head/CSV/ATE/APO/Copy reuse the sample; model reference uses the same fixed model.",
-    "outcome_picker_effect": "Y family and Normal noise only; resolved model metadata authoritative"
+    "outcome_picker_effect": "Y family and resolved binary/continuous type plus Normal noise; other advanced mechanisms preserved",
+    "outcome_labels": ["Linear outcome", "Binary outcome", "Neural Outcome"],
+    "outcome_generation": "Existing SCM/registry unchanged: affine-plus-noise; Bernoulli threshold expit; fixed model-seeded dense NumPy network plus data-seeded noise. No neural training or dependency."
   }
 }

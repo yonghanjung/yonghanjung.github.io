@@ -7,12 +7,12 @@ permalink: /experimental-lab/examples.html
 <!doctype html>
 <html lang="en">
   <head>
+    <meta name="robots" content="noindex, nofollow, noarchive" />
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>CausalEngine examples</title>
     <link rel="icon" href="./lab-logo.png" />
     <link rel="stylesheet" href="./guide.css" />
-    <meta name="robots" content="noindex, nofollow, noarchive" />
   </head>
   <body class="examples-body">
     <main id="main">
@@ -76,10 +76,11 @@ permalink: /experimental-lab/examples.html
             on the same records. A dimension supports 1–4 binary members; X supports 1–50 coordinates. Declared member names retain their order.
           </p>
           <p>
-            Choose Quadratic outcome or Bounded outcome (logistic link), then Generate Data again to try another outcome mechanism. The picker selects
-            normal noise. Quadratic adds parent squares rather than interactions, and vector mechanisms may mix noise. A new configuration invalidates
-            old records; query or method changes alone do not. Click A or X to expand the member view. Head toggles the preview and Download CSV saves
-            the complete snapshot without regeneration.
+            Choose Binary outcome for actual 0/1 outcomes, or Neural Outcome for a dense neural-network parent function with a linear output plus
+            noise. The Model seed draws the neural layers and weights once; the network is not trained on these records. Each choice selects normal
+            noise. Select Generate Data again after changing the model. Vector mechanisms may mix noise. A new configuration invalidates old records;
+            query or method changes alone do not. Click A or X to expand the member view. Head toggles the preview and Download CSV saves the complete
+            snapshot without regeneration.
           </p>
           <a href="./methods.html#random-configurations">Read the exact generation settings</a>
         </article>

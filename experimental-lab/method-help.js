@@ -3,7 +3,7 @@
   const topics = {
     randomGeneration: [
       "Random generation settings",
-      "These settings produced the retained rows. Treatment dimension 1–4 generates a binary scalar or ordered tuple. Linear, Quadratic, and Bounded outcome select the actual outcome mechanism with normal noise; Quadratic adds parent squares, not interaction terms. Vector mechanisms can mix noise, so member independence is not assumed. Changing generation settings requires Generate Data; changing only the query reuses the same rows.",
+      "These settings produced the retained rows. Treatment dimension 1–4 generates a binary scalar or ordered tuple. Linear outcome uses an affine parent function plus noise. Binary outcome generates 0/1 with a logistic-threshold mechanism. Neural Outcome uses a fixed dense neural-network parent function plus noise; the model seed draws its layers, activation and weights once. Each choice selects normal noise. Vector mechanisms can mix noise, so member independence is not assumed. Changing generation settings requires Generate Data; changing only the query reuses the same rows.",
       "data",
     ],
     estimand: [

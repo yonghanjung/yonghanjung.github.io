@@ -685,12 +685,17 @@ ATE = mean_n(s(a)-s(a0))</pre
             while APO supplies none.
           </p>
           <p>
-            The compact outcome presets reuse existing generator families: <strong>Linear outcome</strong> adds coefficient-weighted parent
-            coordinates and noise; <strong>Quadratic outcome</strong> adds coefficient-weighted squared parent coordinates and noise;
-            <strong>Bounded outcome</strong> applies expit to the affine parent predictor plus noise. Since a binary member satisfies A<sub>j</sub
-            ><sup>2</sup>=A<sub>j</sub>, the quadratic preset is not an added treatment-interaction mechanism. The default setup uses linear X, binary
-            A and Normal noise. The Outcome picker changes the Y family and selects Normal noise; advanced edits to the X mechanism are preserved. The
-            resolved model metadata records the actual configuration. The graph remains the supplied causal assumption.
+            The Outcome model menu reuses exactly three existing generator families: <strong>Linear outcome</strong> (<code>linear</code>) adds
+            coefficient-weighted parent coordinates and noise; <strong>Binary outcome</strong> (<code>binary</code>) draws a 0/1 outcome by comparing
+            a seeded uniform innovation with expit of the affine parent predictor plus noise;
+            <strong>Neural Outcome</strong> (<code>neural_network</code>) passes all parent coordinates through a fixed dense NumPy network and adds
+            scalar noise. Its model seed draws the depth (1–6), width (4 or 8), tanh/ReLU activation, weights and biases once; generation does not
+            train the network. The data seed fixes its sampled noise and rows. The default setup uses linear X, binary A and Normal noise. The Outcome
+            picker synchronizes Y family/type and selects Normal noise, preserving advanced edits to the X mechanism. Resolved model metadata records
+            the actual function and parameters. These generation mechanisms are separate from the XGBoost nuisance models learned during estimation.
+            Binary outcomes have model APO in [0,1] and model ATE in [−1,1]; raw finite-sample IPW estimates are not clipped into these intervals.
+            Binary and Neural model references use the actual generated mechanisms, with Monte Carlo error where applicable. The graph remains the
+            supplied causal assumption.
           </p>
           <p>
             Each vector output reuses the existing scalar family per coordinate. Vector noise uses the generator's fixed dense mixing matrix; this is

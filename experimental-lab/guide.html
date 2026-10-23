@@ -7,12 +7,12 @@ permalink: /experimental-lab/guide.html
 <!doctype html>
 <html lang="en">
   <head>
+    <meta name="robots" content="noindex, nofollow, noarchive" />
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>CausalEngine guide</title>
     <link rel="icon" href="./lab-logo.png" />
     <link rel="stylesheet" href="./guide.css" />
-    <meta name="robots" content="noindex, nofollow, noarchive" />
   </head>
   <body class="tutorial-page">
     <main id="main">
@@ -190,10 +190,14 @@ permalink: /experimental-lab/guide.html
             </p>
             <p>
               A baseline covariate has a separate dimension from 1 to 50: X dimension 25 produces x1 through x25 inside logical X. The
-              <strong>Outcome model</strong> picker chooses Linear, Quadratic, or Bounded outcome (logistic link) and selects normal noise. Quadratic
-              adds squared parent terms, not interactions; for binary members, squaring does not create a new treatment effect form. Other advanced
-              node settings remain inspectable. Vector mechanisms can mix noise, so treatment members are not asserted to be conditionally
-              independent. These controls describe generated data, not methods fitted to a CSV.
+              <strong>Outcome model</strong> picker offers <strong>Linear outcome</strong>, <strong>Binary outcome</strong>, and
+              <strong>Neural Outcome</strong>, each with normal noise. Linear adds an affine parent function and noise. Binary generates 0/1 by
+              comparing a uniform innovation with a logistic probability based on the affine parent function plus noise. Neural uses a dense
+              neural-network parent function with 1–6 hidden layers, width 4 or 8, tanh or ReLU activation, and a linear output plus noise. Its layers
+              and weights are drawn once from the Model seed; it is a data-generating function, not a model trained on the generated records. For
+              Binary outcome, APO targets an outcome probability and ATE a probability difference; finite estimates are not clipped to those target
+              ranges. Other advanced node settings remain inspectable. Vector mechanisms can mix noise, so treatment members are not asserted to be
+              conditionally independent. These controls describe generated data, not methods fitted to a CSV.
             </p>
             <p>
               <strong>Model seed</strong> fixes the simulated rules; <strong>Data seed</strong> fixes rows within those rules. Select

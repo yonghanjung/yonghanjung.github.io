@@ -1366,18 +1366,21 @@
     }
     const outcomes = nodes.filter((n) => queryNames("query-y").includes(n.name)),
       families = new Set(outcomes.map((n) => n.family));
-    const supported =
-      outcomes.length > 0 && outcomes.every((n) => n.dimension === 1 && n.variable_type !== "binary" && n.variable_type !== "categorical");
+    const supported = outcomes.length > 0 && outcomes.every((n) => n.dimension === 1 && n.variable_type !== "categorical");
     $("random-outcome-label").hidden = !supported;
     $("random-outcome").value =
-      families.size === 1 && ["linear", "quadratic", "bounded"].includes(outcomes[0]?.family) ? outcomes[0].family : "custom";
+      families.size === 1 && ["linear", "binary", "neural_network"].includes(outcomes[0]?.family) ? outcomes[0].family : "custom";
   }
   $("random-outcome").onchange = () => {
     const family = $("random-outcome").value;
-    if (running || !["linear", "quadratic", "bounded"].includes(family)) return;
+    if (running || !["linear", "binary", "neural_network"].includes(family)) return;
     const targets = nodes.filter((n) => queryNames("query-y").includes(n.name));
-    if (targets.every((n) => n.family === family) && $("noise").value === "normal") return;
-    for (const n of targets) n.family = family;
+    const type = family === "binary" ? "binary" : "continuous";
+    if (targets.every((n) => n.family === family && n.variable_type === type) && $("noise").value === "normal") return;
+    for (const n of targets) {
+      n.family = family;
+      n.variable_type = type;
+    }
     $("noise").value = "normal";
     randomModelChanged();
   };
