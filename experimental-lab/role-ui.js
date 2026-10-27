@@ -716,7 +716,7 @@
     editor.inert = value;
     canvasBox.inert = value;
     for (const el of document.querySelectorAll(
-      "#role-fields input,#role-fields select,#role-fields button,.contrast-controls input,#estimate-query,#random-options input,#random-options select,#csv-paste,#load-pasted-csv,#load-example-csv,#csv-mapping select,#csv-mapping input,#csv-file"
+      "#role-fields input,#role-fields select,#role-fields button,.contrast-controls input,#estimate-query,#random-options input,#random-options select,#csv-paste,#load-pasted-csv,#load-example-csv,#csv-mapping select,#csv-mapping input,#csv-mapping button,#csv-file"
     ))
       el.disabled = value;
     for (const id of [
@@ -746,7 +746,10 @@
     identifyButton.textContent = value && label === "Identify" ? "Identifying…" : "Identify";
     estimateButton.textContent = value && ["Estimate", "Benchmark"].includes(label) ? "Estimating…" : "Estimate";
     run.textContent = value && label === "Estimate" ? "Estimating…" : "Run estimate";
-    if (!value) describe();
+    if (!value) {
+      describe();
+      updateColumnActions();
+    }
   }
   function validateQuestion() {
     checkChanges();
@@ -888,7 +891,11 @@
   columnsDetails.id = "data-columns";
   columnsDetails.hidden = true;
   columnsDetails.innerHTML = "<summary>Data columns</summary>";
-  columnsDetails.append($("csv-mapping"));
+  const mappingIssue = document.createElement("p");
+  mappingIssue.id = "csv-mapping-issue";
+  mappingIssue.hidden = true;
+  mappingIssue.tabIndex = -1;
+  columnsDetails.append(mappingIssue, $("csv-mapping"));
   $("easy-graph").append(columnsDetails);
   window.causalEngineActiveBindings = () =>
     (bindingActive && dataSource === "csv") ||
@@ -1082,6 +1089,42 @@
       $("easy-result").hidden = true;
     };
   let mappingGraph = "";
+  function clearMappingIssue() {
+    mappingIssue.textContent = "";
+    mappingIssue.hidden = true;
+  }
+  function unassignedCSVColumns() {
+    if (!csvTable) return [];
+    const used = new Set(
+      nodes.filter((n) => n.observed).flatMap((n) => [columnMapping[n.name]].flat().filter((h) => csvTable.headers.includes(h)))
+    );
+    return csvTable.headers.filter((h) => !used.has(h));
+  }
+  function updateColumnActions() {
+    const count = unassignedCSVColumns().length;
+    for (const button of $("csv-mapping").querySelectorAll("button[data-add-unassigned]")) {
+      button.textContent = count ? "Use " + count + " unassigned column" + (count === 1 ? "" : "s") : "No unassigned columns";
+      button.disabled = running || count === 0;
+    }
+  }
+  function showMissingCSVMapping(name) {
+    const message = "Choose CSV columns for " + name + " in Data columns before estimating.";
+    $("data-error").textContent = message;
+    mappingIssue.textContent = message;
+    mappingIssue.hidden = false;
+    columnsDetails.open = true;
+    const row = [...$("csv-mapping").children].find((el) => el.dataset.mappingNode === name);
+    if (row?.tagName === "DETAILS") row.open = true;
+    const target =
+      row?.querySelector("button:not(:disabled)") ||
+      row?.querySelector('select:not(:disabled):not([aria-hidden="true"]),input:not(:disabled)') ||
+      mappingIssue;
+    target.setAttribute("aria-describedby", mappingIssue.id);
+    requestAnimationFrame(() => {
+      target.focus();
+      target.scrollIntoView({ block: "center" });
+    });
+  }
   function benchmarkNote() {
     const box = $("benchmark-analysis-note"),
       d = window.causalEngineBenchmark;
@@ -1125,6 +1168,7 @@
     }
     const box = $("csv-mapping");
     box.replaceChildren();
+    clearMappingIssue();
     if (!csvTable) {
       refreshBinding();
       return;
@@ -1141,6 +1185,7 @@
           summary = document.createElement("summary"),
           choices = document.createElement("div");
         details.className = "column-cluster";
+        details.dataset.mappingNode = n.name;
         summary.textContent = n.name + " · " + members.length + " column" + (members.length === 1 ? "" : "s");
         choices.className = "column-choices";
         for (const h of csvTable.headers) {
@@ -1190,11 +1235,29 @@
           label.append(input, document.createTextNode(h));
           choices.append(label);
         }
-        details.append(summary, choices);
+        details.append(summary);
+        if (clusterEligible(n.name)) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.dataset.addUnassigned = n.name;
+          button.onclick = () => {
+            if (running) return;
+            const available = unassignedCSVColumns();
+            if (!available.length) return;
+            columnMapping[n.name] = [...new Set([...boundMembers(n.name), ...available])];
+            for (const input of choices.querySelectorAll("input")) input.checked = columnMapping[n.name].includes(input.value);
+            const count = columnMapping[n.name].length;
+            summary.textContent = n.name + " · " + count + " column" + (count === 1 ? "" : "s");
+            mappingChanged();
+          };
+          details.append(button);
+        }
+        details.append(choices);
         box.append(details);
       } else {
         const row = document.createElement("div");
         row.className = "mapping-row";
+        row.dataset.mappingNode = n.name;
         const label = document.createElement("label"),
           select = document.createElement("select");
         select.id = "map-" + n.name;
@@ -1212,6 +1275,7 @@
         box.append(row);
       }
     }
+    updateColumnActions();
     benchmarkNote();
     refreshBinding();
   }
@@ -1220,6 +1284,8 @@
     benchmarkNote();
     $("easy-result").hidden = true;
     $("data-error").textContent = "";
+    clearMappingIssue();
+    updateColumnActions();
     window.causalEngineDataResults = null;
     window.causalEngineDataSource = null;
     syncAssignmentWidths();
@@ -1877,6 +1943,14 @@
       if (dataSource === "csv") {
         if (csvReadPending) throw Error("Wait for the selected CSV file to finish reading.");
         if (!csvTable) throw Error("Choose a valid CSV file first.");
+        const missing = nodes.filter((n) => n.observed).find((n) => {
+          const members = [columnMapping[n.name]].flat();
+          return !members.length || members.some((h) => !h || !csvTable.headers.includes(h));
+        });
+        if (missing) {
+          showMissingCSVMapping(missing.name);
+          return;
+        }
         const columnTypes = { ...(window.causalEngineBenchmark?.node_types || {}) };
         for (const action of queryNames("query-x")) {
           const n = nodes.find((n) => n.name === action);
