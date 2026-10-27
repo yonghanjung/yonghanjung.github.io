@@ -523,3 +523,21 @@ a {
   width: 360px;
   max-width: 100%;
 }
+
+.hundred-split {
+  padding: 14px;
+  margin: 14px 0;
+  background: #e8f0e8;
+  border: 1px solid #bfd1c9;
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+.hundred-split p {
+  margin: 0;
+  line-height: 1.5;
+}
+.hundred-split p:first-child {
+  font-size: 1.2rem;
+  font-weight: 750;
+  margin-bottom: 5px;
+}

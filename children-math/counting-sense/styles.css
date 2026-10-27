@@ -1,0 +1,294 @@
+:root {
+  color-scheme: light;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  color: #183b3f;
+  background: #f5f4ec;
+  font-synthesis: none;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+.shell {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 16px 16px 36px;
+}
+header {
+  margin-bottom: 24px;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: inherit;
+  text-decoration: none;
+}
+.brand b {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: #183b3f;
+  color: white;
+  font-size: 34px;
+}
+.brand b span {
+  font-size: 18px;
+  align-self: flex-start;
+  color: #deb867;
+}
+.brand strong,
+.brand small {
+  display: block;
+}
+.brand strong {
+  font-size: 14px;
+}
+.brand small {
+  font-size: 12px;
+  color: #587476;
+  margin-top: 3px;
+}
+h1 {
+  font-size: 24px;
+  margin: 0 0 14px;
+  line-height: 1.2;
+}
+.problem {
+  font-size: 36px;
+  font-weight: 800;
+  margin: 0 0 16px;
+}
+.split {
+  background: #e8eeea;
+  border: 1px solid #bfd1c9;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 18px;
+}
+.split p {
+  margin: 0;
+}
+.split .equation {
+  font-size: 22px;
+  font-weight: 700;
+  margin-top: 6px;
+}
+.kept {
+  color: #386a62;
+}
+.work {
+  color: #183b3f;
+}
+.card {
+  border: 1px solid #cfddd5;
+  border-radius: 18px;
+  padding: 20px;
+  background: #fffefa;
+}
+.step {
+  font-size: 13px;
+  font-weight: 700;
+  color: #5b7473;
+  margin: 0 0 14px;
+}
+.task {
+  display: block;
+  font-size: 26px;
+  font-weight: 750;
+  margin-bottom: 14px;
+}
+form {
+  display: grid;
+  gap: 12px;
+}
+input {
+  width: 100%;
+  min-width: 0;
+  min-height: 64px;
+  font: 750 32px system-ui;
+  text-align: center;
+  color: #183b3f;
+  background: #edf5f1;
+  border: 2px solid #258278;
+  border-radius: 12px;
+}
+button {
+  min-height: 50px;
+  min-width: 48px;
+  border: 1px solid #bdd0c8;
+  border-radius: 11px;
+  padding: 10px 16px;
+  background: #f4f8f4;
+  color: #183b3f;
+  font: 700 16px system-ui;
+  cursor: pointer;
+}
+.primary {
+  background: #197c72;
+  color: white;
+  border-color: #197c72;
+}
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+.status {
+  line-height: 1.5;
+  margin: 14px 0 0;
+}
+.wrong {
+  color: #9a442c;
+}
+.help {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #f4ecd6;
+  line-height: 1.6;
+}
+.help p {
+  margin: 0;
+}
+.help .equation {
+  font-size: 22px;
+  font-weight: 750;
+  margin-top: 5px;
+}
+.success {
+  font-size: 26px;
+  font-weight: 800;
+  color: #1c6d50;
+  margin: 8px 0 18px;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 3px solid #ce9c38;
+  outline-offset: 3px;
+}
+@media (min-width: 700px) {
+  .shell {
+    padding-top: 28px;
+  }
+  .card {
+    padding: 28px;
+  }
+  .problem {
+    font-size: 42px;
+  }
+}
+@media (max-width: 350px) {
+  .shell {
+    padding: 12px;
+  }
+  .card {
+    padding: 16px;
+  }
+  .split {
+    padding: 14px;
+  }
+  .task {
+    font-size: 24px;
+  }
+}
+
+.split-parts {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 12px;
+}
+.part {
+  padding: 9px 12px;
+  border-radius: 10px;
+  min-width: 0;
+}
+.part small,
+.part strong {
+  display: block;
+}
+.part small {
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.part strong {
+  font-size: 22px;
+  white-space: nowrap;
+}
+.part.kept {
+  background: #d8e8dc;
+}
+.part.work {
+  background: #f5ead0;
+}
+.plus {
+  font-size: 22px;
+  font-weight: 700;
+}
+.navigation {
+  margin-top: 16px;
+  padding: 7px;
+  border: 1px solid #cfddd5;
+  border-radius: 15px;
+  background: #f5f4ec;
+}
+.navigation button {
+  width: 100%;
+}
+@media (max-height: 650px) {
+  header {
+    margin-bottom: 12px;
+  }
+  h1 {
+    font-size: 22px;
+    margin-bottom: 10px;
+  }
+  .problem {
+    font-size: 32px;
+    margin-bottom: 12px;
+  }
+  .split {
+    padding: 10px;
+    margin-bottom: 12px;
+  }
+  .split-parts {
+    margin-top: 8px;
+  }
+  .part {
+    padding: 6px 8px;
+  }
+  .part small {
+    margin-bottom: 2px;
+  }
+  .part strong {
+    font-size: 20px;
+  }
+  .card {
+    padding: 12px;
+  }
+  .step {
+    margin-bottom: 8px;
+  }
+  .task {
+    margin-bottom: 10px;
+  }
+  form {
+    gap: 8px;
+  }
+  input {
+    min-height: 56px;
+  }
+}

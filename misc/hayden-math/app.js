@@ -269,6 +269,12 @@
   }
   function visual(q, parent) {
     const v = q.visual;
+    if (v?.kind === "hundred_split") {
+      const split = el("div", "hundred-split");
+      split.append(el("p", "", `${v.base} = ${v.kept} + 100`), el("p", "", `Keep ${v.kept}. Work on 100 − ${v.take}.`));
+      parent.append(split);
+      return;
+    }
     if (
       !v ||
       !["perimeter", "ruler", "rectangle", "clock", "coins", "angle", "lines", "symmetry", "partition", "composite", "bar_model"].includes(v.kind)

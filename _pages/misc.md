@@ -43,6 +43,7 @@ nav_order: 7
     <div class="misc-game-links">
       <a class="misc-play" href="{{ '/misc/math-by-hayden-j/' | relative_url }}" aria-label="Play Quick Math by Hayden.J">Quick Math</a>
       <a class="misc-play" href="{{ '/misc/hayden-math/' | relative_url }}" aria-label="Play Math Lab by Hayden.J">Math Lab</a>
+      <a class="misc-play" href="{{ '/children-math/counting-sense/' | relative_url }}" aria-label="Practice Counting Sense">Counting Sense</a>
     </div>
   </article>
   <article class="misc-project">

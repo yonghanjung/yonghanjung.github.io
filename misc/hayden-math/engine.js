@@ -1668,7 +1668,7 @@
   }
 
   // HM6-v1 extends original rule families; seeded replay is versioned, not eternal.
-  const VERSION = "HM6-v4",
+  const VERSION = "HM6-v5",
     TOPICS = [...DOMAINS, "brain"];
   const EXTRA_MEASURES = ["clock_read", "coin_total", "coin_missing"];
   const EXTRA_GEOMETRY = ["rectangle_area", "inverse_area", "equal_partition", "line_relation", "angle_type", "symmetry"];
@@ -1975,7 +1975,44 @@
       p.gold - p.left + p.forward <= 10
     );
   }
+  const countingEngine = () => root.CountingSense || (typeof module !== "undefined" ? require("../../children-math/counting-sense/engine.js") : null);
+  function makeCountingQuestion(base, take) {
+    if (!countingEngine().isPracticePair(base, take)) throw new RangeError("Outside Counting Sense practice range");
+    const m = countingEngine().decompose(base, take);
+    return {
+      id: `counting-${base}-${take}`,
+      section: "arithmetic",
+      typeId: "counting_one_hundred_split",
+      shapeId: "counting_one_hundred_split",
+      params: { base, take },
+      prompt: `${base} − ${take} = ${m.kept} + (100 − ${take}). Find the subtotal, then the final answer.`,
+      visual: { kind: "hundred_split", base, kept: m.kept, take },
+      response: {
+        kind: "pair",
+        fields: [
+          { key: "Subtotal", label: `100 − ${take}` },
+          { key: "Final", label: `${m.kept} + your subtotal` },
+        ],
+      },
+      hint: `Keep ${m.kept}. Work on 100 − ${take} first.`,
+      explanation: `${base} = ${m.kept} + 100. First: 100 − ${take} = ${m.subtotal}. Then: ${m.kept} + ${m.subtotal} = ${m.total}.`,
+      answer: { Subtotal: m.subtotal, Final: m.total },
+      signature: JSON.stringify(["arithmetic", "counting_one_hundred_split", { base, take }]),
+    };
+  }
+  function verifyCountingQuestion(q) {
+    const errors = [];
+    try {
+      const expected = makeCountingQuestion(q.params.base, q.params.take);
+      for (const key of ["section", "shapeId", "params", "prompt", "visual", "response", "hint", "explanation", "answer", "signature"])
+        if (JSON.stringify(q[key]) !== JSON.stringify(expected[key])) errors.push("Invalid Counting Sense " + key);
+    } catch {
+      errors.push("Invalid Counting Sense parameters");
+    }
+    return { ok: !errors.length, errors };
+  }
   function verifyQuestion(q) {
+    if (q?.typeId === "counting_one_hundred_split") return verifyCountingQuestion(q);
     if (newSection(q?.typeId)) return verifyNew(q);
     const extras =
       q?.section === "measurement" ? EXTRA_MEASURES : q?.section === "geometry" ? EXTRA_GEOMETRY : q?.section === "brain" ? EXTRA_BRAINS : [];
@@ -2004,6 +2041,10 @@
     return { ok: !errors.length, errors };
   }
   function makeQuestion(section, options = {}) {
+    if (section === "arithmetic" && options.typeId === "counting_one_hundred_split") {
+      const m = countingEngine().next([], (length) => rand(0, length - 1));
+      return makeCountingQuestion(m.base, m.take);
+    }
     const extras = section === "measurement" ? EXTRA_MEASURES : section === "geometry" ? EXTRA_GEOMETRY : section === "brain" ? EXTRA_BRAINS : [],
       all =
         section === "measurement"
@@ -2039,7 +2080,7 @@
   function schedule(section) {
     if (section === "mix")
       return shuffle([
-        ["arithmetic", { shapeId: pick(arithmeticShapes) }],
+        ["arithmetic", { typeId: "counting_one_hundred_split" }],
         ["arithmetic", { shapeId: pick(arithmeticShapes) }],
         ...["measurement", "geometry", "narrative", "brain"].flatMap((s) => [
           [s, {}],
@@ -2056,6 +2097,7 @@
         ["arithmetic", { shapeId: "division_quotient_blank" }],
         ["arithmetic", { shapeId: "division_dividend_blank" }],
         ["arithmetic", { shapeId: "division_divisor_blank" }],
+        ["arithmetic", { typeId: "counting_one_hundred_split" }],
       ];
       while (a.length < 10) a.push(["arithmetic", {}]);
       return shuffle(a);
@@ -2192,6 +2234,7 @@
   const api = {
     VERSION,
     NEW_FAMILIES,
+    makeCountingQuestion,
     normalizeSeed,
     questionFingerprint,
     DOMAINS: TOPICS,
