@@ -541,3 +541,38 @@ a {
   font-weight: 750;
   margin-bottom: 5px;
 }
+
+.practice-options {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.practice-options button {
+  min-width: 48px;
+  min-height: 48px;
+}
+.worked-lines {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+.worked-line {
+  width: 100%;
+  min-height: 52px;
+  text-align: left;
+  padding: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.worked-line.selected {
+  border: 2px solid #197c72;
+  background: #e4f0e8;
+}
+.corrected-work p {
+  margin: 7px 0;
+  overflow-wrap: anywhere;
+}
+.corrected-work {
+  white-space: normal;
+}

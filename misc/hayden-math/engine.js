@@ -772,7 +772,7 @@
         parsed[f.key] = raw;
       } else {
         const text = String(raw ?? "").trim();
-        if (!/^\d{1,3}$/.test(text)) return { valid: false, correct: false };
+        if (!/^\d+$/.test(text) || text.length > (f.maxDigits ?? 3)) return { valid: false, correct: false };
         parsed[f.key] = Number(text);
       }
     }
@@ -1668,7 +1668,7 @@
   }
 
   // HM6-v1 extends original rule families; seeded replay is versioned, not eternal.
-  const VERSION = "HM6-v5",
+  const VERSION = "HM6-v6",
     TOPICS = [...DOMAINS, "brain"];
   const EXTRA_MEASURES = ["clock_read", "coin_total", "coin_missing"];
   const EXTRA_GEOMETRY = ["rectangle_area", "inverse_area", "equal_partition", "line_relation", "angle_type", "symmetry"];
@@ -1975,6 +1975,267 @@
       p.gold - p.left + p.forward <= 10
     );
   }
+  const PRACTICE_SECTIONS = ["addsub", "findfix"];
+  const PRACTICE_OPS = ["+", "−", "×", "÷"];
+  function normalizePractice(section, ops, maxDigits = 4) {
+    const allowed = section === "addsub" ? PRACTICE_OPS.slice(0, 2) : PRACTICE_OPS;
+    const selected = ops == null ? allowed : Array.isArray(ops) ? allowed.filter((op) => ops.includes(op)) : [];
+    if (!selected.length || !int(maxDigits, 1, 4)) throw Error("Choose operations and 1–4 digits");
+    return { ops: selected, maxDigits };
+  }
+  function borrowing(a, b) {
+    const digits = String(a).split("").reverse().map(Number),
+      sub = String(b).split("").reverse().map(Number);
+    let borrowed = false,
+      acrossZero = false;
+    for (let i = 0; i < digits.length; i++) {
+      if (digits[i] < (sub[i] || 0)) {
+        borrowed = true;
+        let donor = i + 1;
+        while (donor < digits.length && digits[donor] === 0) donor++;
+        if (donor >= digits.length) throw Error("Invalid subtraction");
+        if (donor > i + 1) acrossZero = true;
+        digits[donor]--;
+        for (let j = donor - 1; j > i; j--) digits[j] = 9;
+        digits[i] += 10;
+      }
+      digits[i] -= sub[i] || 0;
+    }
+    return { borrowed, acrossZero };
+  }
+  function hasCarry(a, b) {
+    let carry = 0,
+      any = false;
+    while (a || b) {
+      carry = (a % 10) + (b % 10) + carry >= 10 ? 1 : 0;
+      any ||= Boolean(carry);
+      a = Math.floor(a / 10);
+      b = Math.floor(b / 10);
+    }
+    return any;
+  }
+  function arithmeticValue(a, op, b) {
+    if (op === "+") return a + b;
+    if (op === "−") return a - b;
+    if (op === "×") return a * b;
+    if (op === "÷" && b && a % b === 0) return a / b;
+    throw Error("Not an integer arithmetic step");
+  }
+  const lineText = (line) => `${line.a} ${line.op} ${line.b} = ${line.value}`;
+  function practiceLines(p, inject = true) {
+    const rows = [];
+    const add = (a, op, b) => {
+      const correct = arithmeticValue(a, op, b);
+      const value = inject && rows.length === p.errorIndex ? p.wrongValue : correct;
+      rows.push({ a, op, b, value });
+      return value;
+    };
+    if (p.family === "counting") {
+      const subtotal = add(100, "−", p.b),
+        kept = add(p.a, "−", 100);
+      add(kept, "+", subtotal);
+    } else if (["+", "−"].includes(p.op)) {
+      const first = add(p.a, p.op, p.split),
+        total = add(first, p.op, p.b - p.split);
+      add(total, p.op === "+" ? "−" : "+", p.b);
+    } else if (p.op === "×") {
+      const first = add(p.split, "×", p.b),
+        second = add(p.a - p.split, "×", p.b);
+      add(first, "+", second);
+    } else {
+      const q = p.a / p.b,
+        extra = q < 9;
+      const adjusted = add(p.a, extra ? "+" : "−", p.b),
+        groups = add(adjusted, "÷", p.b);
+      add(groups, extra ? "−" : "+", 1);
+    }
+    return rows;
+  }
+  function validLines(rows, cap) {
+    return rows.every((row) => {
+      if (![row.a, row.b, row.value].every((n) => int(n, 0, cap))) return false;
+      try {
+        const result = arithmeticValue(row.a, row.op, row.b);
+        return int(result, 0, cap) && (row.op !== "÷" || (int(row.b, 2, 9) && int(result, 1, 9)));
+      } catch {
+        return false;
+      }
+    });
+  }
+  function practiceCheck(p, total) {
+    if (p.op === "+") return `Check: ${total} − ${p.b} = ${p.a}.`;
+    if (p.op === "−") return `Check: ${total} + ${p.b} = ${p.a}.`;
+    if (p.op === "÷") return `Check: ${total} × ${p.b} = ${p.a}.`;
+    return `Check one group: ${total} − ${p.a * (p.b - 1)} = ${p.a}.`;
+  }
+  function makePracticeQuestion(section, params) {
+    const p = { ...params },
+      cap = ["+", "−"].includes(p.op) ? 10 ** p.maxDigits - 1 : 9999;
+    if (
+      !PRACTICE_SECTIONS.includes(section) ||
+      !int(p.maxDigits, 1, 4) ||
+      !PRACTICE_OPS.includes(p.op) ||
+      (section === "addsub" && !["+", "−"].includes(p.op))
+    )
+      throw Error("Invalid practice mode");
+    if (![p.a, p.b].every((n) => int(n, 1, cap))) throw Error("Invalid practice operands");
+    const total = arithmeticValue(p.a, p.op, p.b);
+    if (!int(total, 1, cap)) throw Error("Practice result outside range");
+    if (p.op === "×" && (!int(p.a, 2, 99) || !int(p.b, 2, 9))) throw Error("Multiplication range");
+    if (p.op === "÷" && (!int(p.b, 2, 9) || !int(total, 1, 9))) throw Error("Division range");
+    if (!["plain", "carry", "borrow", "zerochain", "counting", "partial", "division"].includes(p.family)) throw Error("Unknown practice family");
+    if ((p.op === "×") !== (p.family === "partial") || (p.op === "÷") !== (p.family === "division")) throw Error("Operation and family mismatch");
+    if (p.family === "carry" && (p.op !== "+" || !hasCarry(p.a, p.b))) throw Error("Carry required");
+    if (p.family === "borrow" && (p.op !== "−" || !borrowing(p.a, p.b).borrowed)) throw Error("Borrow required");
+    if (p.family === "zerochain" && (p.op !== "−" || !borrowing(p.a, p.b).acrossZero)) throw Error("Borrow across zero required");
+    if (p.family === "counting" && (p.op !== "−" || p.a < 200 || p.a % 100 || !countingEngine().TAKES.includes(p.b)))
+      throw Error("Hundred split required");
+    const stem = `${p.a} ${p.op} ${p.b}`;
+    const common = {
+      id: questionId(),
+      section,
+      typeId: section === "addsub" ? "practice_direct" : "practice_findfix",
+      shapeId: p.family,
+      params: p,
+      signature: JSON.stringify([section, p]),
+    };
+    if (section === "addsub") {
+      const method =
+        p.family === "counting"
+          ? `${p.a} = ${p.a - 100} + 100. 100 − ${p.b} = ${100 - p.b}. ${p.a - 100} + ${100 - p.b} = ${total}.`
+          : `${stem} = ${total}.`;
+      return {
+        ...common,
+        prompt: `${stem} = ?`,
+        visual: null,
+        response: { kind: "integer", fields: [{ key: "value", label: "Answer", maxDigits: 4 }] },
+        answer: { value: total },
+        hint:
+          p.family === "counting"
+            ? "Keep the other hundreds. Work on one hundred first."
+            : p.family === "zerochain"
+              ? "Regroup through each zero. Keep the value of every place."
+              : "Work by place value, then check with the inverse operation.",
+        explanation: method + "\n" + practiceCheck(p, total),
+      };
+    }
+    if (!int(p.errorIndex, 0, 2)) throw Error("Invalid error position");
+    if (["+", "−", "×"].includes(p.op) && p.family !== "counting" && !int(p.split, 1, p.op === "×" ? p.a - 1 : p.b - 1))
+      throw Error("Invalid positive split");
+    const lines = practiceLines(p),
+      corrected = practiceLines(p, false);
+    if (!validLines(lines, cap) || !validLines(corrected, cap)) throw Error("Invalid worked steps");
+    const wrong = lines.map((row, i) => (arithmeticValue(row.a, row.op, row.b) !== row.value ? i : -1)).filter((i) => i >= 0);
+    if (wrong.length !== 1 || wrong[0] !== p.errorIndex) throw Error("Exactly one false line is required");
+    const correction = arithmeticValue(lines[p.errorIndex].a, lines[p.errorIndex].op, lines[p.errorIndex].b);
+    return {
+      ...common,
+      prompt: `${stem}\nTap the first wrong line. Fix its last number.`,
+      visual: { kind: "worked_solution", lines },
+      response: {
+        kind: "pair",
+        fields: [
+          { key: "Line", label: "First wrong line", maxDigits: 1 },
+          { key: "Fix", label: "Correct number", maxDigits: 4 },
+        ],
+      },
+      answer: { Line: p.errorIndex + 1, Fix: correction },
+      hint: "Check top to bottom. Later lines may use the wrong number.",
+      explanation:
+        corrected.map((row, i) => `${i + 1}. ${lineText(row)}`).join("\n") +
+        `\n${stem} = ${total}.` +
+        (["+", "−"].includes(p.op) && p.family !== "counting" ? "" : "\n" + practiceCheck(p, total)),
+    };
+  }
+  function verifyPracticeQuestion(q) {
+    const errors = [];
+    try {
+      const expected = makePracticeQuestion(q.section, q.params);
+      for (const key of ["typeId", "shapeId", "prompt", "visual", "response", "answer", "hint", "explanation", "signature"])
+        if (JSON.stringify(q[key]) !== JSON.stringify(expected[key])) errors.push("Invalid practice " + key);
+    } catch (error) {
+      errors.push(error.message);
+    }
+    return { ok: !errors.length, errors };
+  }
+  function practiceSchedule(section, config) {
+    const counts = Object.fromEntries(config.ops.map((op) => [op, 0]));
+    const ops = Array.from({ length: 20 }, (_, i) => config.ops[i % config.ops.length]);
+    const totals = Object.fromEntries(config.ops.map((op) => [op, ops.filter((x) => x === op).length]));
+    const errorBags = Object.fromEntries(config.ops.map((op) => [op, shuffle(Array.from({ length: totals[op] }, (_, i) => i % 3))]));
+    return ops.map((op, i) => {
+      const occurrence = counts[op]++,
+        n = totals[op];
+      const width = Math.max(1, Math.ceil(((occurrence + 1) * config.maxDigits) / n));
+      let family = op === "+" ? (width > 1 ? "carry" : "plain") : op === "−" ? (width > 1 ? "borrow" : "plain") : op === "×" ? "partial" : "division";
+      if (op === "−" && width >= 3) family = occurrence % 2 ? "counting" : "zerochain";
+      return [section, { op, width, family, maxDigits: config.maxDigits, errorIndex: errorBags[op][occurrence], occurrence, totalOccurrences: n }];
+    });
+  }
+  function generatePracticeQuestion(section, opt) {
+    for (let attempt = 0; attempt < 256; attempt++) {
+      const maxDigits = opt.maxDigits,
+        width = opt.width,
+        cap = 10 ** maxDigits - 1,
+        op = opt.op;
+      let a, b;
+      if (opt.family === "counting") {
+        a = 100 * rand(width >= 4 ? 10 : 2, width >= 4 ? 99 : 9);
+        b = pick(countingEngine().TAKES);
+      } else if (opt.family === "zerochain") {
+        a = width >= 4 ? rand(1, 9) * 1000 + rand(0, 98) : rand(2, 9) * 100 + rand(0, 9);
+        b = rand(Math.max(2, (a % (width >= 4 ? 1000 : 100)) + 1), 99);
+      } else if (op === "+") {
+        a = rand(width === 1 ? 1 : 10 ** (width - 1), Math.min(10 ** width - 1, cap - 2));
+        const top = Math.min(10 ** width - 1, cap - a, width === 1 ? 9 - a : cap);
+        if (top < (section === "findfix" ? 2 : 1)) continue;
+        b = rand(section === "findfix" ? 2 : 1, top);
+        if (opt.family === "carry" && !hasCarry(a, b)) continue;
+      } else if (op === "−") {
+        a = rand(width === 1 ? (section === "findfix" ? 3 : 2) : 10 ** (width - 1), 10 ** width - 1);
+        b = rand(section === "findfix" ? 2 : 1, a - 1);
+        if (opt.family === "borrow" && !borrowing(a, b).borrowed) continue;
+      } else if (op === "×") {
+        a = opt.occurrence < Math.ceil(opt.totalOccurrences / 2) ? rand(2, 9) : rand(10, 99);
+        b = rand(2, 9);
+      } else {
+        b = rand(2, 9);
+        a = b * rand(1, 9);
+      }
+      const p = { a, b, op, family: opt.family, maxDigits };
+      if (section === "addsub") {
+        try {
+          return makePracticeQuestion(section, p);
+        } catch {
+          continue;
+        }
+      }
+      p.errorIndex = opt.errorIndex;
+      if (["+", "−", "×"].includes(op) && p.family !== "counting") {
+        const value = op === "×" ? a : b;
+        p.split = value % 10 || Math.min(10, value - 1);
+        if (p.split >= value) p.split = Math.floor(value / 2);
+      }
+      const correct = practiceLines({ ...p, errorIndex: -1 }, false)[p.errorIndex].value;
+      let candidates;
+      if (op === "÷") {
+        const extra = a / b < 9;
+        candidates =
+          p.errorIndex === 0
+            ? range(extra ? 2 : 1, extra ? 9 : 8).map((n) => b * n)
+            : p.errorIndex === 1
+              ? range(extra ? 2 : 1, extra ? 9 : 8)
+              : range(1, 9);
+      } else candidates = [correct + 1, correct - 1, correct + 10, correct - 10, correct + 100, correct - 100];
+      for (const wrongValue of shuffle(candidates.filter((v) => v !== correct))) {
+        try {
+          return makePracticeQuestion(section, { ...p, wrongValue });
+        } catch {}
+      }
+    }
+    throw Error("Could not generate a bounded practice question");
+  }
+
   const countingEngine = () => root.CountingSense || (typeof module !== "undefined" ? require("../../children-math/counting-sense/engine.js") : null);
   function makeCountingQuestion(base, take) {
     if (!countingEngine().isPracticePair(base, take)) throw new RangeError("Outside Counting Sense practice range");
@@ -2012,6 +2273,7 @@
     return { ok: !errors.length, errors };
   }
   function verifyQuestion(q) {
+    if (PRACTICE_SECTIONS.includes(q?.section)) return verifyPracticeQuestion(q);
     if (q?.typeId === "counting_one_hundred_split") return verifyCountingQuestion(q);
     if (newSection(q?.typeId)) return verifyNew(q);
     const extras =
@@ -2041,6 +2303,7 @@
     return { ok: !errors.length, errors };
   }
   function makeQuestion(section, options = {}) {
+    if (PRACTICE_SECTIONS.includes(section)) return generatePracticeQuestion(section, options);
     if (section === "arithmetic" && options.typeId === "counting_one_hundred_split") {
       const m = countingEngine().next([], (length) => rand(0, length - 1));
       return makeCountingQuestion(m.base, m.take);
@@ -2077,7 +2340,8 @@
     if (!r.ok) throw Error(r.errors.join("; "));
     return q;
   }
-  function schedule(section) {
+  function schedule(section, practice) {
+    if (PRACTICE_SECTIONS.includes(section)) return practiceSchedule(section, practice);
     if (section === "mix")
       return shuffle([
         ["arithmetic", { typeId: "counting_one_hundred_split" }],
@@ -2114,7 +2378,8 @@
       v = q.visual;
     let diagram = null;
     if (v) {
-      if (v.kind === "bar_model") diagram = { kind: v.kind, rows: v.rows, note: v.note };
+      if (v.kind === "worked_solution") diagram = { kind: v.kind, lines: v.lines };
+      else if (v.kind === "bar_model") diagram = { kind: v.kind, rows: v.rows, note: v.note };
       else if (v.kind === "symmetry") diagram = { kind: v.kind, shape: v.shape };
       else if (v.kind === "lines") {
         const segments = v.segments
@@ -2160,6 +2425,7 @@
     return JSON.stringify([text.replace(/\s+/g, " ").trim(), diagram, q.response.kind, fields]);
   }
   function alternateRequests(section, opt) {
+    if (PRACTICE_SECTIONS.includes(section)) return [opt];
     if (section === "arithmetic") {
       const types = opt.width ? [...SHAPES.slice(0, 5)] : arithmeticShapes;
       return shuffle(types.filter((t) => t !== opt.shapeId)).map((shapeId) => ({ ...opt, shapeId }));
@@ -2176,31 +2442,40 @@
     recentFingerprints = [],
     seed = null,
     offset = 0,
+    ops = null,
+    maxDigits = 4,
   } = {}) {
-    if (section !== "mix" && !TOPICS.includes(section)) return generateLegacyRound({ section, count, recentSignatures });
+    if (section !== "mix" && !TOPICS.includes(section) && !PRACTICE_SECTIONS.includes(section))
+      return generateLegacyRound({ section, count, recentSignatures });
     if (!int(count, 1, 20) || !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(offset + count))
       throw Error("Invalid round count or offset");
+    const practice = PRACTICE_SECTIONS.includes(section) ? normalizePractice(section, ops, maxDigits) : null;
+    const blockSize = practice ? 20 : 10;
+    const streamVersion = practice ? VERSION : "HM6-v5";
+    const configKey = practice ? `|${practice.ops.join("")}|${practice.maxDigits}` : "";
     const date = normalizeSeed(seed),
       out = [],
-      baseline = new Set(date ? [] : baselineFingerprints.slice(-20)),
-      rolling = date ? [] : recentFingerprints.slice(-20),
+      baseline = new Set(date || practice ? [] : baselineFingerprints.slice(-20)),
+      rolling = date ? [] : (practice ? [...baselineFingerprints, ...recentFingerprints] : recentFingerprints).slice(-20),
       rawRecent = new Set(date ? [] : recentSignatures.slice(-20));
     let block = -1,
       plan = null;
     // Reconstruct Date's accepted prefix so offsets/chunks cannot alter exclusions.
     for (let i = date ? 0 : offset; i < offset + count; i++) {
-      const nextBlock = Math.floor(i / 10);
+      const nextBlock = Math.floor(i / blockSize);
       if (nextBlock !== block) {
         block = nextBlock;
-        plan = date ? withSeed(`${VERSION}|${date}|${section}|block|${block}`, () => schedule(section)) : schedule(section);
+        plan = date
+          ? withSeed(`${streamVersion}|${date}|${section}${configKey}|block|${block}`, () => schedule(section, practice))
+          : schedule(section, practice);
       }
-      const [s, opt] = plan[i % 10],
+      const [s, opt] = plan[i % blockSize],
         excluded = new Set([...baseline, ...rolling]);
       let accepted = null;
       const attempt = (options, family, budget) => {
         for (let n = 0; n < budget; n++) {
           const q = date
-            ? withSeed(`${VERSION}|${date}|${section}|question|${i}|${family}|${n}`, () => makeQuestion(s, options))
+            ? withSeed(`${streamVersion}|${date}|${section}${configKey}|question|${i}|${family}|${n}`, () => makeQuestion(s, options))
             : makeQuestion(s, options);
           const key = questionFingerprint(q);
           if (!excluded.has(key) && !rawRecent.has(q.signature)) {
@@ -2212,13 +2487,13 @@
       };
       if (!attempt(opt, "primary", 128)) {
         const alternatives = date
-          ? withSeed(`${VERSION}|${date}|${section}|alternates|${i}`, () => alternateRequests(s, opt))
+          ? withSeed(`${streamVersion}|${date}|${section}${configKey}|alternates|${i}`, () => alternateRequests(s, opt))
           : alternateRequests(s, opt);
         for (let family = 0; family < alternatives.length && !accepted; family++) attempt(alternatives[family], "alternate-" + family, 64);
       }
       if (!accepted) throw Error("Fresh visible question capacity exhausted");
       const { q, key } = accepted;
-      if (date) q.id = `${VERSION}-${date}-${section}-${i}`;
+      if (date) q.id = `${streamVersion}-${date}-${section}-${i}`;
       rolling.push(key);
       if (rolling.length > 20) rolling.shift();
       if (i >= offset) out.push(q);
@@ -2226,6 +2501,15 @@
     return out;
   }
   function generateQuestion(section, options = {}) {
+    if (PRACTICE_SECTIONS.includes(section))
+      return generateRound({
+        section,
+        count: 1,
+        seed: options.seed ?? null,
+        offset: options.index ?? 0,
+        ops: options.ops ?? null,
+        maxDigits: options.maxDigits ?? 4,
+      })[0];
     if (options.seed !== undefined && normalizeSeed(options.seed))
       return generateRound({ section, seed: options.seed, offset: options.index ?? 0, count: 1 })[0];
     return section === "mix" ? makeQuestion(pick(TOPICS), options) : makeQuestion(section, options);
@@ -2235,6 +2519,11 @@
     VERSION,
     NEW_FAMILIES,
     makeCountingQuestion,
+    makePracticeQuestion,
+    normalizePractice,
+    borrowing,
+    arithmeticValue,
+    practiceLines,
     normalizeSeed,
     questionFingerprint,
     DOMAINS: TOPICS,
