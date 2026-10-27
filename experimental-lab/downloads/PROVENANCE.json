@@ -161,23 +161,17 @@
         "base_score": "training response mean"
       },
       "weight_class": {
-        "floor": 1e-08,
+        "floor": 1e-8,
         "objective": "min sum_arm(w^2)/N",
-        "constraints": [
-          "sum_arm(w)/N=1",
-          "sum_arm(w*mu_a)/N=mean_whole_training(mu_a)"
-        ],
+        "constraints": ["sum_arm(w)/N=1", "sum_arm(w*mu_a)/N=mean_whole_training(mu_a)"],
         "solver": "O(m logm) sorted affine-positive active set",
-        "mass_and_standardized_mu_tolerance": 1e-08,
+        "mass_and_standardized_mu_tolerance": 1e-8,
         "heldout_normalization": false,
         "propensity_or_ratio_conversion": false
       },
       "score_denominator": "total original observed row count n",
       "rights_note": "Original notice and caveats unchanged; no new rights-clearance claim",
-      "estimands": [
-        "ATE mean contrast",
-        "APO one intervention mean"
-      ],
+      "estimands": ["ATE mean contrast", "APO one intervention mean"],
       "propensity": {
         "method_id": "xgboost_propensity_ipw_v1",
         "classifier": "XGBoost2.1.4 binary:logistic or multi:softprob",
@@ -197,7 +191,7 @@
           "base_score_overridden_when_multiclass": true,
           "heldout_prior_or_outcome_input": false
         },
-        "small_positive_probability_warning_threshold": 1e-06
+        "small_positive_probability_warning_threshold": 1e-6
       },
       "scalar_preservation": "propensity-apo-old-scalar-parity.json four exact scalar AIPW/OR comparisons",
       "reliability_policy": "Small total/training/heldout counts, positive small propensity, ESS and concentration warn; no hard reliability threshold. Actually empty required training data, missing requested assignments, invalid/zero/nonfinite probabilities, failed constraints/fits or deadline return an explicit reason. No clipping/refit/fallback/score change."
@@ -224,20 +218,10 @@
     "compute": "user device; no server"
   },
   "random_configuration_ui": {
-    "treatment_dimension_controls": [
-      1,
-      4
-    ],
+    "treatment_dimension_controls": [1, 4],
     "existing_builder_dimension_limit": 8,
-    "baseline_covariate_dimension_controls": [
-      1,
-      50
-    ],
-    "outcome_families": [
-      "linear",
-      "binary",
-      "neural_network"
-    ],
+    "baseline_covariate_dimension_controls": [1, 50],
+    "outcome_families": ["linear", "binary", "neural_network"],
     "covariate_family": "linear in default setup; advanced X mechanism edits preserved",
     "treatment_family": "binary",
     "noise": "normal",
@@ -245,11 +229,7 @@
     "fixed_validation": "model_seed7/data_seed5/n512/X5, scalar/A2, all3 actual outcome families; fixed seeds and no tuning",
     "snapshot_contract": "Configuration changes require Generate; Head/CSV/ATE/APO/Copy reuse the sample; model reference uses the same fixed model.",
     "outcome_picker_effect": "Y family and resolved binary/continuous type plus Normal noise; other advanced mechanisms preserved",
-    "outcome_labels": [
-      "Linear outcome",
-      "Binary outcome",
-      "Neural Outcome"
-    ],
+    "outcome_labels": ["Linear outcome", "Binary outcome", "Neural Outcome"],
     "outcome_generation": "Existing SCM/registry unchanged: affine-plus-noise; Bernoulli threshold expit; fixed model-seeded dense NumPy network plus data-seeded noise. No neural training or dependency."
   },
   "local_beta_sync_20261027": {
@@ -257,16 +237,16 @@
     "basis": "Existing public package0.1.0 plus deployed public Editor fixes (8b3ae2) and locally reviewed UX/network-retry fixes; no version/dependency/estimator change.",
     "frozen_web_source_sha256": {
       "editor_engine.py": "2bfa9bd783a63d47e9ccc81bc6c06ec8a6ba5920a58b5aa2ddc24763c4ce0267",
-      "role-ui.js": "1e637b5c52a8555686076dacb2c60a91b31f083f5cd40561597cd69e98ea38e3",
+      "role-ui.js": "57751cd462bf6d836e029816bbfa32ed727ffedd47dad9aa873c12e34faee01a",
       "scm-worker.js": "69db798a121667101c2c5192f6813699273cfec7c6ec4eb160b8109fb878d287",
-      "guide.html": "eb23a1fd6cf768ba7c763071c362f0d9c44652ffe94cd824f2b95d114bc99a43"
+      "guide.html": "e3a89fcd6cc322a54a66ce8f419577874f35f8a82c2db901576cec208f5070ed"
     },
     "packaged_active_members_sha256": {
       "editor_engine.py": "7ad29374de37e4e0e281446c9f3296e6fce2c986ff035db681db86d83c7f9297",
       "web/editor_engine.py": "2bfa9bd783a63d47e9ccc81bc6c06ec8a6ba5920a58b5aa2ddc24763c4ce0267",
-      "web/role-ui.js": "1e637b5c52a8555686076dacb2c60a91b31f083f5cd40561597cd69e98ea38e3",
+      "web/role-ui.js": "57751cd462bf6d836e029816bbfa32ed727ffedd47dad9aa873c12e34faee01a",
       "web/scm-worker.js": "69db798a121667101c2c5192f6813699273cfec7c6ec4eb160b8109fb878d287",
-      "web/guide.html": "203a9fddb8b76ad926836e964b6c66f0711ee0da6e7fb45263590466e2f261bb"
+      "web/guide.html": "5619b548e394154724a76c7a917fd1e2aaaf62795e0863650d6a0e5fee116d56"
     },
     "guide_adaptation": "Leading Jekyll frontmatter removed; exactly two href=./code.html occurrences changed to the public absolute Code-page destination because code.html is not bundled. All other body bytes retained for the standalone HTTP server.",
     "worker_recovery": "Cold build loads identification dependencies after Worker recreation; role UI preserves the original request error before stale-revision checks.",

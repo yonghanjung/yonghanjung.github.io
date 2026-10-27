@@ -681,7 +681,8 @@
         [...document.querySelectorAll("#contrast-action,#contrast-reference,#scalar-assignments input,#treatment-components input")]
           .filter((input) => !input.disabled && input.getClientRects().length)
           .every((input) => input.value !== "" && Number.isFinite(Number(input.value)))
-      ) $("role-error").textContent = "";
+      )
+        $("role-error").textContent = "";
       clearQueryResult();
     };
   for (const box of [$("scalar-assignments"), $("treatment-components")]) box.addEventListener("input", clearQueryResult);
