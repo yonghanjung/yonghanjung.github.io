@@ -1128,7 +1128,11 @@ class Editor:
                 if not isinstance(row, list) or len(row) != len(columns):
                     raise ValueError(f"CSV row {i}: the number of cells must match the headers.")
                 for j, value in enumerate(row):
-                    if type(value) not in (int, float) or not np.isfinite(value):
+                    try:
+                        finite = type(value) in (int, float) and np.isfinite(float(value))
+                    except (OverflowError, TypeError, ValueError):
+                        finite = False
+                    if not finite:
                         raise ValueError(f"CSV row {i}, column {columns[j]}: a finite number is required.")
             import pandas as pd
             key = _data_graph_key(graph, schema)
@@ -1291,6 +1295,8 @@ class Editor:
             return dict(result, token=self.token)
         if action == "sample":
             n = _integer(payload.get("n", 10), "rows", 5000)
+            if n < 1:
+                raise ValueError("Use 1 to 5000 sample rows.")
             seed = _integer(payload.get("data_seed", 5), "data seed", 2**32 - 1)
             if self._random_key is not None and payload.get("random_key") != self._random_key:
                 raise ValueError("Random cluster configuration expired. Generate Random Data again.")
