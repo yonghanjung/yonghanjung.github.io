@@ -43,6 +43,24 @@ permalink: /experimental-lab/
       margin: auto;
       padding: 28px;
     }
+    .demo-tour {
+      margin: 0 0 24px;
+      padding: 12px 16px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--surface);
+    }
+    .demo-tour summary {
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .demo-tour video {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      margin-top: 12px;
+      border-radius: 4px;
+    }
     .back {
       display: inline-block;
       margin-bottom: 16px;
@@ -1607,6 +1625,21 @@ permalink: /experimental-lab/
         <button id="generate" class="primary">Generate Sample</button>
       </div>
     </header>
+    <details class="demo-tour">
+      <summary>Watch the 10-second demo</summary>
+      <video
+        controls
+        muted
+        playsinline
+        preload="metadata"
+        width="1280"
+        height="720"
+        aria-label="CausalEngine Beta: graph, estimation, and ground-truth comparison"
+      >
+        <source src="./media/causalengine-demo.mp4" type="video/mp4" />
+        <a href="./media/causalengine-demo.mp4">Download the demo video</a>
+      </video>
+    </details>
     <section id="easy-view" aria-labelledby="easy-title">
       <h2 id="easy-title" class="sr-only">Causal graph</h2>
       <div id="easy-layout">
