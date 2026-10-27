@@ -23,7 +23,7 @@ async function prepare(py, action, id) {
     network = null;
     throw error;
   }));
-  if (["identify", "examples", "compare", "load_data", "estimate_data", "sample_reference", "prepare"].includes(action)) {
+  if (["build", "identify", "examples", "compare", "load_data", "estimate_data", "sample_reference", "prepare"].includes(action)) {
     if (!identification) postMessage({ id, message: "Preparing identification…" });
     await (identification ||= sources(py, [
       "graph.py",

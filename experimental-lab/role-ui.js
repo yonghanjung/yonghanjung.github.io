@@ -594,8 +594,10 @@
     }
     if (retainedRandomSignature && retainedRandomSignature !== randomSignature()) retainedRandomSignature = null;
     const snapshotKey = CausalDataPreview.key();
-    if (snapshotKey && (snapshotKey.graph !== dataGraphKey() || (snapshotKey.random && snapshotKey.random !== randomSignature())))
+    if (snapshotKey && (snapshotKey.graph !== dataGraphKey() || (snapshotKey.random && snapshotKey.random !== randomSignature()))) {
       CausalDataPreview.clear();
+      if (!running) progress.textContent = "";
+    }
     if (!loading && !running && structure() !== baseline) {
       markCustom();
       if (window.refreshCSVMapping) window.refreshCSVMapping();
@@ -633,6 +635,7 @@
       $("data-error").textContent = "Records must be a whole number from 1 to 5,000.";
       return;
     }
+    if ($("data-error").textContent === "Records must be a whole number from 1 to 5,000.") $("data-error").textContent = "";
     CausalDataPreview.clear();
     $("rows").value = n;
     $("rows").dispatchEvent(new Event("change"));
@@ -673,6 +676,12 @@
       }
       const field = id === "contrast-action" ? "query-values" : "query-reference";
       $(field).value = JSON.stringify(Object.fromEntries(queryNames("query-x").map((n) => [n, value])));
+      if (
+        $("role-error").textContent === "Enter finite numeric treatment and reference values." &&
+        [...document.querySelectorAll("#contrast-action,#contrast-reference,#scalar-assignments input,#treatment-components input")]
+          .filter((input) => !input.disabled && input.getClientRects().length)
+          .every((input) => input.value !== "" && Number.isFinite(Number(input.value)))
+      ) $("role-error").textContent = "";
       clearQueryResult();
     };
   for (const box of [$("scalar-assignments"), $("treatment-components")]) box.addEventListener("input", clearQueryResult);
@@ -984,6 +993,7 @@
       clearCSV();
       throw error;
     }
+    clearQueryResult();
     bindingActive = true;
     csvBindingGraph = dataGraphKey();
     csvTable = table;
@@ -1473,6 +1483,7 @@
     retainedRandomSignature = null;
     if (dataSource !== "random") return;
     CausalDataPreview.clear();
+    if (!running) progress.textContent = "";
     $("easy-result").hidden = true;
     groundTruthSignature = null;
     run.disabled = true;
@@ -1568,8 +1579,8 @@
       } finally {
         window.causalEngineBatch = false;
       }
-      if (revision !== version || draftDirty) throw Error("The graph changed. Generate data again.");
       if (!model || !sample || sample === previous) throw Error($("status").textContent || "Random data generation did not finish.");
+      if (revision !== version || draftDirty) throw Error("The graph changed. Generate data again.");
       retainedRandomSignature = randomSignature();
     }
     return retainedRandomData();
