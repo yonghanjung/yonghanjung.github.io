@@ -589,7 +589,14 @@
   }
   function checkChanges() {
     if (groundTruthSignature && groundTruthSignature !== truthStamp()) {
-      document.querySelectorAll(".ground-truth").forEach((e) => e.remove());
+      document.querySelectorAll(".comparison-definition").forEach((e) => e.remove());
+      document.querySelectorAll("[data-estimate-comparison]").forEach((table) => {
+        table.querySelectorAll("[data-reference-value], [data-comparison-error]").forEach((cell) => {
+          cell.textContent = "N/A";
+          cell.dataset.status = "UNAVAILABLE";
+          cell.dataset.value = "";
+        });
+      });
       groundTruthSignature = null;
     }
     if (retainedRandomSignature && retainedRandomSignature !== randomSignature()) retainedRandomSignature = null;
@@ -1714,7 +1721,10 @@
     let label = "Ground truth",
       value = null,
       detail = "",
-      status = "UNAVAILABLE";
+      status = "UNAVAILABLE",
+      referenceValues = {},
+      referenceErrors = {},
+      approximate = false;
     try {
       if (source === "random") {
         const result = await request("sample_reference", {
@@ -1736,6 +1746,9 @@
         });
         const ref = result.model_reference;
         value = ref?.values?.[target];
+        referenceValues = ref?.values || {};
+        referenceErrors = ref?.standard_errors || {};
+        approximate = result.reference_kind !== "exact_model_mean";
         status = ref?.status || "UNAVAILABLE";
         label = result.reference_kind === "exact_model_mean" ? "Ground truth (exact)" : "Model reference (Monte Carlo)";
         detail =
@@ -1765,6 +1778,7 @@
           const armMean = row.apo?.values?.[String(a)];
           value = queryKind === "apo" ? armMean : (a - b) * row.value;
           status = Number.isFinite(value) ? "OK" : "UNAVAILABLE";
+          referenceValues = { [target]: value };
           detail =
             queryKind === "apo"
               ? Number.isFinite(value)
@@ -1779,36 +1793,44 @@
       detail = "Reference unavailable: " + error.message;
     }
     if (stamp !== truthStamp()) return;
-    const box = document.createElement("div");
-    box.className = "ground-truth";
-    box.dataset.status = status;
-    box.dataset.outcome = target;
-    box.dataset.value = status === "OK" && Number.isFinite(value) ? value : "";
-    const strong = document.createElement("strong");
-    strong.textContent = label;
-    CausalMethodHelp.add(
-      strong,
-      source === "random"
-        ? label.includes("Monte Carlo")
-          ? "mcReference"
-          : label.includes("(exact)")
-            ? "exactReference"
-            : "modelReference"
-        : "benchmark"
-    );
-    const result = document.createElement("span");
-    result.textContent = status === "OK" && Number.isFinite(value) ? value.toFixed(3) : "Not available";
-    box.append(strong, result);
+    const table = section.querySelector("[data-estimate-comparison]");
+    if (!table) return;
+    const heading = table.querySelector("[data-reference-heading]");
+    heading.textContent = label;
+    CausalMethodHelp.add(heading, source === "random" ? (approximate ? "mcReference" : "exactReference") : "benchmark");
+    table.querySelector("[data-error-heading]").textContent = approximate ? "Absolute difference" : "Absolute error";
+    for (const row of table.querySelectorAll("tbody tr")) {
+      const name = row.dataset.outcome,
+        estimate = row.querySelector("[data-estimate-value]"),
+        referenceCell = row.querySelector("[data-reference-value]"),
+        errorCell = row.querySelector("[data-comparison-error]"),
+        referenceValue = referenceValues[name],
+        available = status === "OK" && Number.isFinite(referenceValue);
+      referenceCell.textContent = available ? referenceValue.toFixed(3) : "N/A";
+      referenceCell.dataset.status = available ? "OK" : "UNAVAILABLE";
+      referenceCell.dataset.value = available ? referenceValue : "";
+      const comparable =
+        available && estimate.dataset.status === "OK" && estimate.dataset.value !== "" && Number.isFinite(Number(estimate.dataset.value));
+      const difference = comparable ? Math.abs(Number(estimate.dataset.value) - referenceValue) : null;
+      errorCell.textContent = comparable ? difference.toFixed(3) : "N/A";
+      errorCell.dataset.value = comparable ? difference : "";
+      errorCell.dataset.status = comparable ? "OK" : "UNAVAILABLE";
+      if (available && approximate && Number.isFinite(referenceErrors[name])) {
+        const note = document.createElement("small");
+        note.textContent = "MC SE: " + referenceErrors[name].toPrecision(3);
+        referenceCell.append(document.createElement("br"), note);
+      }
+    }
     if (detail) {
       const details = document.createElement("details"),
         summary = document.createElement("summary"),
         p = document.createElement("p");
-      summary.textContent = "Definition";
+      details.className = "comparison-definition";
+      summary.textContent = "Reference definition";
       p.textContent = detail;
       details.append(summary, p);
-      box.append(details);
+      section.append(details);
     }
-    section.append(box);
     groundTruthSignature = truthStamp();
   }
   function replayData(source, projected, graphNodes, graphEdges) {
@@ -1863,15 +1885,57 @@
     const values = e?.values || {},
       keys = Object.keys(values),
       ok = e?.status === "OK" && keys.some((k) => Number.isFinite(values[k]));
-    for (const name of ok ? keys : [outcome]) {
-      const p = document.createElement("p");
-      p.className = "outcome-value";
-      p.dataset.outcome = name;
-      p.dataset.status = e?.status || "UNAVAILABLE";
-      p.dataset.value = ok && Number.isFinite(values[name]) ? values[name] : "";
-      p.textContent = ok && Number.isFinite(values[name]) ? values[name].toFixed(3) : "Could not compute";
-      section.append(p);
+    const scroll = document.createElement("div"),
+      table = document.createElement("table"),
+      caption = document.createElement("caption"),
+      head = document.createElement("thead"),
+      header = document.createElement("tr"),
+      body = document.createElement("tbody");
+    scroll.className = "scroll";
+    table.dataset.estimateComparison = "";
+    table.setAttribute("aria-label", outcome + " estimate and reference comparison");
+    caption.textContent = "Values are rounded; errors use full-precision values.";
+    caption.style.fontSize = "12px";
+    for (const [label, marker] of [
+      ["Outcome", ""],
+      ["Estimate", ""],
+      ["Ground truth", "referenceHeading"],
+      ["Absolute error", "errorHeading"],
+    ]) {
+      const th = document.createElement("th");
+      th.scope = "col";
+      th.style.whiteSpace = "normal";
+      th.textContent = label;
+      if (marker) th.dataset[marker] = "";
+      header.append(th);
     }
+    head.append(header);
+    for (const name of ok ? keys : [outcome]) {
+      const row = document.createElement("tr"),
+        title = document.createElement("th"),
+        estimate = document.createElement("td");
+      row.dataset.outcome = name;
+      title.scope = "row";
+      title.textContent = name;
+      estimate.dataset.estimateValue = "";
+      estimate.dataset.outcome = name;
+      estimate.dataset.status = e?.status || "UNAVAILABLE";
+      estimate.dataset.value = ok && Number.isFinite(values[name]) ? values[name] : "";
+      estimate.textContent = ok && Number.isFinite(values[name]) ? values[name].toFixed(3) : "N/A";
+      row.append(title, estimate);
+      for (const marker of ["referenceValue", "comparisonError"]) {
+        const cell = document.createElement("td");
+        cell.dataset[marker] = "";
+        cell.dataset.value = "";
+        cell.dataset.status = "UNAVAILABLE";
+        cell.textContent = "N/A";
+        row.append(cell);
+      }
+      body.append(row);
+    }
+    table.append(caption, head, body);
+    scroll.append(table);
+    section.append(scroll);
     if (!ok) {
       const note = document.createElement("p");
       note.className = "estimate-reason";
