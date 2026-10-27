@@ -1095,9 +1095,7 @@
   }
   function unassignedCSVColumns() {
     if (!csvTable) return [];
-    const used = new Set(
-      nodes.filter((n) => n.observed).flatMap((n) => [columnMapping[n.name]].flat().filter((h) => csvTable.headers.includes(h)))
-    );
+    const used = new Set(nodes.filter((n) => n.observed).flatMap((n) => [columnMapping[n.name]].flat().filter((h) => csvTable.headers.includes(h))));
     return csvTable.headers.filter((h) => !used.has(h));
   }
   function updateColumnActions() {
@@ -1943,10 +1941,12 @@
       if (dataSource === "csv") {
         if (csvReadPending) throw Error("Wait for the selected CSV file to finish reading.");
         if (!csvTable) throw Error("Choose a valid CSV file first.");
-        const missing = nodes.filter((n) => n.observed).find((n) => {
-          const members = [columnMapping[n.name]].flat();
-          return !members.length || members.some((h) => !h || !csvTable.headers.includes(h));
-        });
+        const missing = nodes
+          .filter((n) => n.observed)
+          .find((n) => {
+            const members = [columnMapping[n.name]].flat();
+            return !members.length || members.some((h) => !h || !csvTable.headers.includes(h));
+          });
         if (missing) {
           showMissingCSVMapping(missing.name);
           return;

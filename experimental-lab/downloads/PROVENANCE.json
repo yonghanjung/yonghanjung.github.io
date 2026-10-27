@@ -237,14 +237,14 @@
     "basis": "Existing public package0.1.0 plus deployed public Editor fixes (8b3ae2) and locally reviewed UX/network-retry fixes; no version/dependency/estimator change.",
     "frozen_web_source_sha256": {
       "editor_engine.py": "2bfa9bd783a63d47e9ccc81bc6c06ec8a6ba5920a58b5aa2ddc24763c4ce0267",
-      "role-ui.js": "bc0c099d32dd32f1962c05543805763b89430909b9f20bc3a94200a5d0d38ac3",
+      "role-ui.js": "422fe649a6d5d2fcec64e7cab393d567fbf84a0f7b635fca7e0259b3dccb8bfb",
       "scm-worker.js": "69db798a121667101c2c5192f6813699273cfec7c6ec4eb160b8109fb878d287",
       "guide.html": "e3a89fcd6cc322a54a66ce8f419577874f35f8a82c2db901576cec208f5070ed"
     },
     "packaged_active_members_sha256": {
       "editor_engine.py": "7ad29374de37e4e0e281446c9f3296e6fce2c986ff035db681db86d83c7f9297",
       "web/editor_engine.py": "2bfa9bd783a63d47e9ccc81bc6c06ec8a6ba5920a58b5aa2ddc24763c4ce0267",
-      "web/role-ui.js": "bc0c099d32dd32f1962c05543805763b89430909b9f20bc3a94200a5d0d38ac3",
+      "web/role-ui.js": "422fe649a6d5d2fcec64e7cab393d567fbf84a0f7b635fca7e0259b3dccb8bfb",
       "web/scm-worker.js": "69db798a121667101c2c5192f6813699273cfec7c6ec4eb160b8109fb878d287",
       "web/guide.html": "5619b548e394154724a76c7a917fd1e2aaaf62795e0863650d6a0e5fee116d56"
     },
