@@ -35,7 +35,94 @@
     const pair = available[index];
     return decompose(pair.base, pair.take);
   }
-  const api = Object.freeze({ decompose, gradeStep, BASES, TAKES, PAIRS, pairKey, isPracticePair, next });
+  // Level 2 is additive: the original 144-pair API remains unchanged.
+  const PLACES = Object.freeze([1000, 100, 10, 1]);
+  const PLACE_NAMES = Object.freeze(["thousand", "hundred", "ten", "one"]);
+  const LEVEL2_PAIRS = Object.freeze(
+    [100, 1000].flatMap((unit) =>
+      Array.from({ length: 9 }, (_, h) => h + 1).flatMap((h) =>
+        Array.from({ length: 8 }, (_, r) => r + 1).flatMap((r) =>
+          Array.from({ length: 10 }, (_, t) => t).flatMap((t) =>
+            Array.from({ length: 9 - r }, (_, u) => Object.freeze({ base: h * unit + r, take: 10 * t + r + 1 + u }))
+          )
+        )
+      )
+    )
+  );
+  function isLevel2Pair(base, take) {
+    if (!Number.isInteger(base) || !Number.isInteger(take) || take < 1 || take > 99) return false;
+    const unit = base < 1000 ? 100 : 1000,
+      h = Math.floor(base / unit),
+      r = base % unit;
+    return h >= 1 && h <= 9 && r >= 1 && r <= 8 && take % 10 > r;
+  }
+  const amount = (counts) => counts.reduce((sum, count, i) => sum + count * PLACES[i], 0);
+  function regroup(base, take) {
+    if (!isLevel2Pair(base, take)) throw new RangeError("Use a Level 2 practice pair.");
+    const initial = PLACES.map((place) => Math.floor(base / place) % 10),
+      counts = [...initial],
+      trades = [];
+    let donor = 2;
+    while (counts[donor] === 0) donor--;
+    for (let from = donor; from < 3; from++) {
+      const before = [...counts];
+      counts[from]--;
+      counts[from + 1] += 10;
+      if (amount(counts) !== base) throw new Error("Trade must preserve value.");
+      trades.push(Object.freeze({ from, to: from + 1, before: Object.freeze(before), after: Object.freeze([...counts]) }));
+    }
+    const ones = counts[3] - (take % 10),
+      tens = counts[2] * 10 - Math.floor(take / 10) * 10,
+      kept = counts[0] * 1000 + counts[1] * 100,
+      total = kept + tens + ones;
+    const tasks = [{ kind: "ones", prompt: `${counts[3]} − ${take % 10} =`, unit: "ones", answer: ones }];
+    if (take >= 10) tasks.push({ kind: "tens", prompt: `${counts[2] * 10} − ${Math.floor(take / 10) * 10} =`, unit: "value in tens", answer: tens });
+    const parts = [kept, tens, ones].filter((value) => value > 0);
+    tasks.push({ kind: "final", prompt: parts.length > 1 ? `${parts.join(" + ")} =` : `${base} − ${take} =`, unit: "total", answer: total });
+    return Object.freeze({
+      base,
+      take,
+      initial: Object.freeze(initial),
+      trades: Object.freeze(trades),
+      regrouped: Object.freeze([...counts]),
+      ones,
+      tens,
+      kept,
+      total,
+      tasks: Object.freeze(tasks.map(Object.freeze)),
+    });
+  }
+  function gradeTask(model, index, input) {
+    if (!Number.isInteger(index) || index < 0 || index >= model.tasks.length) throw new RangeError("Invalid task.");
+    const text = String(input).trim();
+    if (!/^\d{1,4}$/.test(text)) return { valid: false, correct: false };
+    return { valid: true, correct: Number(text) === model.tasks[index].answer };
+  }
+  function nextLevel2(recent = [], chooseIndex = secureIndex) {
+    const excluded = new Set(recent.slice(-20)),
+      available = LEVEL2_PAIRS.filter((pair) => !excluded.has(pairKey(pair)));
+    const index = chooseIndex(available.length);
+    if (!Number.isInteger(index) || index < 0 || index >= available.length) throw new RangeError("Invalid selection");
+    return regroup(available[index].base, available[index].take);
+  }
+  const api = Object.freeze({
+    decompose,
+    gradeStep,
+    BASES,
+    TAKES,
+    PAIRS,
+    pairKey,
+    isPracticePair,
+    next,
+    PLACES,
+    PLACE_NAMES,
+    LEVEL2_PAIRS,
+    isLevel2Pair,
+    amount,
+    regroup,
+    gradeTask,
+    nextLevel2,
+  });
   root.CountingSense = api;
   if (typeof module !== "undefined") module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);
