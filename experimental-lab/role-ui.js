@@ -628,6 +628,11 @@
   };
   setInterval(checkChanges, 250);
   choose.onchange = () => {
+    if (choose.value === "edit-graph") {
+      choose.value = custom ? "custom" : current;
+      openDetails();
+      return;
+    }
     if (choose.value === "custom") return;
     const key = choose.value;
     if ((custom || draftDirty) && !confirm("Replace your draft and edited graph with this structure’s starting values?")) {
@@ -665,7 +670,6 @@
     $("right-settings-slot").hidden = false;
     document.body.dataset.view = "details";
   }
-  $("edit-selected").onclick = openDetails;
   $("back-easy").onclick = () => {
     if (beforeEdit !== signature()) markCustom();
     editor.hidden = true;
@@ -734,7 +738,6 @@
       "easy-identify",
       "easy-estimate",
       "run-estimate",
-      "edit-selected",
       "choose-csv",
       "choose-random",
       "generate-data",
