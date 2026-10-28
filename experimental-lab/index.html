@@ -1201,9 +1201,7 @@ permalink: /experimental-lab/
     }
     body[data-view="details"] .demo-tour,
     body[data-view="details"] #easy-controls > :not(.easy-input),
-    body[data-view="details"] #easy-result,
     body[data-view="details"] #dataset-tools,
-    body[data-view="details"] #data-columns,
     body[data-view="details"] .easy-help,
     body[data-view="details"] #editor-view > .actions,
     body[data-view="details"] #editor-view > details,
@@ -1217,7 +1215,7 @@ permalink: /experimental-lab/
     }
     body[data-view="details"] #easy-controls {
       grid-row: 1;
-      position: sticky;
+      position: static;
       top: 0;
       z-index: 3;
       padding: 8px 0;
@@ -1286,6 +1284,32 @@ permalink: /experimental-lab/
       min-width: 38px;
       text-align: center;
       font-size: 12px;
+    }
+    #graph-analysis {
+      margin-top: 16px;
+      min-width: 0;
+    }
+    #graph-analysis[data-estimate-open="false"] #estimate-options,
+    #graph-analysis[data-estimate-open="false"] #data-columns {
+      display: none;
+    }
+    #graph-analysis[data-analysis-open="false"] #easy-progress,
+    #graph-analysis[data-analysis-open="false"] #easy-result {
+      display: none;
+    }
+    #graph-query-fields {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin: 12px 0;
+    }
+    #graph-query-fields label {
+      min-width: 0;
+      margin: 0;
+    }
+    #graph-query-fields input,
+    #graph-query-fields .ce-picker {
+      width: 100%;
     }
     @media (max-width: 900px) {
       body[data-view="details"] #easy-graph {
@@ -1752,7 +1776,6 @@ permalink: /experimental-lab/
               <option value="adjustment">No unmeasured confounding</option>
               <option value="frontdoor">Front-door</option>
               <option value="sequential">No unmeasured confounding -- Sequential</option>
-              <option value="custom" hidden>Your edited model</option>
               <option value="edit-graph">Edit your own graph</option>
             </select>
           </div>
@@ -1888,7 +1911,14 @@ permalink: /experimental-lab/
               <button id="graph-zoom-in" type="button" aria-label="Zoom in">+</button>
             </div>
           </div>
-          <div id="graph-slot"></div>
+          <div id="graph-slot">
+            <section id="graph-analysis" aria-label="Graph analysis" data-estimate-open="false" hidden>
+              <details id="graph-query-settings" open hidden>
+                <summary>Query settings</summary>
+                <div id="graph-query-fields"></div>
+              </details>
+            </section>
+          </div>
           <p id="layout-status" role="status"></p>
           <div id="right-settings-slot" hidden>
             <div class="settings-heading">
@@ -4046,7 +4076,7 @@ permalink: /experimental-lab/
   <script src="./cluster-view.js"></script>
   <script src="./method-help.js?ui=outcome-models-v1"></script>
   <script src="./estimation-details.js?ui=estimate-warnings-v1"></script>
-  <script src="./role-ui.js?ui=graph-workspace-v2"></script>
+  <script src="./role-ui.js?ui=graph-workspace-actions-v1"></script>
   <script src="./benchmark-ui.js?ui=estimate-warnings-v1"></script>
   <script src="./select-picker.js"></script>
 </html>

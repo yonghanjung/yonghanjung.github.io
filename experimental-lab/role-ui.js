@@ -7,7 +7,7 @@
     canvasBox = document.querySelector(".canvas"),
     editorLayout = document.querySelector("#editor-view .layout");
   canvasBox.append($("node-menu"));
-  $("graph-slot").append(canvasBox);
+  $("graph-slot").prepend(canvasBox);
   const identifyButton = $("easy-identify"),
     estimateButton = $("easy-estimate");
   let current = "adjustment",
@@ -547,8 +547,7 @@
   function markCustom() {
     if (loading || custom) return;
     custom = true;
-    choose.querySelector('[value="custom"]').hidden = false;
-    choose.value = "custom";
+    choose.value = "edit-graph";
     $("easy-result").hidden = true;
     $("role-status").textContent = "Manual graph changes are kept. Update graph explicitly to replace them.";
     describe();
@@ -629,17 +628,16 @@
   setInterval(checkChanges, 250);
   choose.onchange = () => {
     if (choose.value === "edit-graph") {
-      choose.value = custom ? "custom" : current;
+      choose.value = custom ? "edit-graph" : current;
       openDetails();
       return;
     }
-    if (choose.value === "custom") return;
     const key = choose.value;
     if (
       (custom || draftDirty || (document.body.dataset.view === "details" && beforeEdit !== signature())) &&
       !confirm("Replace your draft and edited graph with this structure’s starting values?")
     ) {
-      choose.value = custom ? "custom" : current;
+      choose.value = custom ? "edit-graph" : current;
       return;
     }
     if (document.body.dataset.view === "details") closeDetails();
@@ -694,6 +692,7 @@
     editor.hidden = false;
     $("right-settings-slot").hidden = false;
     document.body.dataset.view = "details";
+    moveGraphAnalysis(true);
     zoomGraph(1);
   }
   function closeDetails() {
@@ -701,9 +700,9 @@
     editor.hidden = true;
     $("right-settings-slot").hidden = true;
     document.body.dataset.view = "easy";
+    moveGraphAnalysis(false);
     zoomGraph(1);
     $("graph-viewport").style.removeProperty("--graph-zoom");
-    $("easy-layout").append($("easy-result"));
     describe();
   }
   $("back-easy").onclick = closeDetails;
@@ -754,6 +753,7 @@
     running = value;
     window.CausalBenchmarkUI?.lock(value);
     editor.inert = value;
+    querySettings.inert = value;
     canvasBox.inert = value;
     for (const el of document.querySelectorAll(
       "#role-fields input,#role-fields select,#role-fields button,.contrast-controls input,#estimate-query,#random-options input,#random-options select,#csv-paste,#load-pasted-csv,#load-example-csv,#csv-mapping select,#csv-mapping input,#csv-mapping button,#csv-file"
@@ -807,6 +807,7 @@
   }
   identifyButton.onclick = async () => {
     if (running) return;
+    showGraphAnalysis();
     try {
       validateQuestion();
       if ($("query-type").value !== "interventional" || Object.keys(queryEvidence()).length)
@@ -896,6 +897,7 @@
   };
   estimateButton.onclick = async () => {
     if (running) return;
+    showGraphAnalysis(true);
     try {
       validateQuestion();
       $("estimate-options").hidden = false;
@@ -936,6 +938,38 @@
   mappingIssue.tabIndex = -1;
   columnsDetails.append(mappingIssue, $("csv-mapping"));
   $("easy-graph").append(columnsDetails);
+  const analysisHost = $("graph-analysis"),
+    querySettings = $("graph-query-settings"),
+    queryFields = $("graph-query-fields"),
+    queryParts = ["estimate-query", "query-type", "query-x", "query-y", "query-values", "query-reference", "query-evidence", "query-z"].map((id) =>
+      $(id).closest("label")
+    ),
+    analysisParts = [identifyButton.parentElement, $("estimate-options"), progress, $("easy-result"), columnsDetails, ...queryParts],
+    analysisHomes = analysisParts.map((element) => {
+      const marker = document.createComment("Graph analysis home");
+      element.before(marker);
+      return { element, marker };
+    });
+  function moveGraphAnalysis(open) {
+    if (open) {
+      analysisHost.prepend(identifyButton.parentElement);
+      queryFields.append(...queryParts);
+      analysisHost.append($("estimate-options"), columnsDetails, progress, $("easy-result"));
+      analysisHost.dataset.estimateOpen = "false";
+      analysisHost.dataset.analysisOpen = "false";
+      querySettings.hidden = true;
+      analysisHost.hidden = false;
+    } else {
+      for (const { element, marker } of analysisHomes) marker.after(element);
+      analysisHost.hidden = true;
+    }
+  }
+  function showGraphAnalysis(estimate = false) {
+    if (document.body.dataset.view !== "details") return;
+    analysisHost.dataset.analysisOpen = "true";
+    querySettings.hidden = false;
+    if (estimate) analysisHost.dataset.estimateOpen = "true";
+  }
   window.causalEngineActiveBindings = () =>
     (bindingActive && dataSource === "csv") ||
     Object.keys(declaredClusters).length > 0 ||
@@ -2255,10 +2289,11 @@
     $("markov-k-label").hidden = $("markov-order").value !== "custom";
     custom = s.custom;
     draftDirty = s.draftDirty;
-    choose.value = custom ? "custom" : current;
+    choose.value = custom ? "edit-graph" : current;
     $("right-settings-slot").hidden = true;
     editor.hidden = true;
     document.body.dataset.view = "easy";
+    moveGraphAnalysis(false);
     baseline = structure();
     loading = false;
     previousGraph = null;
