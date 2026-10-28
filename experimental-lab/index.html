@@ -1196,6 +1196,108 @@ permalink: /experimental-lab/
     #editor-view[data-source="csv"] .output:has(#sample) {
       display: none;
     }
+    body[data-view="details"] main {
+      max-width: none;
+    }
+    body[data-view="details"] .demo-tour,
+    body[data-view="details"] #easy-controls > :not(.easy-input),
+    body[data-view="details"] #easy-result,
+    body[data-view="details"] #dataset-tools,
+    body[data-view="details"] #data-columns,
+    body[data-view="details"] .easy-help,
+    body[data-view="details"] #editor-view > .actions,
+    body[data-view="details"] #editor-view > details,
+    body[data-view="details"] #editor-view > .output,
+    body[data-view="details"] #query-panel {
+      display: none;
+    }
+    body[data-view="details"] #easy-layout {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 16px;
+    }
+    body[data-view="details"] #easy-controls {
+      grid-row: 1;
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      padding: 8px 0;
+      background: var(--bg);
+    }
+    body[data-view="details"] .easy-input {
+      max-width: 480px;
+      margin: 0;
+    }
+    body[data-view="details"] #easy-graph {
+      --graph-height: clamp(440px, 65vh, 800px);
+      --graph-zoom: 1;
+      grid-row: 2;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 300px;
+      gap: 12px 20px;
+      align-items: start;
+      position: static;
+    }
+    body[data-view="details"] .graph-heading,
+    body[data-view="details"] #layout-status {
+      grid-column: 1 / -1;
+    }
+    body[data-view="details"] #graph-slot {
+      grid-column: 1;
+      grid-row: 2;
+      min-width: 0;
+      max-height: none;
+      overflow: visible;
+    }
+    body[data-view="details"] #graph-viewport {
+      height: var(--graph-height);
+      overflow: auto;
+    }
+    body[data-view="details"] #graph-slot .canvas {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+    }
+    body[data-view="details"] #canvas {
+      width: calc(100% * var(--graph-zoom));
+      min-width: 0 !important;
+      max-width: none;
+      height: calc(var(--graph-height) * var(--graph-zoom)) !important;
+    }
+    body[data-view="details"] #right-settings-slot {
+      grid-column: 2;
+      grid-row: 2;
+      position: static;
+      inset: auto;
+      z-index: auto;
+      min-width: 0;
+      min-height: 0;
+      max-height: var(--graph-height);
+      padding: 0 12px 16px;
+    }
+    #graph-zoom-controls {
+      display: none;
+    }
+    body[data-view="details"] #graph-zoom-controls {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    #graph-zoom-level {
+      min-width: 38px;
+      text-align: center;
+      font-size: 12px;
+    }
+    @media (max-width: 900px) {
+      body[data-view="details"] #easy-graph {
+        --graph-height: clamp(360px, 52vh, 560px);
+        grid-template-columns: minmax(0, 1fr);
+      }
+      body[data-view="details"] #right-settings-slot {
+        grid-column: 1;
+        grid-row: 3;
+        max-height: none;
+      }
+    }
     .benchmark-picker {
       position: relative;
       margin-top: 16px;
@@ -1779,6 +1881,12 @@ permalink: /experimental-lab/
           <div class="graph-heading">
             <h3>Graph</h3>
             <button id="auto-arrange" type="button">Auto arrange</button>
+            <div id="graph-zoom-controls" role="group" aria-label="Graph zoom">
+              <button id="graph-fit" type="button" aria-label="Fit whole graph">Fit</button>
+              <button id="graph-zoom-out" type="button" aria-label="Zoom out">−</button>
+              <output id="graph-zoom-level" aria-live="polite">100%</output>
+              <button id="graph-zoom-in" type="button" aria-label="Zoom in">+</button>
+            </div>
           </div>
           <div id="graph-slot"></div>
           <p id="layout-status" role="status"></p>
@@ -1847,7 +1955,9 @@ permalink: /experimental-lab/
               </div>
             </details>
           </div>
-          <svg id="canvas" viewBox="0 0 900 410" aria-label="Editable directed graph"></svg>
+          <div id="graph-viewport">
+            <svg id="canvas" viewBox="0 0 900 410" aria-label="Editable directed graph"></svg>
+          </div>
         </div>
         <div id="node-menu" role="dialog" aria-label="Node actions" hidden>
           <input id="rename-input" aria-label="Rename node" />
@@ -3936,7 +4046,7 @@ permalink: /experimental-lab/
   <script src="./cluster-view.js"></script>
   <script src="./method-help.js?ui=outcome-models-v1"></script>
   <script src="./estimation-details.js?ui=estimate-warnings-v1"></script>
-  <script src="./role-ui.js?ui=edit-own-graph-v1"></script>
+  <script src="./role-ui.js?ui=graph-workspace-v2"></script>
   <script src="./benchmark-ui.js?ui=estimate-warnings-v1"></script>
   <script src="./select-picker.js"></script>
 </html>

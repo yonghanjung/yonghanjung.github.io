@@ -635,10 +635,14 @@
     }
     if (choose.value === "custom") return;
     const key = choose.value;
-    if ((custom || draftDirty) && !confirm("Replace your draft and edited graph with this structure’s starting values?")) {
+    if (
+      (custom || draftDirty || (document.body.dataset.view === "details" && beforeEdit !== signature())) &&
+      !confirm("Replace your draft and edited graph with this structure’s starting values?")
+    ) {
       choose.value = custom ? "custom" : current;
       return;
     }
+    if (document.body.dataset.view === "details") closeDetails();
     preset(key);
   };
   $("easy-records").onchange = () => {
@@ -663,21 +667,46 @@
   if (nativeActions) editor.prepend(nativeActions);
   const panel = editor.querySelector(".layout");
   if (panel?.querySelector("aside")) panel.prepend(panel.querySelector("aside"));
+  let graphZoom = 1;
+  function zoomGraph(next) {
+    const slot = $("graph-viewport"),
+      box = slot.getBoundingClientRect(),
+      center = new DOMPoint(box.left + slot.clientLeft + slot.clientWidth / 2, box.top + slot.clientTop + slot.clientHeight / 2),
+      anchor = center.matrixTransform(svg.getScreenCTM().inverse());
+    graphZoom = Math.max(1, Math.min(3, next));
+    slot.style.setProperty("--graph-zoom", graphZoom);
+    $("graph-zoom-level").textContent = graphZoom * 100 + "%";
+    $("graph-zoom-out").disabled = graphZoom === 1;
+    $("graph-zoom-in").disabled = graphZoom === 3;
+    if (graphZoom === 1) slot.scrollLeft = slot.scrollTop = 0;
+    else {
+      const point = anchor.matrixTransform(svg.getScreenCTM());
+      slot.scrollLeft += point.x - center.x;
+      slot.scrollTop += point.y - center.y;
+    }
+  }
+  $("graph-fit").onclick = () => !running && zoomGraph(1);
+  $("graph-zoom-out").onclick = () => !running && zoomGraph(graphZoom - 0.5);
+  $("graph-zoom-in").onclick = () => !running && zoomGraph(graphZoom + 0.5);
   function openDetails() {
     if (running) return;
     beforeEdit = signature();
     editor.hidden = false;
     $("right-settings-slot").hidden = false;
     document.body.dataset.view = "details";
+    zoomGraph(1);
   }
-  $("back-easy").onclick = () => {
+  function closeDetails() {
     if (beforeEdit !== signature()) markCustom();
     editor.hidden = true;
     $("right-settings-slot").hidden = true;
     document.body.dataset.view = "easy";
+    zoomGraph(1);
+    $("graph-viewport").style.removeProperty("--graph-zoom");
     $("easy-layout").append($("easy-result"));
     describe();
-  };
+  }
+  $("back-easy").onclick = closeDetails;
   for (const id of ["contrast-action", "contrast-reference"])
     $(id).onchange = () => {
       const value = Number($(id).value);
