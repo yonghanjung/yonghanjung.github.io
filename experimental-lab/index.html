@@ -1744,6 +1744,7 @@ permalink: /experimental-lab/
   <main>
     <a class="back" href="./">CausalEngine</a>
     <a class="back" style="margin-left: 16px" href="./code.html">Code &amp; install</a>
+    <a class="back" style="margin-left: 16px" href="https://causalscience.ai/">Home</a>
     <header>
       <h1 class="engine-brand"><img src="./lab-logo.png" alt="" width="42" height="42" />CausalEngine</h1>
       <div class="actions">
@@ -1967,7 +1968,7 @@ permalink: /experimental-lab/
                   >Edges
                   <textarea id="graph-edges" aria-label="Graph edges or JSON" rows="5" placeholder="U -> A, Y&#10;A -> Y&#10;X -> A, Y"></textarea>
                 </label>
-                <p>~U: hidden · X[2]: cluster · X@180:240: position · JSON graph_dict accepted.</p>
+                <p>~U: Unmeasured · X[2]: cluster · X@180:240: position · JSON graph_dict accepted.</p>
                 <button id="load-graph" type="submit">Load graph</button>
                 <button id="examples" type="button">Library</button>
                 <select id="graph-library" aria-label="UCA graph library" hidden>
@@ -1979,10 +1980,17 @@ permalink: /experimental-lab/
             <details>
               <summary>Edit tools</summary>
               <div class="actions">
-                <input id="new-name" value="V1" aria-label="New node name" /><button id="add-node">Add node</button>
-                <button id="move-mode" aria-pressed="true">Move</button><button id="edge-mode" aria-pressed="false">Edge</button>
-                <button id="remove">Delete</button><button id="restore-graph" type="button" hidden>Restore previous graph</button>
+                <input id="new-name" value="V1" aria-label="New node name" />
+                <label
+                  >New node type<select id="new-node-type" aria-label="New node type">
+                    <option value="observed">Observed</option>
+                    <option value="unmeasured">Unmeasured</option>
+                  </select></label
+                ><button id="add-node">Add node</button> <button id="move-mode" aria-pressed="true">Move</button
+                ><button id="edge-mode" aria-pressed="false">Edge</button> <button id="remove">Delete</button
+                ><button id="restore-graph" type="button" hidden>Restore previous graph</button>
               </div>
+              <p>For an existing node without incoming arrows, select it and clear Observed in Node &amp; model settings to make it Unmeasured.</p>
             </details>
           </div>
           <div id="graph-viewport">
@@ -2311,7 +2319,7 @@ permalink: /experimental-lab/
           class: `node ${node.observed ? "" : "hidden"} ${active ? "selected" : ""}`,
           role: "button",
           tabindex: 0,
-          "aria-label": `Node ${node.name}, dimension ${node.dimension}`,
+          "aria-label": `Node ${node.name}${node.observed ? "" : ", Unmeasured"}, dimension ${node.dimension}`,
         });
         group.append(
           element("title", {}, node.name),
@@ -2382,7 +2390,8 @@ permalink: /experimental-lab/
       const from = source;
       source = null;
       if (from === target || connects(target, from)) message("A directed acyclic graph cannot contain a self-loop or cycle.", true);
-      else if (!nodes.find((n) => n.name === target).observed) message("A hidden root cannot have an incoming edge.", true);
+      else if (!nodes.find((n) => n.name === target).observed)
+        message("This editor supports Unmeasured nodes only as roots, without incoming arrows.", true);
       else if (!edges.some(([a, b]) => a === from && b === target)) {
         edges.push([from, target]);
         invalidate();
@@ -2400,7 +2409,7 @@ permalink: /experimental-lab/
     function availableName(name, current) {
       return /^[A-Za-z][A-Za-z0-9_]*$/.test(name) && !nodes.some((n) => n.name === name && n !== current);
     }
-    function createNode(name, x, y) {
+    function createNode(name, x, y, observed = true) {
       if (!availableName(name)) {
         message("Use a unique name starting with a letter.", true);
         return;
@@ -2411,7 +2420,7 @@ permalink: /experimental-lab/
       }
       nodes.push({
         name,
-        observed: true,
+        observed,
         dimension: 1,
         family: "",
         x: Math.max(60, Math.min(svg.viewBox.baseVal.width - 60, x)),
@@ -2461,7 +2470,7 @@ permalink: /experimental-lab/
     svg.ondblclick = (event) => {
       if (event.target.closest("[data-node],[data-edge]")) return;
       const p = point(event);
-      createNode(nextName(), p.x, p.y);
+      createNode(nextName(), p.x, p.y, $("new-node-type").value !== "unmeasured");
     };
     svg.onpointerdown = (event) => {
       if (event.button !== 0) return;
@@ -2528,7 +2537,12 @@ permalink: /experimental-lab/
       if (event.key === "Enter" && edge) select({ edge: JSON.parse(edge.dataset.edge) });
     };
     $("add-node").onclick = () => {
-      createNode($("new-name").value.trim(), 130 + (nodes.length % 5) * 135, 100 + ((Math.floor(nodes.length / 5) * 55) % 250));
+      createNode(
+        $("new-name").value.trim(),
+        130 + (nodes.length % 5) * 135,
+        100 + ((Math.floor(nodes.length / 5) * 55) % 250),
+        $("new-node-type").value !== "unmeasured"
+      );
     };
     $("remove").onclick = () => {
       if (busy || !selected) return;
@@ -2566,7 +2580,7 @@ permalink: /experimental-lab/
           return;
         }
         if (!observed && edges.some(([, b]) => b === node.name)) {
-          message("A node with parents cannot be a hidden root.", true);
+          message("This editor supports Unmeasured nodes only as roots, without incoming arrows. Remove the incoming arrows first.", true);
           $("observed").checked = true;
           return;
         }
