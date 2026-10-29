@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReLU Layer Stacker</title>
+<style>
+:root {
+  --bg: #FFFFFF; --panel: #F8FAFC; --ink: #11233F; --muted: #53657A; --line: #CBD5E1;
+  --grid: #E2E8F0; --navy: #173B7A; --teal: #0E7490; --rust: #9A3412; --on-teal: #FFFFFF; --faint: #94A3B8;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F172A; --panel: #16213A; --ink: #E2E8F0; --muted: #94A3B8; --line: #334155;
+    --grid: #1E293B; --navy: #8FB3F0; --teal: #38BDD8; --rust: #F59E73; --on-teal: #0F172A; --faint: #475569;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F172A; --panel: #16213A; --ink: #E2E8F0; --muted: #94A3B8; --line: #334155;
+  --grid: #1E293B; --navy: #8FB3F0; --teal: #38BDD8; --rust: #F59E73; --on-teal: #0F172A; --faint: #475569;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+       font: 19px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1400px; margin: 0 auto; padding: 18px 16px 28px; }
+.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 24px; margin-bottom: 14px; }
+h1 { font-size: 30px; margin: 0; }
+.sub { color: var(--muted); }
+.layout { display: grid; grid-template-columns: minmax(300px, 0.9fr) 1.3fr; gap: 16px; align-items: start; }
+.view { position: sticky; top: 0; z-index: 1; background: var(--bg); padding-top: 6px; }
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } .view { order: -1; padding-bottom: 8px; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.panel + .panel { margin-top: 12px; }
+h2 { font-size: 20px; margin: 0 0 8px; }
+.formula { font-size: 21px; margin: 4px 0 12px; overflow-wrap: anywhere; }
+.formula .num { color: var(--teal); font-variant-numeric: tabular-nums; }
+.ctl label { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; margin: 8px 0 2px; }
+.ctl output { font-variant-numeric: tabular-nums; color: var(--teal); }
+.unit { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 4px; }
+.unit h3 { font-size: 16px; color: var(--muted); margin: 6px 0 0; font-weight: 600; }
+input[type=range] { width: 100%; height: 28px; accent-color: var(--teal); }
+button { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+         border-radius: 8px; padding: 6px 14px; cursor: pointer; white-space: nowrap; }
+button.primary { background: var(--teal); color: var(--on-teal); border-color: var(--teal); font-weight: 700; }
+button[aria-pressed="true"] { background: var(--navy); color: var(--bg); border-color: var(--navy); font-weight: 700; }
+button:disabled { opacity: 0.45; cursor: default; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+.buttons { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; }
+.seg { display: inline-flex; }
+.seg button { border-radius: 0; }
+.seg button:first-child { border-radius: 8px 0 0 8px; }
+.seg button:last-child { border-radius: 0 8px 8px 0; border-left: none; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.locked { list-style: none; margin: 0; padding: 0; }
+.locked li { padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 18px; overflow-wrap: anywhere; }
+.locked li:last-child { border-bottom: none; }
+.locked .num { color: var(--muted); font-variant-numeric: tabular-nums; }
+.readouts { display: flex; flex-wrap: wrap; gap: 6px 32px; margin: 0 4px 10px; font-size: 24px; }
+.readouts b { font-variant-numeric: tabular-nums; color: var(--teal); }
+canvas { width: 100%; display: block; border: 1px solid var(--line); border-radius: 12px; height: 520px; }
+@media (max-width: 900px) { canvas { height: 300px; } .readouts { font-size: 18px; gap: 4px 20px; } }
+@media (max-width: 600px) { body { font-size: 17px; } h1 { font-size: 24px; } canvas { height: 240px; } }
+.note { color: var(--muted); font-size: 17px; max-width: 1100px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <h1>Stack ReLU layers</h1>
+    <span class="sub">IS 507 Lecture 10 · one input x between 0 and 1</span>
+  </div>
+
+  <div class="layout">
+    <div>
+      <div class="panel">
+        <h2 id="curTitle">Layer 1</h2>
+        <div class="formula" id="formula"></div>
+        <div class="row">
+          <span>Units in this layer:</span>
+          <div class="seg" role="group" aria-label="Units in this layer">
+            <button id="u1" type="button">1</button>
+            <button id="u2" type="button">2</button>
+          </div>
+        </div>
+        <div class="ctl" id="sliders"></div>
+        <div class="buttons">
+          <button id="add" type="button" class="primary">Add 1 layer</button>
+          <button id="remove" type="button">Remove last layer</button>
+          <button id="tent" type="button">Tent</button>
+          <button id="reset" type="button">Start over</button>
+        </div>
+      </div>
+      <div class="panel" id="lockedPanel" hidden>
+        <h2>Fixed layers</h2>
+        <ol class="locked" id="locked"></ol>
+      </div>
+    </div>
+
+    <div class="view">
+      <div class="readouts">
+        <span>Layers <b id="nL"></b></span>
+        <span>Units <b id="nU"></b></span>
+        <span>Bends <b id="nB"></b></span>
+        <span>Straight pieces <b id="nP"></b></span>
+      </div>
+      <canvas id="plot" role="img" aria-label="The output of the last layer as a function of x, with the outputs of earlier layers as faint lines and the bends marked as dots"></canvas>
+    </div>
+  </div>
+
+  <p class="note">Each layer reads the output of the layer before it; layer 1 reads x. A layer with one unit computes a·ReLU(w·z + b) + c; with two units it adds a second term a′·ReLU(w′·z + b′). The thick line is the last layer's output; the faint lines are the earlier layers, and the dots mark the bends of the thick line. With one unit per layer, every layer's output only rises or only falls, so each new layer adds at most one bend. With two units a layer can fold: press Tent, add a layer, press Tent again, and the pieces double.</p>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const relu = v => Math.max(0, v);
+const PARAMS = [["w", -4, 4], ["b", -2, 2], ["a", -4, 4]];
+const fresh = () => ({ units: [{ w: 1, b: 0, a: 1 }, { w: 1, b: -0.5, a: -1 }], k: 1, c: 0 });
+let layers = [fresh()];
+
+const fmt = v => (Math.round(v * 100) / 100).toString().replace("-", "−");
+const inName = i => i === 0 ? "x" : `z<sub>${i}</sub>`;
+function formulaHTML(L, i, cls) {
+  const n = v => `<span class="${cls}">${fmt(v)}</span>`;
+  const plus = v => v < 0 ? ` − ${n(-v)}` : ` + ${n(v)}`;  // write "− 0.5", not "+ −0.5"
+  const terms = L.units.slice(0, L.k).map((u, j) =>
+    `${j ? (u.a < 0 ? " − " + n(-u.a) : " + " + n(u.a)) : n(u.a)}·ReLU(${n(u.w)}·${inName(i)}${plus(u.b)})`);
+  return `z<sub>${i + 1}</sub> = ${terms.join("")}${plus(L.c)}`;
+}
+const apply = (L, z) => L.units.slice(0, L.k).reduce((s, u) => s + u.a * relu(u.w * z + u.b), L.c);
+
+// Each layer's output is piecewise linear in x, so carry it exactly as knots (x, value).
+function stack() {
+  let xs = [0, 1], vs = [0, 1];                           // z_0 = x
+  const out = [];
+  for (const L of layers) {
+    const nx = [xs[0]];
+    for (let i = 0; i + 1 < xs.length; i++) {             // add every x where some unit's input crosses zero
+      const cuts = [];
+      for (const u of L.units.slice(0, L.k)) {
+        const p = u.w * vs[i] + u.b, q = u.w * vs[i + 1] + u.b;
+        if ((p < 0 && q > 0) || (p > 0 && q < 0)) cuts.push(xs[i] + (xs[i + 1] - xs[i]) * p / (p - q));
+      }
+      cuts.sort((m, n) => m - n).forEach(c => nx.push(c));
+      nx.push(xs[i + 1]);
+    }
+    const prev = x => { let i = 0; while (i + 2 < xs.length && x > xs[i + 1]) i++;
+      const t = (x - xs[i]) / (xs[i + 1] - xs[i] || 1); return vs[i] + t * (vs[i + 1] - vs[i]); };
+    const nv = nx.map(x => apply(L, prev(x)));
+    xs = nx; vs = nv;
+    out.push({ xs, vs });
+  }
+  return out;
+}
+function bends(f) {                                        // interior knots where the slope really changes
+  const b = [];
+  for (let i = 1; i + 1 < f.xs.length; i++) {
+    const dl = f.xs[i] - f.xs[i - 1], dr = f.xs[i + 1] - f.xs[i];
+    if (dl < 1e-9 || dr < 1e-9) continue;
+    const s1 = (f.vs[i] - f.vs[i - 1]) / dl, s2 = (f.vs[i + 1] - f.vs[i]) / dr;
+    if (Math.abs(s1 - s2) > 1e-6 * (1 + Math.abs(s1) + Math.abs(s2))) b.push([f.xs[i], f.vs[i]]);
+  }
+  return b;
+}
+
+function buildSliders() {
+  const L = layers[layers.length - 1], box = $("sliders"); box.innerHTML = "";
+  L.units.slice(0, L.k).forEach((u, j) => {
+    const d = document.createElement("div"); d.className = "unit";
+    d.innerHTML = `<h3>Unit ${j + 1}</h3>`;
+    for (const [p, lo, hi] of PARAMS) {
+      const id = `s-${j}-${p}`, name = p + (j ? "′" : "");
+      d.insertAdjacentHTML("beforeend",
+        `<label for="${id}"><span>${name}</span> <output id="${id}o"></output></label>
+         <input id="${id}" type="range" min="${lo}" max="${hi}" step="0.05" value="${u[p]}">`);
+    }
+    box.appendChild(d);
+  });
+  box.insertAdjacentHTML("beforeend", `<div class="unit"><label for="s-c"><span>c</span> <output id="s-co"></output></label>
+    <input id="s-c" type="range" min="-2" max="2" step="0.05" value="${L.c}"></div>`);
+  box.querySelectorAll("input").forEach(el => el.addEventListener("input", () => {
+    const m = el.id.match(/^s-(\d)-(\w)$/);
+    if (m) L.units[+m[1]][m[2]] = +el.value; else L.c = +el.value;
+    update();
+  }));
+}
+
+function css(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function draw(F) {
+  const c = $("plot"), r = c.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  c.width = Math.round(r.width * d); c.height = Math.round(r.height * d);
+  const g = c.getContext("2d"); g.setTransform(d, 0, 0, d, 0, 0);
+  const W = r.width, H = r.height, P = { l: 58, r: 18, t: 18, b: 48 };
+  let lo = Infinity, hi = -Infinity;
+  for (const f of F) for (const v of f.vs) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  lo = Math.min(lo, 0); hi = Math.max(hi, 1);
+  const pad = 0.08 * (hi - lo); lo -= pad; hi += pad;
+  const px = x => P.l + x * (W - P.l - P.r), py = v => H - P.b - (v - lo) / (hi - lo) * (H - P.t - P.b);
+  g.clearRect(0, 0, W, H);
+  g.strokeStyle = css("--grid"); g.lineWidth = 1; g.fillStyle = css("--muted"); g.font = "15px system-ui, sans-serif";
+  g.textAlign = "center"; g.textBaseline = "top";
+  for (const t of [0, 0.25, 0.5, 0.75, 1]) { g.beginPath(); g.moveTo(px(t), P.t); g.lineTo(px(t), H - P.b); g.stroke(); g.fillText(t, px(t), H - P.b + 6); }
+  const step = Math.pow(10, Math.floor(Math.log10((hi - lo) / 4))), ys = [];
+  const st = [1, 2, 5, 10].map(m => m * step).find(s => (hi - lo) / s <= 6);
+  for (let v = Math.ceil(lo / st) * st; v <= hi; v += st) ys.push(Math.round(v / st) * st);
+  g.textAlign = "right"; g.textBaseline = "middle";
+  for (const v of ys) { g.beginPath(); g.moveTo(P.l, py(v)); g.lineTo(W - P.r, py(v)); g.stroke(); g.fillText(fmt(v), P.l - 8, py(v)); }
+  g.strokeStyle = css("--line"); g.lineWidth = 1.5; g.beginPath(); g.moveTo(P.l, py(0)); g.lineTo(W - P.r, py(0)); g.stroke();
+  g.textAlign = "center"; g.textBaseline = "bottom"; g.fillText("x", (P.l + W - P.r) / 2, H - 4);
+  F.forEach((f, i) => {
+    const last = i === F.length - 1;
+    g.strokeStyle = last ? css("--teal") : css("--faint"); g.lineWidth = last ? 3.5 : 1.8;
+    g.beginPath(); f.xs.forEach((x, k) => k ? g.lineTo(px(x), py(f.vs[k])) : g.moveTo(px(x), py(f.vs[k]))); g.stroke();
+  });
+  let lx = P.l + 10; const ly = P.t + 12;                  // legend: the last layer, then the earlier ones
+  g.textAlign = "left"; g.textBaseline = "middle"; g.font = "15px system-ui, sans-serif";
+  const items = [[`z${F.length}(x), last layer`, css("--teal"), 3.5]];
+  if (F.length > 1) items.push([F.length === 2 ? "z1(x)" : F.length === 3 ? "z1(x), z2(x)" : `z1(x) … z${F.length - 1}(x)`, css("--faint"), 1.8]);
+  for (const [lab, col, lw] of items) {
+    g.fillStyle = css("--bg"); g.fillRect(lx - 4, ly - 11, g.measureText(lab).width + 40, 22);
+    g.strokeStyle = col; g.lineWidth = lw; g.beginPath(); g.moveTo(lx, ly); g.lineTo(lx + 24, ly); g.stroke();
+    g.fillStyle = css("--ink"); g.fillText(lab, lx + 30, ly); lx += g.measureText(lab).width + 52;
+  }
+  g.fillStyle = css("--rust");
+  for (const [x, v] of bends(F[F.length - 1])) { g.beginPath(); g.arc(px(x), py(v), 5, 0, 2 * Math.PI); g.fill(); }
+}
+
+function update() {
+  const i = layers.length - 1, L = layers[i];
+  $("curTitle").textContent = `Layer ${i + 1}` + (i ? ` (reads z${i})` : " (reads x)");
+  $("formula").innerHTML = formulaHTML(L, i, "num");
+  $("u1").setAttribute("aria-pressed", L.k === 1); $("u2").setAttribute("aria-pressed", L.k === 2);
+  document.querySelectorAll("#sliders input").forEach(el => {
+    const o = $(el.id + "o"); if (o) o.textContent = fmt(+el.value);
+  });
+  $("lockedPanel").hidden = i === 0;
+  $("locked").innerHTML = layers.slice(0, i).map((M, j) => `<li>${formulaHTML(M, j, "num")}</li>`).join("");
+  $("remove").disabled = i === 0;
+  const F = stack(), nb = bends(F[F.length - 1]).length;
+  $("nL").textContent = layers.length; $("nU").textContent = layers.reduce((s, M) => s + M.k, 0);
+  $("nB").textContent = nb; $("nP").textContent = nb + 1;
+  draw(F);
+}
+const rebuild = () => { buildSliders(); update(); };
+$("u1").addEventListener("click", () => { layers[layers.length - 1].k = 1; rebuild(); });
+$("u2").addEventListener("click", () => { layers[layers.length - 1].k = 2; rebuild(); });
+$("add").addEventListener("click", () => { if (layers.length < 8) { layers.push(fresh()); rebuild(); } });
+$("remove").addEventListener("click", () => { if (layers.length > 1) { layers.pop(); rebuild(); } });
+$("tent").addEventListener("click", () => {             // t(z) = 2 ReLU(z) - 4 ReLU(z - 0.5): folds [0, 1] in half
+  layers[layers.length - 1] = { units: [{ w: 1, b: 0, a: 2 }, { w: 1, b: -0.5, a: -4 }], k: 2, c: 0 }; rebuild();
+});
+$("reset").addEventListener("click", () => { layers = [fresh()]; rebuild(); });
+window.addEventListener("resize", update);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", update);
+new MutationObserver(update).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+rebuild();
+</script>
+</body>
+</html>
