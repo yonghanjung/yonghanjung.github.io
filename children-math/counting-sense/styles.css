@@ -476,3 +476,21 @@ input:focus-visible {
   border: 0;
   flex: 0 0 116px;
 }
+
+.count-setting {
+  display: grid;
+  gap: 10px;
+  font-weight: 700;
+}
+.round-progress {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+}
+.practice-controls .finish-button {
+  min-width: 50px;
+  padding: 8px 5px;
+}
+.round-summary h2 {
+  margin-top: 0;
+}

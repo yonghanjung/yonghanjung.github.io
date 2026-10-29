@@ -14,8 +14,17 @@
     addsub: "Add & Subtract",
     findfix: "Find & Fix",
   };
-  const defaults = { section: "mix", count: 10, customCount: 10, addsubOps: ["+", "−"], findfixOps: ["+", "−", "×", "÷"], maxDigits: 4 };
+  const defaults = {
+    domains: [...E.DOMAINS],
+    section: "mix",
+    count: 10,
+    customCount: 10,
+    addsubOps: ["+", "−"],
+    findfixOps: ["+", "−", "×", "÷"],
+    maxDigits: 4,
+  };
   const isPractice = (section) => ["addsub", "findfix"].includes(section);
+  const sectionFor = (domains) => (domains.length === 1 ? domains[0] : JSON.stringify(domains) === JSON.stringify(E.DOMAINS) ? "mix" : "selected");
   let prefs = { ...defaults },
     summaries = [],
     screen = "home",
@@ -37,6 +46,12 @@
           selected = Array.isArray(saved.prefs?.[key]) ? allowed.filter((op) => saved.prefs[key].includes(op)) : [];
         if (selected.length) prefs[key] = selected;
       }
+      try {
+        prefs.domains = saved.prefs?.domains ? E.normalizeDomains(saved.prefs.domains) : prefs.section === "mix" ? [...E.DOMAINS] : [prefs.section];
+      } catch {
+        prefs.domains = [...E.DOMAINS];
+      }
+      prefs.section = sectionFor(prefs.domains);
       if (Array.isArray(saved.summaries))
         summaries = saved.summaries
           .filter(
@@ -73,7 +88,7 @@
   function fetchQuestion() {
     if (round.queue) return round.queue[round.index];
     if (!round.cycle.length) {
-      const batch = isPractice(round.config.section) ? 20 : 10;
+      const batch = isPractice(round.config.section) || round.config.section === "selected" ? 20 : 10;
       const count = round.total === null ? batch : Math.min(batch, round.total - round.index);
       const baselineFingerprints = round.config.seed ? [] : round.baselineVisible,
         recentFingerprints = round.config.seed ? [] : round.recent;
@@ -84,6 +99,10 @@
         offset: round.index,
         ops: round.config.ops,
         maxDigits: round.config.maxDigits,
+        domains: round.config.domains,
+        addsubOps: round.config.addsubOps,
+        findfixOps: round.config.findfixOps,
+        roundKey: round.config.roundKey,
         baselineFingerprints,
         recentFingerprints,
       });
@@ -125,7 +144,9 @@
     Object.assign(round, saved, { response: { ...saved.response } });
   }
   function start(config = { ...prefs, seed: seedDraft }, retry = null) {
-    if (isPractice(config.section)) config = { ...config, ops: config.section === "addsub" ? config.addsubOps : config.findfixOps };
+    const domains = E.normalizeDomains(config.domains ?? (config.section === "mix" ? E.DOMAINS : [config.section]));
+    config = { ...config, domains, section: sectionFor(domains) };
+    if (isPractice(config.section)) config.ops = config.section === "addsub" ? config.addsubOps : config.findfixOps;
     notice = "";
     const count = config.count === "custom" ? config.customCount : config.count;
     if (count !== "unlimited" && (!Number.isInteger(count) || count < 1 || count > 999)) {
@@ -144,7 +165,7 @@
       const queue = retry || null;
       if (queue && (!Array.isArray(queue) || !queue.length || queue.some((q) => !valid(q)))) throw new Error("Invalid question set");
       round = {
-        config: { ...config, seed },
+        config: { ...config, seed, roundKey: seed ? null : Array.from(crypto.getRandomValues(new Uint32Array(2))).join(":") },
         queue,
         total: queue ? queue.length : count === "unlimited" ? null : count,
         index: 0,
@@ -183,34 +204,41 @@
       );
     const card = el("section", "card setup");
     const topicRow = el("div", "setup-row");
-    topicRow.append(el("span", "label", "Topic"));
+    topicRow.append(el("span", "label", "Topics"));
     const topics = el("div", "topic-grid");
     topics.setAttribute("role", "group");
-    topics.setAttribute("aria-label", "Topic");
+    topics.setAttribute("aria-label", "Topics");
     for (const [key, label] of Object.entries(TOPICS)) {
+      const selected = key === "mix" ? sectionFor(prefs.domains) === "mix" : prefs.domains.includes(key);
       const b = button(
         label,
         () => {
-          if (isPractice(key) && prefs.section !== key) prefs.count = 20;
-          prefs.section = key;
+          if (key === "mix") prefs.domains = [...E.DOMAINS];
+          else {
+            if (selected && prefs.domains.length === 1) return;
+            prefs.domains = E.normalizeDomains(selected ? prefs.domains.filter((s) => s !== key) : [...prefs.domains, key]);
+          }
+          prefs.section = sectionFor(prefs.domains);
           notice = "";
           save();
           render();
         },
-        prefs.section === key ? "selected" : ""
+        selected ? "selected" : ""
       );
-      b.setAttribute("aria-pressed", String(prefs.section === key));
+      b.setAttribute("aria-label", label);
+      b.setAttribute("aria-pressed", String(selected));
       topics.append(b);
     }
     topicRow.append(topics);
     card.append(topicRow);
-    if (isPractice(prefs.section)) {
+    let digitsShown = false;
+    for (const practiceSection of prefs.domains.filter(isPractice)) {
       const opRow = el("div", "setup-row"),
         controls = el("div", "practice-options");
-      opRow.append(el("span", "label", "Operations"));
+      opRow.append(el("span", "label", prefs.domains.length === 1 ? "Operations" : TOPICS[practiceSection] + " operations"));
       controls.setAttribute("role", "group");
-      controls.setAttribute("aria-label", "Operations");
-      const key = prefs.section === "addsub" ? "addsubOps" : "findfixOps";
+      controls.setAttribute("aria-label", prefs.domains.length === 1 ? "Operations" : TOPICS[practiceSection] + " operations");
+      const key = practiceSection === "addsub" ? "addsubOps" : "findfixOps";
       for (const op of defaults[key]) {
         const selected = prefs[key].includes(op),
           b = button(
@@ -229,10 +257,11 @@
       }
       opRow.append(controls);
       card.append(opRow);
-      if (prefs[key].some((op) => ["+", "−"].includes(op))) {
+      if (!digitsShown && prefs[key].some((op) => ["+", "−"].includes(op))) {
+        digitsShown = true;
         const row = el("div", "setup-row"),
           digits = el("div", "practice-options");
-        row.append(el("span", "label", prefs.section === "findfix" ? "+ / − max digits" : "Max digits"));
+        row.append(el("span", "label", prefs.domains.includes("findfix") ? "+ / − max digits" : "Max digits"));
         digits.setAttribute("role", "group");
         digits.setAttribute("aria-label", "Maximum digits");
         for (const n of [1, 2, 3, 4]) {
@@ -736,7 +765,7 @@
       window.scrollTo(0, 0);
       return;
     }
-    if (!round.first && !isPractice(round.config.section)) return;
+    if (!round.first && !isPractice(round.current.section)) return;
     if (round.total !== null && prior + 1 >= round.total) return finish();
     rememberQuestion();
     round.index = prior + 1;
@@ -853,7 +882,7 @@
     const back = button("Previous", previous);
     back.disabled = round.index === 0;
     const forward = button("Next", next, "primary");
-    forward.disabled = !isPractice(round.config.section) && !round.first && !round.visited[round.index + 1];
+    forward.disabled = !isPractice(round.current.section) && !round.first && !round.visited[round.index + 1];
     navigation.append(back, forward);
     box.append(navigation);
     app.append(box);
@@ -868,11 +897,12 @@
     );
     const box = el("section", "card summary"),
       top = el("div", "summary-top");
-    if (!isPractice(round.config.section) && round.answered > 0 && round.correct === round.answered) top.append(el("div", "master", "Master!"));
+    if (!isPractice(round.config.section) && round.config.section !== "selected" && round.answered > 0 && round.correct === round.answered)
+      top.append(el("div", "master", "Master!"));
     const score = el("div", "score", round.correct);
     score.append(el("small", "", " / " + round.answered));
     top.append(score, el("p", "summary-subtitle", round.answered ? "First answers" : "No answers yet."));
-    if (isPractice(round.config.section)) {
+    if (isPractice(round.config.section) || round.config.section === "selected") {
       const seen = round.visited.filter(Boolean).length;
       top.append(el("p", "summary-subtitle", `Answered: ${round.answered} · Skipped: ${Math.max(0, seen - round.answered)}`));
     }

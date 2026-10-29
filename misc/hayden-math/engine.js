@@ -2434,6 +2434,85 @@
       section === "measurement" ? MEASURES : section === "geometry" ? GEOMETRY : section === "narrative" ? NARRATIVES : [...BRAINS, ...EXTRA_BRAINS];
     return shuffle(types.filter((t) => t !== opt.typeId)).map((typeId) => ({ ...opt, typeId }));
   }
+  const SELECTABLE_DOMAINS = Object.freeze([...TOPICS, ...PRACTICE_SECTIONS]);
+  function normalizeDomains(domains) {
+    if (!Array.isArray(domains) || !domains.length || domains.some((s) => !SELECTABLE_DOMAINS.includes(s))) throw Error("Choose at least one topic");
+    return SELECTABLE_DOMAINS.filter((s) => domains.includes(s));
+  }
+  function selectedPractice(section, options) {
+    if (!PRACTICE_SECTIONS.includes(section)) return null;
+    return normalizePractice(
+      section,
+      section === "addsub" ? options.addsubOps ?? options.ops : options.findfixOps ?? options.ops,
+      options.maxDigits ?? 4
+    );
+  }
+  function generateSelectedRound(options) {
+    const domains = normalizeDomains(options.domains);
+    if (domains.length === 1) {
+      const s = domains[0],
+        practice = selectedPractice(s, options);
+      return generateRound({ ...options, domains: null, section: s, ops: practice?.ops });
+    }
+    if (same(domains, TOPICS)) return generateRound({ ...options, domains: null, section: "mix" });
+    const count = options.count ?? 10,
+      offset = options.offset ?? 0,
+      date = normalizeSeed(options.seed);
+    if (!int(count, 1, 20) || !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(offset + count))
+      throw Error("Invalid round count or offset");
+    const settings = Object.fromEntries(domains.map((s) => [s, selectedPractice(s, options)]));
+    const config = JSON.stringify(domains.map((s) => [s, settings[s]]));
+    const randomKey = date ? null : options.roundKey ?? Array.from(root.crypto.getRandomValues(new Uint32Array(2)), (n) => n.toString(36)).join("-");
+    const key = `HM6-selected-v1|${date || randomKey}|${config}`;
+    const rolling = date ? [] : [...(options.baselineFingerprints || []), ...(options.recentFingerprints || [])].slice(-20);
+    const out = [],
+      plans = new Map();
+    let cycle = -1,
+      domainBag;
+    for (let i = date ? 0 : offset; i < offset + count; i++) {
+      const nextCycle = Math.floor(i / domains.length);
+      if (nextCycle !== cycle) {
+        cycle = nextCycle;
+        domainBag = withSeed(`${key}|domains|${cycle}`, () => shuffle(domains));
+      }
+      const s = domainBag[i % domains.length],
+        practice = settings[s],
+        size = practice ? 20 : 10,
+        block = Math.floor(cycle / size),
+        planKey = `${s}|${block}`;
+      if (!plans.has(planKey))
+        plans.set(
+          planKey,
+          withSeed(`${key}|plan|${planKey}`, () => schedule(s, practice))
+        );
+      const [, opt] = plans.get(planKey)[cycle % size],
+        excluded = new Set(rolling);
+      let accepted;
+      const attempt = (request, family, budget) => {
+        for (let n = 0; n < budget; n++) {
+          const q = withSeed(`${key}|question|${i}|${family}|${n}`, () => makeQuestion(s, request)),
+            fingerprint = questionFingerprint(q);
+          if (!excluded.has(fingerprint)) {
+            accepted = { q, fingerprint };
+            return true;
+          }
+        }
+        return false;
+      };
+      if (!attempt(opt, "primary", 128)) {
+        const alternatives = withSeed(`${key}|alternates|${i}`, () => alternateRequests(s, opt));
+        for (let j = 0; j < alternatives.length && !accepted; j++) attempt(alternatives[j], `alternate-${j}`, 64);
+      }
+      if (!accepted) throw Error("Fresh visible question capacity exhausted");
+      const { q, fingerprint } = accepted;
+      q.id = `HM6-selected-v1-${date || randomKey}-${domains.join("-")}-${i}`;
+      rolling.push(fingerprint);
+      if (rolling.length > 20) rolling.shift();
+      if (i >= offset) out.push(q);
+    }
+    return out;
+  }
+
   function generateRound({
     section = "mix",
     count = 10,
@@ -2444,7 +2523,26 @@
     offset = 0,
     ops = null,
     maxDigits = 4,
+    domains = null,
+    addsubOps = null,
+    findfixOps = null,
+    roundKey = null,
   } = {}) {
+    if (domains != null)
+      return generateSelectedRound({
+        domains,
+        count,
+        offset,
+        seed,
+        ops,
+        maxDigits,
+        addsubOps,
+        findfixOps,
+        roundKey,
+        baselineFingerprints,
+        recentFingerprints,
+        recentSignatures,
+      });
     if (section !== "mix" && !TOPICS.includes(section) && !PRACTICE_SECTIONS.includes(section))
       return generateLegacyRound({ section, count, recentSignatures });
     if (!int(count, 1, 20) || !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(offset + count))
@@ -2501,6 +2599,7 @@
     return out;
   }
   function generateQuestion(section, options = {}) {
+    if (options.domains != null) return generateSelectedRound({ ...options, section, count: 1, offset: options.index ?? 0 })[0];
     if (PRACTICE_SECTIONS.includes(section))
       return generateRound({
         section,
@@ -2517,6 +2616,9 @@
 
   const api = {
     VERSION,
+    SELECTABLE_DOMAINS,
+    normalizeDomains,
+    generateSelectedRound,
     NEW_FAMILIES,
     makeCountingQuestion,
     makePracticeQuestion,

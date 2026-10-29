@@ -576,3 +576,7 @@ a {
 .corrected-work {
   white-space: normal;
 }
+
+.topic-grid button[aria-pressed="true"]::before {
+  content: "✓ ";
+}

@@ -2,17 +2,14 @@
   "use strict";
   const app = document.getElementById("app"),
     E = CountingSense;
-  const recent = { 1: [], 2: [] };
-  let level = 1,
-    model,
-    phase,
-    tradeIndex,
-    taskIndex,
-    value,
-    wrong,
-    shown,
-    guess,
-    answers;
+  let recent = [],
+    used = new Set(),
+    screen = "setup",
+    count = "10",
+    index = 0,
+    outcomes = [],
+    setupNotice = "";
+  let model, phase, taskIndex, value, wrong, shown, guess, answers;
   const node = (tag, cls, text) => {
     const n = document.createElement(tag);
     if (cls) n.className = cls;
@@ -25,12 +22,22 @@
     b.onclick = action;
     return b;
   };
-  function nextProblem() {
-    model = level === 1 ? E.next(recent[level]) : E.nextLevel2(recent[level]);
-    recent[level].push(E.pairKey(model));
-    recent[level] = recent[level].slice(-20);
+  function loadProblem() {
+    const excluded = new Set([...used, ...recent]),
+      pool = E.PAIRS.filter((pair) => !excluded.has(E.pairKey(pair)));
+    if (!pool.length) throw Error("No fresh questions available");
+    const values = new Uint32Array(1),
+      limit = Math.floor(4294967296 / pool.length) * pool.length;
+    do {
+      crypto.getRandomValues(values);
+    } while (values[0] >= limit);
+    const pair = pool[values[0] % pool.length];
+    model = E.decompose(pair.base, pair.take);
+    const key = E.pairKey(model);
+    used.add(key);
+    recent.push(key);
+    recent = recent.slice(-20);
     phase = "guess";
-    tradeIndex = 0;
     taskIndex = 0;
     value = "";
     wrong = false;
@@ -39,6 +46,91 @@
     answers = [];
     render();
     window.scrollTo(0, 0);
+  }
+  function startRound() {
+    if (!/^\d{1,2}$/.test(count) || Number(count) < 1 || Number(count) > 99) {
+      setupNotice = "Choose 1–99 questions.";
+      return render();
+    }
+    index = 0;
+    outcomes = [];
+    used = new Set();
+    screen = "play";
+    setupNotice = "";
+    loadProblem();
+  }
+  function settle() {
+    outcomes[index] = phase === "complete" ? "completed" : "skipped";
+  }
+  function nextProblem() {
+    settle();
+    if (index + 1 === Number(count)) {
+      screen = "summary";
+      render();
+      window.scrollTo(0, 0);
+    } else {
+      index++;
+      loadProblem();
+    }
+  }
+  function finishRound() {
+    settle();
+    screen = "summary";
+    render();
+    window.scrollTo(0, 0);
+  }
+  function setup() {
+    const card = node("section", "card round-setup"),
+      form = node("form"),
+      label = node("label", "count-setting", "Questions"),
+      input = node("input");
+    input.type = "text";
+    input.inputMode = "numeric";
+    input.pattern = "[0-9]*";
+    input.maxLength = 2;
+    input.value = count;
+    input.setAttribute("aria-label", "Number of questions");
+    input.oninput = () => {
+      count = input.value.replace(/\D/g, "").slice(0, 2);
+      input.value = count;
+    };
+    label.append(input);
+    const start = node("button", "primary", "Start");
+    start.type = "submit";
+    form.append(label, node("p", "small-note", "1–99 questions"), start);
+    form.onsubmit = (event) => {
+      event.preventDefault();
+      startRound();
+    };
+    card.append(form);
+    if (setupNotice) {
+      const notice = node("p", "status wrong", setupNotice);
+      notice.setAttribute("role", "alert");
+      card.append(notice);
+    }
+    app.append(card);
+  }
+  function summary() {
+    const completed = outcomes.filter((x) => x === "completed").length,
+      skipped = outcomes.filter((x) => x === "skipped").length;
+    const card = node("section", "card round-summary");
+    card.append(
+      node("h2", "", "Round finished"),
+      node("p", "", `Completed: ${completed}`),
+      node("p", "", `Skipped: ${skipped}`),
+      node("p", "", `Not reached: ${Number(count) - completed - skipped}`),
+      node("p", "small-note", `${Number(count)} questions planned`)
+    );
+    const actions = node("div", "actions");
+    actions.append(
+      button("New round", startRound, "primary"),
+      button("Settings", () => {
+        screen = "setup";
+        render();
+      })
+    );
+    card.append(actions);
+    app.append(card);
   }
   function unitChip(value, cls = "") {
     return node("span", "unit-chip " + cls, String(value));
@@ -65,40 +157,7 @@
     diagram.append(keep, work);
     return diagram;
   }
-  function displayCounts() {
-    if (phase === "trade") return tradeIndex === 0 ? model.initial : model.trades[tradeIndex - 1].after;
-    const counts = [...model.regrouped];
-    for (let i = 0; i < answers.length; i++) {
-      if (model.tasks[i].kind === "ones") counts[3] = model.ones;
-      if (model.tasks[i].kind === "tens") counts[2] = model.tens / 10;
-    }
-    return counts;
-  }
-  function levelTwoDiagram() {
-    const counts = displayCounts(),
-      diagram = node("section", "diagram place-diagram");
-    diagram.setAttribute("aria-label", "Place value counters");
-    const names = ["Thousands", "Hundreds", "Tens", "Ones"];
-    for (let i = 0; i < 4; i++) {
-      const column = node("div", "place-column");
-      column.append(node("small", "place-name", names[i]), node("strong", "place-count", `${counts[i]} × ${E.PLACES[i]}`));
-      const chips = node("div", "chips");
-      for (let j = 0; j < counts[i]; j++) chips.append(unitChip(E.PLACES[i]));
-      column.append(chips);
-      diagram.append(column);
-    }
-    const wrap = node("div", "place-wrap");
-    wrap.append(diagram);
-    const sum = E.amount(counts);
-    const caption = phase === "trade" ? `Same value: ${model.base}` : `Value now: ${sum}`;
-    // During a final question the remaining counters are the intended visual support,
-    // but a numeric total is not printed until the student has entered it.
-    if (phase === "trade" || phase === "complete") wrap.append(node("p", "small-note", caption));
-    else wrap.append(node("p", "small-note", "Each counter has the value shown."));
-    return wrap;
-  }
   function tasks() {
-    if (level === 2) return model.tasks;
     return [
       { prompt: `100 − ${model.take} =`, answer: model.subtotal, unit: "Work on 100" },
       { prompt: `${model.kept} + ${model.subtotal} =`, answer: model.total, unit: "Add the parts" },
@@ -114,7 +173,7 @@
     input.inputMode = "numeric";
     input.pattern = "[0-9]*";
     input.autocomplete = "off";
-    input.maxLength = level === 1 ? 3 : 4;
+    input.maxLength = 3;
     input.value = value;
     input.setAttribute("aria-label", isGuess ? "Your guess" : "Your answer");
     input.oninput = () => {
@@ -126,7 +185,7 @@
     form.append(label, input, check);
     form.onsubmit = (event) => {
       event.preventDefault();
-      if (!/^\d{1,4}$/.test(value)) {
+      if (!/^\d{1,3}$/.test(value)) {
         input.focus();
         return;
       }
@@ -136,21 +195,12 @@
   }
   function render(focusAnswer = false) {
     app.replaceChildren(node("h1", "", "Counting Sense"));
-    const levels = node("div", "level-choice");
-    levels.setAttribute("role", "group");
-    levels.setAttribute("aria-label", "Level");
-    for (const n of [1, 2]) {
-      const b = button(`Level ${n}`, () => {
-        if (level !== n) {
-          level = n;
-          nextProblem();
-        }
-      });
-      b.setAttribute("aria-pressed", String(n === level));
-      levels.append(b);
-    }
-    const controls = node("div", "practice-controls");
-    controls.append(levels);
+    if (screen === "setup") return setup();
+    if (screen === "summary") return summary();
+    const controls = node("div", "practice-controls"),
+      progress = node("strong", "round-progress", `${index + 1} / ${Number(count)}`);
+    controls.append(progress);
+    if (index + 1 < Number(count)) controls.append(button("End early", finishRound, "finish-button"));
     app.append(controls, node("p", "problem", `${model.base} − ${model.take} = ?`));
     if (phase === "guess") {
       const card = node("section", "card guess-card");
@@ -162,7 +212,7 @@
           value = "";
           wrong = false;
           shown = false;
-          phase = level === 1 ? "task" : "trade";
+          phase = "task";
           render();
         },
         true
@@ -170,27 +220,9 @@
       app.append(card);
     } else {
       app.append(node("p", "step reveal-note", "Let’s check your guess."));
-      if (level === 1) {
-        app.append(node("p", "split-equation", `${model.base} − ${model.take} = ${model.kept} + (100 − ${model.take})`), levelOneDiagram());
-      } else app.append(levelTwoDiagram());
+      app.append(node("p", "split-equation", `${model.base} − ${model.take} = ${model.kept} + (100 − ${model.take})`), levelOneDiagram());
       const card = node("section", "card");
-      if (phase === "trade") {
-        const trade = model.trades[tradeIndex],
-          from = E.PLACE_NAMES[trade.from],
-          to = E.PLACE_NAMES[trade.to];
-        card.append(node("p", "trade-relation", `1 ${from} = 10 ${to === "ten" ? "tens" : to + "s"}`));
-        card.append(
-          button(
-            `Trade 1 ${from}`,
-            () => {
-              tradeIndex++;
-              if (tradeIndex === model.trades.length) phase = "task";
-              render();
-            },
-            "primary trade-button"
-          )
-        );
-      } else if (phase === "complete") {
+      if (phase === "complete") {
         card.append(node("p", "success", `${model.base} − ${model.take} = ${model.total}`));
         const work = node("div", "completed-work");
         for (const task of tasks()) work.append(node("p", "", `${task.prompt} ${task.answer}`));
@@ -199,7 +231,7 @@
         const task = tasks()[taskIndex];
         card.append(node("p", "step", `${taskIndex + 1} of ${tasks().length} · ${task.unit}`));
         answerForm(card, task.prompt, () => {
-          const result = level === 1 ? E.gradeStep(model, taskIndex, value) : E.gradeTask(model, taskIndex, value);
+          const result = E.gradeStep(model, taskIndex, value);
           if (!result.valid) return;
           if (!result.correct) {
             wrong = true;
@@ -249,13 +281,13 @@
     }
     const nav = node("nav", "navigation");
     nav.setAttribute("aria-label", "Practice navigation");
-    nav.append(button("Next problem →", nextProblem, "primary"));
+    nav.append(button(index + 1 === Number(count) ? "Finish round" : "Next problem →", nextProblem, "primary"));
     controls.append(nav);
     const bottomNav = node("nav", "navigation bottom-navigation");
     bottomNav.setAttribute("aria-label", "Practice navigation bottom");
-    bottomNav.append(button("Next problem →", nextProblem, "primary"));
+    bottomNav.append(button(index + 1 === Number(count) ? "Finish round" : "Next problem →", nextProblem, "primary"));
     app.append(bottomNav);
     if (focusAnswer) document.getElementById("answer")?.focus({ preventScroll: true });
   }
-  nextProblem();
+  render();
 })();
