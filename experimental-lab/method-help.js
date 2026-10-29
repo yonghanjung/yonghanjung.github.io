@@ -1,6 +1,11 @@
 /* Contextual explanations only. Estimation and data state are never modified. */
 (() => {
   const topics = {
+    empiricalNoFit: [
+      "Observed data without a relevant intervention",
+      "No relevant intervention remains for this outcome. APO is the direct observed sample mean; ATE subtracts identical observed means and is exactly zero. No outcome model, propensity, inverse weights, cross-fitting or nearest-neighbor estimator is fitted. No sampling confidence interval is reported.",
+      "continuous-or",
+    ],
     randomGeneration: [
       "Random generation settings",
       "These settings produced the retained rows. Treatment dimension 1–4 generates a binary scalar or ordered tuple. Linear outcome uses an affine parent function plus noise. Binary outcome generates 0/1 with a logistic-threshold mechanism. Neural Outcome uses a fixed dense neural-network parent function plus noise; the model seed draws its layers, activation and weights once. Each choice selects normal noise. Vector mechanisms can mix noise, so member independence is not assumed. Changing generation settings requires Generate Data; changing only the query reuses the same rows.",
@@ -53,8 +58,13 @@
     ],
     estimator: [
       "Estimator",
-      "For eligible binary-treatment baseline questions, choose AIPW, Outcome Regression (Plug-in), or IPW. They use different held-out scores and fit only their required supporting functions. These choices require a supported baseline adjustment question. Other queries can be unavailable; their result reports the actual graph-specific method.",
+      "For eligible binary-treatment baseline questions, choose AIPW, Outcome Regression (Plug-in), or IPW. Continuous scalar treatments support explicit Outcome Regression with a verified adjustment witness; continuous AIPW/IPW are unavailable. These choices never silently substitute a different method. Other graph-specific queries report their actual computation or reason.",
       "dispatch",
+    ],
+    continuousOR: [
+      "Continuous Outcome Regression",
+      "Two-fold XGBoost learns the outcome mean conditional on the continuous treatment and verified adjustment variables. It predicts at the requested treatment value on held-out covariates, then averages over the retained cohort. The two requested means are contrasted for ATE. No treatment discretization, density/inverse weights, residual correction, general-ID fallback or confidence interval is used. Local smoothness and conditional support near the requested value remain assumptions; range diagnostics cannot prove them.",
+      "continuous-or",
     ],
     minimumAIPW: [
       "AIPW",

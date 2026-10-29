@@ -267,9 +267,10 @@ permalink: /experimental-lab/methods.html
         <section id="dispatch">
           <h2>Which method actually runs?</h2>
           <p>
-            The three baseline choices require one binary scalar or ordered binary-cluster treatment, one scalar observed outcome, no factual
-            evidence, and a verified baseline Back-door (BD) or Adjustment Criterion (AC) witness. The adjustment nodes must be observed
-            non-descendants of the treatment. An identification result for Front-door or Sequential does not itself enable these baseline methods.
+            AIPW and IPW require one binary scalar or ordered binary-cluster treatment. Outcome Regression also supports one continuous scalar
+            treatment. All require one scalar observed outcome, no factual evidence, and a verified Back-door (BD) or Adjustment Criterion (AC)
+            witness. The adjustment nodes must be observed non-descendants of the treatment. An identification result for Front-door or Sequential
+            does not itself enable these baseline methods.
           </p>
           <table>
             <tr>
@@ -282,7 +283,10 @@ permalink: /experimental-lab/methods.html
             </tr>
             <tr>
               <td><code>outcome_regression</code></td>
-              <td><code>xgboost_outcome_regression_v1</code>: XGBoost outcome means; plug-in score; no weight fitting</td>
+              <td>
+                <code>xgboost_outcome_regression_v1</code> for binary treatment, or <code>xgboost_continuous_outcome_regression_v1</code> for
+                continuous scalar treatment: XGBoost outcome means; no weight fitting
+              </td>
             </tr>
             <tr>
               <td><code>ipw</code></td>
@@ -307,6 +311,22 @@ permalink: /experimental-lab/methods.html
           </p>
         </section>
 
+        <section id="continuous-or">
+          <h2>Continuous scalar Outcome Regression</h2>
+          <p>
+            The app explicitly selects Outcome Regression for a continuous scalar treatment. Two outer folds learn the conditional outcome mean from
+            the treatment and verified adjustment variables, predict at the requested treatment value using held-out covariates, and average over the
+            retained cohort. APO uses one requested value; ATE contrasts two requested values on that same cohort. A hidden mediator is marginalized
+            and is never used as an observed predictor. Explicit OR does not fall back to general-ID kernels.
+          </p>
+          <p>
+            Identifying a mean at an exact continuous value needs conditional support near that value and local regularity of the conditional mean, in
+            addition to the graph assumptions. Global and training-stratum range checks and neighbor diagnostics are practical guards; they do not
+            prove conditional positivity or prevent regression bias. Continuous treatment vectors, continuous AIPW and continuous IPW are not
+            supported. No treatment discretization or inverse-density weighting is performed.
+          </p>
+          <p>Not computed: uncertainty from fitting the outcome regression is not estimated. No data confidence interval is reported.</p>
+        </section>
         <section id="data">
           <h2>Observed data and encoding</h2>
           <p class="brief">The estimators learn from the selected factual rows. Model references and benchmark truth never enter their fits.</p>

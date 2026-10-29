@@ -483,7 +483,7 @@ def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
     return dict(result, status="OK", values=dict(zip(["Probability"] if event is not None else outcomes, mean.tolist())))
 
 
-def _estimate_mean(data, graph, schema, payload, seed, deadline):
+def _estimate_mean(data, graph, schema, payload, seed, deadline, *, adjustment_only=False):
     """Fit adjustment using only observed data, graph and public column/type metadata.
 
     Two folds train XGBoost on one half and standardize over the other half's Z.
@@ -524,7 +524,8 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
         for i, (label, values) in enumerate(actions):
             arm_deadline = started + max(0, deadline - started) / 2 if i == 0 else deadline
             arms[label] = _estimate_mean(data, graph, schema,
-                dict(payload, type="interventional", summary="mean", intervention=values, evidence={}), seed, arm_deadline)
+                dict(payload, type="interventional", summary="mean", intervention=values, evidence={}), seed, arm_deadline,
+                adjustment_only=adjustment_only)
             for warning in arms[label].get("warnings", []):
                 _sample_warning(result, warning["code"], warning["message"], **dict({k:v for k,v in warning.items() if k not in {"code","message"}}, arm=label))
             if arms[label]["status"] != "OK":
@@ -583,6 +584,8 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
     try:
         adjustment = construct_minimum_adjustment_set(graph, list(actions), targets)
     except ValueError:
+        if adjustment_only:
+            return fail("UNSUPPORTED", "Continuous Outcome Regression requires a verified Back-door or Adjustment Criterion witness. No general-ID fallback was run.")
         return _estimate_uca_mean(data, graph, schema, payload, seed, deadline)
     if (any(v not in schema for v in adjustment)
             or not check_adjustment_criterion(graph, list(actions), targets, adjustment)):
@@ -709,6 +712,51 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
     if poor_coverage > .05 * len(data):
         result["info"] = "Approximate estimate; weak empirical coverage."
     return dict(result, status="OK", values=dict(zip(["Probability"] if event is not None else outcomes, values.tolist())))
+
+
+def _continuous_outcome_regression(data, graph, schema, payload, seed, deadline):
+    """Explicit continuous-scalar plug-in, restricted to verified adjustment."""
+    actions = payload.get("intervention", {})
+    no_actions = not actions
+    if not no_actions:
+        if len(actions) != 1:
+            return None
+        spec = schema.get(next(iter(actions)))
+        if not spec or spec["shape"] or spec["type"] != "continuous":
+            return None
+    result = _estimate_mean(data, graph, schema, payload, seed, deadline, adjustment_only=True)
+    regressions = list(result.get("diagnostics", {}).get("regressions", []))
+    for arm in result.get("diagnostics", {}).get("arms", {}).values():
+        regressions.extend(arm.get("diagnostics", {}).get("regressions", []))
+    completed = sum(len(fit.get("fits", [])) for fit in regressions)
+    witness = next((arm for arm in result.get("diagnostics", {}).get("arms", {}).values() if "adjustment" in arm), result)
+    if "adjustment" in witness:
+        result.update(adjustment=witness["adjustment"], criterion=witness["criterion"])
+    result["method"] = ("Observed sample mean (no relevant intervention; no fit)" if _query_estimand(payload) == "apo" else
+                        "Zero contrast of identical observed means (no relevant intervention; no fit)") if no_actions else "2-fold continuous Outcome Regression (XGBoost g-computation)"
+    from pathlib import Path
+    import hashlib
+    result["estimation_details"] = dict(
+        method_id=("empirical_observed_mean_v1" if _query_estimand(payload) == "apo" else "empirical_zero_contrast_v1") if no_actions else "xgboost_continuous_outcome_regression_v1", method=result["method"],
+        implementation=dict(file="editor_engine.py", entry="_continuous_outcome_regression",
+                            sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()),
+        options=dict(seed=seed, folds=0 if no_actions else 2, estimand=_query_estimand(payload)),
+        nuisance=dict(outcome="Not fitted; direct observed means" if no_actions else "XGBoost conditional outcome means fitted on outer-training rows; standardization over held-out adjustment rows",
+                      weights="Not fitted", propensity="Not fitted", used=dict(outcome=not no_actions, weights=False, propensity=False),
+                      fit_completed=dict(outcome=completed, weights=0, propensity=0)),
+        normalization=("Average requested-assignment predictions over all retained rows" if _query_estimand(payload) == "apo" else
+                       "Contrast intervention/reference predictions averaged over the same retained cohort"),
+        limitations=["Requires a verified adjustment witness and conditional support near the requested continuous values.",
+                     "Range and nearest-neighbor checks are engineering diagnostics, not positivity certificates.",
+                     "No AIPW augmentation, IPW, general-ID integration or data confidence interval is computed."],
+        uncertainty="Not computed: uncertainty from fitting the outcome regression is not estimated.")
+    if no_actions:
+        result["diagnostics"] = dict(folds=0, data_uncertainty="not estimated", no_nuisance_fit=True)
+        result["estimation_details"].update(
+            normalization="Direct observed sample mean" if _query_estimand(payload) == "apo" else "Exact difference of identical observed means",
+            limitations=["No relevant intervention remains for this outcome; no nuisance model is fitted."],
+            uncertainty="Not computed: no sampling confidence interval is reported.")
+    return result
 
 
 def _balancing_baseline(data,graph,schema,payload,seed,deadline,original_schema,feature_view):
@@ -863,6 +911,9 @@ def _data_query(payload, schema):
         return "Data-only estimation supports interventional ATE or APO without factual evidence."
     estimand=_query_estimand(payload)
     targets=payload.get("targets")
+    hidden = {node["name"] for node in payload.get("nodes", []) if not node.get("observed", True)}
+    if isinstance(targets, list) and any(name in hidden for name in targets):
+        return "The outcome is Unobserved. Choose an Observed outcome or mark it as Observed."
     if not isinstance(targets,list) or len(targets)!=1 or targets[0]not in schema or schema[targets[0]]["shape"]:
         return "Select one observed scalar outcome per data-only estimate."
     if schema[targets[0]]["type"]=="categorical":return "Categorical outcomes are unsupported."
@@ -873,7 +924,8 @@ def _data_query(payload, schema):
         raise ValueError("Intervention and reference must contain the same observed action names.")
     for label,values in [("Intervention",actions)]+([("Reference",reference)] if estimand=="ate" else []):
         for name,value in values.items():
-            if name not in schema:raise ValueError(label+": use observed action names.")
+            if name not in schema:
+                raise ValueError(label+": the treatment is Unobserved. Choose an Observed treatment or mark it as Observed." if name in hidden else label+": use observed action names.")
             spec=schema[name];array=_array(value,spec["shape"])
             types=spec.get("component_types",[spec["type"]]*len(spec["columns"]))
             if spec["shape"] and any(t!="binary" for t in types):return "Treatment clusters currently require explicitly binary components; continuous values are not joint classes."
@@ -953,6 +1005,7 @@ def _cluster_adjustment_guard(graph,schema,payload):
     clusters=[v for v,spec in schema.items()if spec.get("cluster")or spec["shape"]]
     if not clusters:return None,None
     if any(c in targets for c in clusters):return "Outcome clusters are not supported by scalar mean estimation.",None
+    if not actions:return None,None
     covariates=[c for c in clusters if c not in actions]
     if any(any(c in nx.descendants(graph,a)for a in actions)for c in covariates):return "Covariate clusters must be baseline non-descendants of every treatment.",None
     from adjustment import construct_minimum_adjustment_set,check_adjustment_criterion,check_backdoor_criterion
@@ -1219,9 +1272,16 @@ class Editor:
                 split_seed = seed ^ 0x5A5A5A5A
                 estimate = (_balancing_baseline(fitting_data, graph, fitting_schema,
                     estimate_payload, split_seed, deadline, schema, feature_view) if requested_method != "legacy_knn" else None)
+                if estimate is None and requested_method == "outcome_regression":
+                    estimate = _continuous_outcome_regression(fitting_data, graph, fitting_schema,
+                        estimate_payload, split_seed, deadline)
                 if estimate is None and requested_method in {"aipw", "outcome_regression", "ipw"}:
+                    continuous = any(name in fitting_schema and fitting_schema[name]["type"] == "continuous" and not fitting_schema[name]["shape"]
+                                     for name in estimate_payload.get("intervention", {}))
                     estimate = dict(status="UNSUPPORTED", n=len(data), requested_method=requested_method,
-                        reason="The selected baseline estimator requires one binary scalar or ordered binary-cluster action, one scalar outcome, a requested 0/1 assignment and a verified baseline BD/AC adjustment witness. No legacy fallback was run.")
+                        reason=("Continuous Outcome Regression currently requires exactly one scalar treatment/action." if continuous and requested_method == "outcome_regression" else
+                                "Continuous scalar treatments support Outcome Regression only. AIPW and IPW currently require binary treatment; no method substitution was run." if continuous else
+                                "The selected baseline estimator requires one binary scalar or ordered binary-cluster action, one scalar outcome, a requested 0/1 assignment and a verified baseline BD/AC adjustment witness. No legacy fallback was run."))
                 if estimate is None:
                     estimate = _estimate_mean(fitting_data, graph, fitting_schema,
                         estimate_payload, split_seed, deadline)

@@ -245,3 +245,9 @@ AIPW retains minimum-variance scalar-mu balance. OR fits only XGBoost means. See
 APO benchmark references are separate released-row mean(mu_a) aggregates from the exact same pinned IHDP/ACIC sources, stored under `ground-truth.json` → `datasets[id].apo.values`. They are never fitted on or inserted into factual CSVs. LaLonde has no known unit-level ATE or APO truth. An ATE difference must not be displayed as an APO mean.
 
 Warnings are available as `data_estimate.warnings=[{code,message,fold?,assignment?,observed?,reference_threshold?,metrics?}]`; `warning` remains the first message for compatibility. Reliability reference thresholds are not hard minimums. Legacy/UCA positive matched pools use the available neighborhood size, disclose requested_k/actual_k, and warn rather than stopping because a source is smaller than2\*requested_k. Existing explicit extrapolation choices and resource/unsupported-shape contracts remain.
+
+## Current continuous Outcome Regression and observation masks
+
+The local 2026-10-29 sync updates exactly four native modules and ten bundled web members. Continuous scalar interventional APO/ATE uses explicit verified-adjustment, two-fold XGBoost Outcome Regression, without continuous AIPW/IPW or a data confidence interval. Hidden internal variables are represented by latent projection for analysis while the original SCM equations remain for sampling. This is a scoped compatibility update, not a claim that every package member matches the current website. Version 0.1.0, dependencies, historical upstream files and all unlisted members are preserved.
+
+Install this newly downloaded wheel; if an earlier 0.1.0 is installed, use `python -m pip install --force-reinstall --no-deps causalengine-0.1.0-py3-none-any.whl`. Save the app's Download data next to Calculation code to replay the retained observed rows.

@@ -199,16 +199,16 @@
   },
   "license_note": "Upstream repository MIT notice preserved verbatim; the notice credits the original site template author. No new ownership attribution is asserted.",
   "web_theme_source": "/tmp/causal-science-lab-preview-20261019/apps/causalengine/",
-  "web_changes": "Deliberate changes: selected baseline three-method XGBoost/scalar-outcome balance; graph plug-in learned conditional means now XGBoost. Nonterminal conditional sampling kernels, analytic/MC references and ID algorithms unchanged. Prior adapters, explicit data bindings and display extensions retained. Other10 browser Python modules remain raw-upstream byte-identical.",
-  "web_ui_sha256": "6c24e859d6252b948af863649b50f4335588569aedd1e459a0d6501de64c61a2",
+  "web_changes": "Historical package plus scoped current sync: four native and ten web members listed in continuous_or_sync_20261029. No whole-package parity claim; other members and historical upstream bytes preserved.",
+  "web_ui_sha256": "89fbcca605aee001c9370151304712ebb276107ab0d9dee17688e6c1748a0d73",
   "benchmark_assets": "web/benchmarks/manifest.json records dataset-specific versions, sources, transforms, hashes and terms; not covered by engine MIT notice",
   "benchmark_reference_assets": "Separate same-pinned-row conditional-mean ATE and APO aggregates only; factual CSVs unchanged and no reference used for estimation. LaLonde unavailable.",
   "method_documentation": {
     "path": "web/methods.html",
     "canonical_source": "preview/apps/causalengine/methods.html",
-    "sha256": "c315ce6c0c10be665dddf4cbd974f0a5c91bbe959e2855547211282cafd58ca7",
+    "sha256": "79122e8ee8f815d81a8b65a507bd4496f12ceea07c398355898fa8db62ff4181",
     "numerical_source_sha256": "a515c4fecc37171e4c6349627a299c266753264425f7104556563caa2798089d",
-    "scope": "ATE/APO scores; actual XGBoost joint propensity IPW; prior AIPW balance/OR fits; scalar/vector treatment schema, guards, Copy and matching benchmark references"
+    "scope": "Current binary estimators plus explicit continuous scalar verified-adjustment Outcome Regression, latent projection and observation-mask semantics; no continuous AIPW/IPW or data confidence interval."
   },
   "runtime_dependency": {
     "native": "xgboost==2.1.4",
@@ -257,5 +257,46 @@
       "causalengine-0.1.0.tar.gz": "ae851ee3376c575d22002ba33fd7e6c1d6a7a6bd78438a033a65977c8020a4aa"
     },
     "validation": "Native/web normalized-import AST and Editor.request source parity; archive byte-preservation, compilation, RECORD/CRC/checksum and guide links. No new learned-fit or install run."
+  },
+  "continuous_or_sync_20261029": {
+    "scope": "Exactly four native modules plus ten bundled web members; all other code members preserved.",
+    "baseline_artifact_sha256": {
+      "causalengine-0.1.0-py3-none-any.whl": "a39746897c0d0406298714bbf3ca544792dcaa98bbb5e6fd02c6a04a30a58865",
+      "causalengine-0.1.0-source.zip": "e22c48990789b93d699fcab00232ff3a876a03f6b750dea7d0357c93da31a91b",
+      "causalengine-0.1.0.tar.gz": "762930a8b61c154bbf3d4a446996c0524fd2ecd5f20913f31bddb9033b604223"
+    },
+    "raw_web_source_sha256": {
+      "editor_engine.py": "ac8f4f99f4400ef196e8fd4d24976aa15dd305d2568aba7c38961bdbaf0497d4",
+      "graph.py": "6f218f870149c6ac3874efb951abdb58d96ff143ef09b7f297384a9d957836f7",
+      "SCM.py": "39dfc8c09d3681e887b45a8b2b3266f2a0e2670db324170a5ea1aa6b4fdafd46",
+      "identification_engine.py": "95e19d9e8d82f32a96a5c6385ee4bc29cd5acf5251a79a0c04c2f226d8836bc4",
+      "index.html": "89fbcca605aee001c9370151304712ebb276107ab0d9dee17688e6c1748a0d73",
+      "role-ui.js": "0c6e9e6d2863dd9a0c21f5f7e0d8ed0abce9824585b9258bd2e686af46db0c31",
+      "guide.html": "408d490b27bec596cf910649022eafb3094037c18adb8c60370cd690b451e0b1",
+      "methods.html": "79122e8ee8f815d81a8b65a507bd4496f12ceea07c398355898fa8db62ff4181",
+      "estimation-details.js": "d356ddf1d1a87e6a9a505e4edf3855fe77377f9894bc6be3d5d615c5d8b9f5e1",
+      "method-help.js": "cfbfaa0e57d3341ed94e9213d67f1f03c3ba8227ad004f7771a0bbda68c60c31"
+    },
+    "packaged_active_members_sha256": {
+      "editor_engine.py": "9705338ea7cc270ce96e740b46b8991b45fdddf7772a2fa52944b9b48badad07",
+      "graph.py": "e3df3fd25938f27baafd9033ac815f6d9ee2a1b52d4d95ffbda1ae11cb718e44",
+      "SCM.py": "da6206b9eb6f1360d5692e7b3276f3e6082f982005e937a1156d717f68dc2b2d",
+      "identification_engine.py": "259364b4d512918b5298a0fccec3e37a2de8bad4d92ff27b5babdd5d39d9f6bf",
+      "web/editor_engine.py": "ac8f4f99f4400ef196e8fd4d24976aa15dd305d2568aba7c38961bdbaf0497d4",
+      "web/graph.py": "6f218f870149c6ac3874efb951abdb58d96ff143ef09b7f297384a9d957836f7",
+      "web/SCM.py": "39dfc8c09d3681e887b45a8b2b3266f2a0e2670db324170a5ea1aa6b4fdafd46",
+      "web/identification_engine.py": "95e19d9e8d82f32a96a5c6385ee4bc29cd5acf5251a79a0c04c2f226d8836bc4",
+      "web/index.html": "0b40d269b5b49e23fb7df6ecde1dd868e4816082b8c7a5a8ed8aaf28f1611eea",
+      "web/role-ui.js": "0c6e9e6d2863dd9a0c21f5f7e0d8ed0abce9824585b9258bd2e686af46db0c31",
+      "web/guide.html": "df5df4c31497859cf1eadfe7212a28f798fa8eaedbb8350100c4751b056dd795",
+      "web/methods.html": "2301b597a8ca2508228c6cca0a75c1b98db2255e9ad6c2c7584b60e15dd00a18",
+      "web/estimation-details.js": "d356ddf1d1a87e6a9a505e4edf3855fe77377f9894bc6be3d5d615c5d8b9f5e1",
+      "web/method-help.js": "cfbfaa0e57d3341ed94e9213d67f1f03c3ba8227ad004f7771a0bbda68c60c31"
+    },
+    "adaptations": "Native package-relative imports and SCM module identities only; HTML Jekyll frontmatter removed and Code links made absolute for the standalone server.",
+    "version": "0.1.0 unchanged",
+    "dependencies": "unchanged; XGBoost 2.1.4 remains pinned",
+    "method": "Explicit continuous scalar verified-adjustment two-fold Outcome Regression; no general-ID fallback, AIPW/IPW substitution, or confidence interval.",
+    "verification": "Archive exhaustive member/byte preservation, compilation, normalized native AST, wheel RECORD/CRC/checksum, native no-fit API and actual retained-data Pyodide replay. See companion QA report for completed runtime results."
   }
 }

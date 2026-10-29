@@ -1898,10 +1898,11 @@ permalink: /experimental-lab/
             <div id="estimation-method-wrap">
               <div class="method-label"><label for="estimation-method">Estimator</label><span id="estimation-method-help"></span></div>
               <select id="estimation-method">
-                <option value="aipw">AIPW</option>
+                <option value="aipw" selected>AIPW</option>
                 <option value="outcome_regression">Outcome Regression (Plug-in)</option>
                 <option value="ipw">IPW</option>
               </select>
+              <p id="estimation-method-note" hidden></p>
             </div>
             <p id="data-error" role="alert"></p>
             <button id="run-estimate" class="primary" type="button" hidden>Run estimate</button>
@@ -4197,9 +4198,9 @@ permalink: /experimental-lab/
   <script src="./data-preview.js"></script>
   <script src="./expectation-formula.js?query=ate-apo-joint-v1"></script>
   <script src="./cluster-view.js"></script>
-  <script src="./method-help.js?ui=outcome-models-v1"></script>
-  <script src="./estimation-details.js?ui=estimate-warnings-v1"></script>
-  <script src="./role-ui.js?ui=graph-editor-audit-v7"></script>
+  <script src="./method-help.js?ui=continuous-or-v1"></script>
+  <script src="./estimation-details.js?ui=continuous-or-v1"></script>
+  <script src="./role-ui.js?ui=continuous-or-v2"></script>
   <script src="./benchmark-ui.js?ui=estimate-warnings-v1"></script>
   <script src="./select-picker.js"></script>
 </html>

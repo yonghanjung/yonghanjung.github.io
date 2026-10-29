@@ -284,10 +284,27 @@
     $("layout-status").textContent = "Arranged " + nodes.length + " nodes; relationships unchanged.";
   }
   $("auto-arrange").onclick = arrangeGraph;
+  let methodMode = null,
+    binaryMethod = "aipw",
+    continuousMethod = "outcome_regression";
   function methodChoice() {
+    let supportedQuery = $("query-type").value === "interventional" && ["mean", "mean_difference"].includes($("query-summary").value);
+    try {
+      supportedQuery &&= Object.keys(queryEvidence()).length === 0;
+    } catch {
+      supportedQuery = false;
+    }
     const actions = queryNames("query-x"),
       targets = queryNames("query-y"),
-      action = nodes.find((n) => n.name === actions[0]);
+      action = nodes.find((n) => n.name === actions[0]),
+      kind =
+        (dataSource === "random" && model?.variables?.[action?.name]?.variable_type) ||
+        action?.variable_type ||
+        (action?.family === "binary" ? "binary" : "continuous"),
+      scalarTargets =
+        targets.length > 0 &&
+        targets.every((name) => nodes.find((n) => n.name === name)?.observed && nodes.find((n) => n.name === name)?.dimension === 1),
+      continuous = supportedQuery && actions.length === 1 && action?.observed && action.dimension === 1 && kind === "continuous" && scalarTargets;
     const baseline =
       current === "adjustment" &&
       !custom &&
@@ -295,11 +312,23 @@
       targets.length > 0 &&
       action?.dimension >= 1 &&
       action.dimension <= 8 &&
-      (action.variable_type === "binary" || action.family === "binary") &&
-      targets.every((name) => nodes.find((n) => n.name === name)?.dimension === 1);
-    $("estimation-method-wrap").hidden = !baseline;
+      action.observed &&
+      kind === "binary" &&
+      scalarTargets;
+    const mode = continuous ? "continuous" : baseline ? "binary" : "auto",
+      select = $("estimation-method");
+    if (mode !== methodMode && mode !== "auto") select.value = continuous ? continuousMethod : binaryMethod;
+    const changed = mode !== methodMode;
+    methodMode = mode;
+    for (const option of select.options) option.disabled = !option.value || (continuous && option.value !== "outcome_regression");
+    $("estimation-method-wrap").hidden = mode === "auto";
+    $("estimation-method-note").hidden = !continuous;
+    $("estimation-method-note").textContent = continuous
+      ? "Continuous scalar treatment: select Outcome Regression (Plug-in). AIPW and IPW currently support binary treatment only."
+      : "";
     $("estimation-method").disabled = running;
-    return baseline ? $("estimation-method").value : "auto";
+    if (changed) window.CausalPickers?.refresh();
+    return mode === "auto" ? "auto" : select.value;
   }
   function describe() {
     if (["mean", "mean_difference"].includes($("query-summary").value))
@@ -800,6 +829,15 @@
     if (issue) throw Error(issue);
     if (!queryNames("query-x").length || !queryNames("query-y").length)
       throw Error("Enter at least one treatment and outcome, then update the graph.");
+    for (const [id, label] of [
+      ["query-x", "Treatment"],
+      ["query-y", "Outcome"],
+    ])
+      for (const name of queryNames(id)) {
+        const node = nodes.find((node) => node.name === name);
+        if (!node) throw Error(label + " " + name + " is not in the current graph. Choose an existing Observed node.");
+        if (!node.observed) throw Error(label + " " + name + " is Unobserved. Choose an Observed node or mark it as Observed.");
+      }
     if (queryNames("query-z").some((name) => !nodes.some((node) => node.name === name && node.observed)))
       throw Error("Check Z must contain observed node names from the current graph.");
     if (!custom && current === "frontdoor" && !fields()[0].m.length) throw Error("Enter at least one mediator for the Front-door template.");
@@ -2054,6 +2092,8 @@
   }
   $("estimation-method").onchange = () => {
     if (running) return;
+    if (methodMode === "continuous") continuousMethod = $("estimation-method").value;
+    else if (methodMode === "binary") binaryMethod = $("estimation-method").value;
     $("easy-result").hidden = true;
     $("outcome-results").replaceChildren();
     window.causalEngineDataResults = null;
@@ -2068,6 +2108,7 @@
       summary = querySummary();
     try {
       validateQuestion();
+      if (methodChoice() === "") throw Error("Select Outcome Regression (Plug-in) for this continuous treatment before running the estimate.");
       for (const input of document.querySelectorAll("#scalar-assignments input,#treatment-components input"))
         if (!input.disabled && !input.closest("[hidden]") && (input.value === "" || !Number.isFinite(Number(input.value))))
           throw Error("Enter finite treatment values.");
@@ -2231,6 +2272,17 @@
       progress.textContent = "";
     } finally {
       window.causalEngineBatch = false;
+      if (
+        !$("status").classList.contains("error") &&
+        [
+          "Estimating from observed data…",
+          "Calculating model reference…",
+          "Validating CSV data…",
+          "Preparing calculator…",
+          "Preparing identification…",
+        ].includes($("status").textContent)
+      )
+        message("");
       $("query-y").value = savedY;
       $("query-summary").value = savedSummary;
       updateQuery();

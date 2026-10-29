@@ -34,19 +34,21 @@
         ? "minimumAIPW"
         : kind === "minimum-ipw"
           ? "minimumIPW"
-          : kind === "xgboost-outcome"
-            ? "xgboostOR"
-            : kind === "outcome-regression"
-              ? "outcomeRegression"
-              : ucaIPW
-                ? "ipw"
-                : kind === "ipw"
-                  ? "actualSettings"
-                  : aipw
-                    ? "aipw"
-                    : xgboost
-                      ? "xgboostGraph"
-                      : "legacy";
+          : kind === "xgboost-continuous"
+            ? "continuousOR"
+            : kind === "xgboost-outcome"
+              ? "xgboostOR"
+              : kind === "outcome-regression"
+                ? "outcomeRegression"
+                : ucaIPW
+                  ? "ipw"
+                  : kind === "ipw"
+                    ? "actualSettings"
+                    : aipw
+                      ? "aipw"
+                      : xgboost
+                        ? "xgboostGraph"
+                        : "legacy";
     const keys = {
       "Random generation": "randomGeneration",
       Status: "status",
@@ -188,14 +190,16 @@
     const minimumAIPW = metadata?.method_id === "minimum_variance_aipw_v1",
       minimumIPW = metadata?.method_id === "minimum_variance_ipw_v1";
     const propensityIPW = metadata?.method_id === "xgboost_propensity_ipw_v1";
+    const continuousOR = metadata?.method_id === "xgboost_continuous_outcome_regression_v1";
+    const noFit = ["empirical_observed_mean_v1", "empirical_zero_contrast_v1"].includes(metadata?.method_id);
     const minimum = minimumAIPW || minimumIPW,
-      xgboostOR = metadata?.method_id === "xgboost_outcome_regression_v1";
+      xgboostOR = continuousOR || metadata?.method_id === "xgboost_outcome_regression_v1";
     const aipw = minimumAIPW || ["balancing_aipw_v1", "balancing_aipw_v2"].includes(metadata?.method_id);
     const outcomeRegression = xgboostOR || metadata?.method_id === "outcome_regression_v1",
       ucaIPW = metadata?.method_id === "uca_balancing_ipw_v1",
       ipw = propensityIPW || minimumIPW || ucaIPW || metadata?.method_id === "balancing_ipw_v1";
     const xgboost = propensityIPW || minimum || xgboostOR || /XGBoost/.test(metadata?.nuisance?.outcome || "");
-    const direct = aipw || outcomeRegression || ipw;
+    const direct = !continuousOR && (aipw || outcomeRegression || ipw);
     const fitted = metadata?.nuisance?.used || metadata?.nuisance?.fitted || { outcome: aipw, weights: aipw };
     const method = estimate?.method || "Not available";
     const armMethods = [
@@ -209,27 +213,31 @@
     const methodName = element("p", "Estimator: " + shownMethod, "estimator-name");
     CausalMethodHelp.add(
       methodName,
-      propensityIPW
-        ? "propensityIPW"
-        : minimumAIPW
-          ? "minimumAIPW"
-          : minimumIPW
-            ? "minimumIPW"
-            : xgboostOR
-              ? "xgboostOR"
-              : aipw
-                ? "aipw"
-                : outcomeRegression
-                  ? "outcomeRegression"
-                  : ucaIPW
-                    ? "ipw"
-                    : ipw
-                      ? "actualSettings"
-                      : xgboost
-                        ? "xgboostGraph"
-                        : metadata?.method_id
-                          ? "legacy"
-                          : "estimator"
+      noFit
+        ? "empiricalNoFit"
+        : propensityIPW
+          ? "propensityIPW"
+          : minimumAIPW
+            ? "minimumAIPW"
+            : minimumIPW
+              ? "minimumIPW"
+              : xgboostOR
+                ? continuousOR
+                  ? "continuousOR"
+                  : "xgboostOR"
+                : aipw
+                  ? "aipw"
+                  : outcomeRegression
+                    ? "outcomeRegression"
+                    : ucaIPW
+                      ? "ipw"
+                      : ipw
+                        ? "actualSettings"
+                        : xgboost
+                          ? "xgboostGraph"
+                          : metadata?.method_id
+                            ? "legacy"
+                            : "estimator"
     );
     section.append(methodName);
     const details = element("details", undefined, "estimation-details");
@@ -242,7 +250,9 @@
         : minimumIPW
           ? "minimum-ipw"
           : xgboostOR
-            ? "xgboost-outcome"
+            ? continuousOR
+              ? "xgboost-continuous"
+              : "xgboost-outcome"
             : aipw
               ? metadata.method_id === "balancing_aipw_v2"
                 ? "aipw-v2"
@@ -357,7 +367,7 @@
     if (estimate?.reason) field(list, "Reason", estimate.reason);
     details.append(list);
     const documentLink = element("a", "Full methods documentation");
-    documentLink.href = "./methods.html#" + (direct ? "score" : "dispatch");
+    documentLink.href = "./methods.html#" + (continuousOR ? "continuous-or" : direct ? "score" : "dispatch");
     documentLink.target = "_blank";
     documentLink.rel = "noopener";
     const documentRow = element("p");
@@ -427,6 +437,7 @@
       details.append(diagnosticHeading);
     }
     for (const note of metadata?.limitations || []) details.append(element("p", note));
+    if (metadata?.uncertainty) details.append(element("p", metadata.uncertainty));
     if (context?.csv) {
       const panel = element("details", undefined, "calculation-code");
       panel.append(element("summary", "Calculation code"));
@@ -439,6 +450,13 @@
         )
       );
       CausalMethodHelp.add(panel.querySelector("p"), "reproduce");
+      if (continuousOR)
+        panel.append(
+          element(
+            "p",
+            "Install the current package from Code & install. If version 0.1.0 is already installed, reinstall the downloaded wheel with --force-reinstall --no-deps to use this continuous Outcome Regression API."
+          )
+        );
       const actions = element("div", undefined, "calculation-actions");
       const data = element("button", "Download data");
       data.type = "button";
