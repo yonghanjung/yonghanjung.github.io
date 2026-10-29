@@ -211,13 +211,25 @@ permalink: /experimental-lab/
       stroke: var(--accent);
       stroke-width: 1.8;
     }
-    .node.hidden circle {
-      stroke: var(--muted);
+    .node.hidden circle,
+    .node.hidden rect {
+      fill: #f1f1f1;
+      stroke: #737373;
       stroke-dasharray: 5 4;
     }
     .node.selected circle {
       stroke-width: 3;
       fill: var(--soft);
+    }
+    .node.hidden.selected circle,
+    .node.hidden.selected rect {
+      fill: #dedede;
+      stroke: #737373;
+      stroke-width: 3;
+    }
+    .node.hidden:hover circle,
+    .node.hidden:hover rect {
+      fill: #e8e8e8;
     }
     .node {
       cursor: grab;
@@ -1201,7 +1213,6 @@ permalink: /experimental-lab/
     }
     body[data-view="details"] .demo-tour,
     body[data-view="details"] #easy-controls > :not(.easy-input),
-    body[data-view="details"] #dataset-tools,
     body[data-view="details"] .easy-help,
     body[data-view="details"] #editor-view > .actions,
     body[data-view="details"] #editor-view > details,
@@ -1290,7 +1301,8 @@ permalink: /experimental-lab/
       min-width: 0;
     }
     #graph-analysis[data-estimate-open="false"] #estimate-options,
-    #graph-analysis[data-estimate-open="false"] #data-columns {
+    #graph-analysis[data-estimate-open="false"] #data-columns,
+    #graph-analysis[data-estimate-open="false"] #dataset-tools {
       display: none;
     }
     #graph-analysis[data-analysis-open="false"] #easy-progress,
@@ -2392,7 +2404,8 @@ permalink: /experimental-lab/
       if (from === target || connects(target, from)) message("A directed acyclic graph cannot contain a self-loop or cycle.", true);
       else if (!nodes.find((n) => n.name === target).observed)
         message("This editor supports Unmeasured nodes only as roots, without incoming arrows.", true);
-      else if (!edges.some(([a, b]) => a === from && b === target)) {
+      else if (edges.some(([a, b]) => a === from && b === target)) message("This arrow already exists.");
+      else {
         edges.push([from, target]);
         invalidate();
       }
@@ -2453,9 +2466,24 @@ permalink: /experimental-lab/
       node.name = name;
       edges = edges.map((edge) => edge.map((n) => (n === old ? name : n)));
       bends = new Map([...bends].map(([key, value]) => [JSON.stringify(JSON.parse(key).map((n) => (n === old ? name : n))), value]));
+      for (const id of ["query-x", "query-y", "query-z"])
+        if (queryNames(id).includes(old))
+          $(id).value = queryNames(id)
+            .map((n) => (n === old ? name : n))
+            .join(", ");
+      for (const id of ["query-values", "query-reference", "query-evidence"])
+        try {
+          const values = JSON.parse($(id).value);
+          if (values && !Array.isArray(values) && Object.hasOwn(values, old) && !Object.hasOwn(values, name))
+            $(id).value = JSON.stringify(Object.fromEntries(Object.entries(values).map(([key, value]) => [key === old ? name : key, value])));
+        } catch {
+          // Keep malformed draft text for the user to correct in Query settings.
+        }
+      window.causalEngineNodeRenamed?.(old, name);
       if (source === old) source = name;
       $("node-menu").hidden = true;
       invalidate();
+      updateQuery();
       select({ name });
     };
     $("rename-input").onkeydown = (event) => {
@@ -2678,7 +2706,7 @@ permalink: /experimental-lab/
         const [from, to] = pair,
           target = next.find((n) => n.name === to);
         if (from === to) throw Error("Self-loops are not allowed.");
-        if (!target.observed || to.startsWith("U")) throw Error("Hidden and U-prefixed nodes must have no incoming edge.");
+        if (!target.observed) throw Error("This editor supports Unmeasured nodes only as roots, without incoming arrows.");
         const key = JSON.stringify(pair);
         if (seen.has(key)) continue;
         seen.add(key);
@@ -3278,7 +3306,7 @@ permalink: /experimental-lab/
         const result = await request("update", { token, name, ...changes });
         if (version !== revision) {
           invalidate();
-          throw Error("Graph changed. Generate Sample again.");
+          throw Error("The graph changed. Generate data again.");
         }
         install(result);
         nodes.find((n) => n.name === name).family = model.variables[name].parameters.family;
@@ -4090,7 +4118,7 @@ permalink: /experimental-lab/
   <script src="./cluster-view.js"></script>
   <script src="./method-help.js?ui=outcome-models-v1"></script>
   <script src="./estimation-details.js?ui=estimate-warnings-v1"></script>
-  <script src="./role-ui.js?ui=graph-workspace-actions-v1"></script>
+  <script src="./role-ui.js?ui=graph-editor-audit-v5"></script>
   <script src="./benchmark-ui.js?ui=estimate-warnings-v1"></script>
   <script src="./select-picker.js"></script>
 </html>

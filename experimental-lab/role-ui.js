@@ -606,6 +606,7 @@
     }
     if (!loading && !running && structure() !== baseline) {
       markCustom();
+      clearQueryResult();
       if (window.refreshCSVMapping) window.refreshCSVMapping();
     }
     const issue = temporalIssue();
@@ -797,6 +798,8 @@
     if (issue) throw Error(issue);
     if (!queryNames("query-x").length || !queryNames("query-y").length)
       throw Error("Enter at least one treatment and outcome, then update the graph.");
+    if (queryNames("query-z").some((name) => !nodes.some((node) => node.name === name && node.observed)))
+      throw Error("Check Z must contain observed node names from the current graph.");
     if (!custom && current === "frontdoor" && !fields()[0].m.length) throw Error("Enter at least one mediator for the Front-door template.");
   }
   function resultPanel(title) {
@@ -944,7 +947,15 @@
     queryParts = ["estimate-query", "query-type", "query-x", "query-y", "query-values", "query-reference", "query-evidence", "query-z"].map((id) =>
       $(id).closest("label")
     ),
-    analysisParts = [identifyButton.parentElement, $("estimate-options"), progress, $("easy-result"), columnsDetails, ...queryParts],
+    analysisParts = [
+      identifyButton.parentElement,
+      $("estimate-options"),
+      progress,
+      $("easy-result"),
+      columnsDetails,
+      $("dataset-tools"),
+      ...queryParts,
+    ],
     analysisHomes = analysisParts.map((element) => {
       const marker = document.createComment("Graph analysis home");
       element.before(marker);
@@ -954,7 +965,7 @@
     if (open) {
       analysisHost.prepend(identifyButton.parentElement);
       queryFields.append(...queryParts);
-      analysisHost.append($("estimate-options"), columnsDetails, progress, $("easy-result"));
+      analysisHost.append($("estimate-options"), columnsDetails, $("dataset-tools"), progress, $("easy-result"));
       analysisHost.dataset.estimateOpen = "false";
       analysisHost.dataset.analysisOpen = "false";
       querySettings.hidden = true;
@@ -970,6 +981,8 @@
     querySettings.hidden = false;
     if (estimate) analysisHost.dataset.estimateOpen = "true";
   }
+  queryFields.addEventListener("input", clearQueryResult);
+  queryFields.addEventListener("change", clearQueryResult);
   window.causalEngineActiveBindings = () =>
     (bindingActive && dataSource === "csv") ||
     Object.keys(declaredClusters).length > 0 ||
@@ -1029,6 +1042,17 @@
 
   // Keep this CSV's treatment column editor available after reducing a tuple to one column.
   const treatmentColumnEditors = new Set();
+  window.causalEngineNodeRenamed = (from, to) => {
+    if (from === to) return;
+    for (const dictionary of [roles, declaredClusters, randomSizes, columnMapping])
+      if (Object.hasOwn(dictionary, from)) {
+        dictionary[to] = dictionary[from];
+        delete dictionary[from];
+      }
+    if (treatmentColumnEditors.delete(from)) treatmentColumnEditors.add(to);
+    mappingGraph = "";
+    ClusterView.clear();
+  };
   const mappingEligible = (name) =>
     clusterEligible(name) ||
     (queryNames("query-x").includes(name) &&
@@ -1066,14 +1090,9 @@
     if (csvTable)
       CausalDataPreview.set({ csv: csvRaw, table: csvTable, name: csvName, source: "csv", key: { graph: dataGraphKey(), file: fileGeneration } });
   }
-  function acceptCSV(text, name) {
-    let table;
-    try {
-      table = CausalCSV.parse(text);
-    } catch (error) {
-      clearCSV();
-      throw error;
-    }
+  function acceptCSV(text, name, benchmark = null, table = CausalCSV.parse(text)) {
+    window.causalEngineBenchmark = benchmark;
+    $("benchmark-analysis-note").replaceChildren();
     clearQueryResult();
     bindingActive = true;
     csvBindingGraph = dataGraphKey();
@@ -1089,15 +1108,17 @@
     $("csv-status").textContent = name + " · " + csvTable.rows.length.toLocaleString() + " rows";
     csvSnapshot();
   }
+  const csvLoadError = (error, candidate) =>
+    "Could not load " + candidate + ": " + error.message + (csvTable ? " Previous " + csvName + " data kept." : "");
   window.causalEngineUseCSV = (text, name, benchmark = null) => {
     if (running) throw Error("Wait for the current operation.");
+    const table = CausalCSV.parse(text);
     ++fileGeneration;
-    window.causalEngineBenchmark = benchmark;
     csvReadPending = false;
     chooseSource("csv", Boolean(benchmark));
     $("estimate-options").hidden = false;
     $("csv-file").value = "";
-    acceptCSV(text, name);
+    acceptCSV(text, name, benchmark, table);
     $("easy-result").hidden = true;
   };
   window.causalEngineCancelCSVRead = () => {
@@ -1118,7 +1139,8 @@
     }
     dataSource = source;
     const tools = $("dataset-tools");
-    if (source === "random") $("random-options").append(tools);
+    if (document.body.dataset.view === "details") analysisHost.insertBefore(tools, progress);
+    else if (source === "random") $("random-options").append(tools);
     else $("easy-view").insertBefore(tools, document.querySelector(".easy-help"));
     if (source === "random") {
       bindingActive = false;
@@ -1374,17 +1396,7 @@
     const file = $("csv-file").files[0];
     if (!file) return; // A cancelled chooser must not clear the loaded CSV.
     const generation = ++fileGeneration;
-    window.causalEngineBenchmark = null;
-    bindingActive = false;
-    refreshBinding();
-    $("benchmark-analysis-note").textContent = "";
     csvReadPending = true;
-    CausalDataPreview.clear();
-    csvTable = null;
-    mappingGraph = "";
-    columnMapping = {};
-    $("csv-mapping").replaceChildren();
-    $("csv-status").textContent = "";
     $("data-error").textContent = "";
     $("easy-result").hidden = true;
     try {
@@ -1392,23 +1404,23 @@
       if (generation !== fileGeneration) return;
       acceptCSV(text, file.name);
     } catch (e) {
-      if (generation === fileGeneration) $("data-error").textContent = e.message;
+      if (generation === fileGeneration) {
+        $("csv-file").value = "";
+        $("data-error").textContent = csvLoadError(e, file.name);
+      }
     } finally {
       if (generation === fileGeneration) csvReadPending = false;
     }
   };
   async function loadAlternateCSV(text, name, generation = ++fileGeneration) {
     if (running || generation !== fileGeneration) return;
-    window.causalEngineBenchmark = null;
-    bindingActive = false;
     csvReadPending = true;
-    CausalDataPreview.clear();
     $("easy-result").hidden = true;
     try {
       acceptCSV(text, name);
       $("data-error").textContent = "";
     } catch (error) {
-      $("data-error").textContent = error.message;
+      $("data-error").textContent = csvLoadError(error, name);
     } finally {
       if (generation === fileGeneration) csvReadPending = false;
     }
@@ -1432,7 +1444,7 @@
       const text = await file.text();
       if (generation === fileGeneration) await loadAlternateCSV(text, file.name, generation);
     } catch (error) {
-      if (generation === fileGeneration) $("data-error").textContent = error.message;
+      if (generation === fileGeneration) $("data-error").textContent = csvLoadError(error, file.name);
     } finally {
       if (generation === fileGeneration) csvReadPending = false;
     }

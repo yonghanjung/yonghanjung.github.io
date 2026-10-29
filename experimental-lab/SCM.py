@@ -743,7 +743,9 @@ class StructuralCausalModel:
                          equation_families=None, noise_distributions=None):
         """Legacy random builder. Preserve keys and children, including isolates.
 
-        Legacy conventions: U-prefixed names are hidden roots; X/Y names are binary.
+        Legacy conventions without explicit metadata: U-prefixed names are hidden
+        roots; X/Y names are binary. Explicit observed metadata overrides the
+        U-prefix fallback; actual hidden nodes must still be roots.
         Use add_variable to choose types and observed flags independently of names.
         A seed resets model coefficients, not the data sampling seed.
         equation_families is a global name/pool or observed-node choice dictionary.
@@ -764,8 +766,6 @@ class StructuralCausalModel:
             raise ValueError("SCM graph must be acyclic; a directed cycle was found")
         if any(not isinstance(name, str) or not name or name in _RESERVED for name in graph):
             raise ValueError("Graph contains an invalid variable name")
-        if any(name.startswith("U") and graph.in_degree(name) for name in graph):
-            raise ValueError("Legacy hidden U variables must be roots; use add_variable for general hidden nodes")
         families = {} if equation_families is None else equation_families
         noises = {} if noise_distributions is None else noise_distributions
         observed = {name: graph.nodes[name].get("observed", not name.startswith("U")) for name in graph}
