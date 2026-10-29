@@ -50,13 +50,13 @@ th:first-child, td:first-child { text-align: left; }
 </head>
 <body>
 <main>
-  <h1>Boosting: each depth-2 tree fits what is left</h1>
+  <h1>Boosting: each stump fits what is left</h1>
 
   <div class="controls">
     <label class="eta" for="eta">η <input id="eta" type="range" min="0.05" max="1" step="0.05" value="0.3"> <output id="etao"></output></label>
     <div class="buttons">
-      <button id="add1" type="button" class="primary">Add 1 tree</button>
-      <button id="add10" type="button">Add 10 trees</button>
+      <button id="add1" type="button" class="primary">Add 1 stump</button>
+      <button id="add10" type="button">Add 10 stumps</button>
       <button id="reset" type="button">Start over</button>
     </div>
     <div class="count">M = <b id="m">0</b></div>
@@ -65,7 +65,7 @@ th:first-child, td:first-child { text-align: left; }
   <div class="plots">
     <div class="col">
       <canvas id="fit" role="img" aria-label="Training patients by BMI with the boosted fit h_M"></canvas>
-      <canvas id="res" role="img" aria-label="Residuals of the current fit with the next depth-2 tree fitted to them"></canvas>
+      <canvas id="res" role="img" aria-label="Residuals of the current fit with the next stump fitted to them"></canvas>
     </div>
     <div class="col">
       <canvas id="curve" role="img" aria-label="Training and test RMSE against the number of trees"></canvas>
@@ -103,8 +103,8 @@ function bestCut(r, lo, hi) {
   return best;
 }
 function meanOf(r, lo, hi) { let s = 0; for (let p = lo; p < hi; p++) s += r[ORD[p]]; return s / (hi - lo); }
-function node(r, lo, hi, depth) {                      // a tree on BMI, as nested cuts and leaf means
-  const c = depth < 2 && hi - lo > 1 ? bestCut(r, lo, hi) : null;
+function node(r, lo, hi, depth) {                      // a stump on BMI: one cut, two leaf means
+  const c = depth < 1 && hi - lo > 1 ? bestCut(r, lo, hi) : null;
   if (!c) return { leaf: meanOf(r, lo, hi) };
   return { cut: c.cut, left: node(r, lo, c.p, depth + 1), right: node(r, c.p, hi, depth + 1) };
 }
@@ -177,14 +177,14 @@ function update() {
   step(g, px, py, x => hAt(S, eta, x), XR, css("--teal"), 3.5);
   legend(g, [["progression", css("--navy"), "dot"], ["h_M(x)", css("--teal"), "line"]]);
 
-  // 2. what is left: residuals y - h_M(x), and the next depth-2 tree fitted to them
+  // 2. what is left: residuals y - h_M(x), and the next stump fitted to them
   [g, w, h] = setup($("res")); [px, py] = frame(g, w, h, XR, [-200, 200], XT, [-200, -100, 0, 100, 200], "BMI");
   g.strokeStyle = css("--muted"); g.lineWidth = 1.5; g.beginPath(); g.moveTo(PAD.l, py(0)); g.lineTo(w - PAD.r, py(0)); g.stroke();
   g.fillStyle = css("--navy"); g.globalAlpha = 0.45;
   for (let i = 0; i < N; i++) { g.beginPath(); g.arc(px(TR.bmi[i]), py(TR.y[i] - S.h[i]), 3, 0, 2 * Math.PI); g.fill(); }
   g.globalAlpha = 1;
   step(g, px, py, x => predict(S.next, x), XR, css("--rust"), 3.5);
-  legend(g, [["residual y − h_M(x)", css("--navy"), "dot"], ["next tree", css("--rust"), "line"]]);
+  legend(g, [["residual y − h_M(x)", css("--navy"), "dot"], ["next stump", css("--rust"), "line"]]);
 
   // 3. training and test RMSE as trees are added
   const mx = Math.max(20, M);

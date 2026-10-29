@@ -20,7 +20,7 @@ Interactive demos:
 - [Lecture 10: Two inputs, lines and pieces for prediction and classification, interactive demo](/teaching/2026F/IS507/lecture-10-two-input-demo.html)
 - [Lecture 10: How a tree picks a cut, interactive demo](/teaching/2026F/IS507/lecture-10-cut-demo.html)
 - [Lecture 10: Two questions, order and cuts of a tree, interactive demo](/teaching/2026F/IS507/lecture-10-tree-demo.html)
-- [Lecture 10: Boosting fits the residuals with small trees, interactive demo](/teaching/2026F/IS507/lecture-10-boost-demo.html)
+- [Lecture 10: Boosting fits the residuals with stumps, interactive demo](/teaching/2026F/IS507/lecture-10-boost-demo.html)
 - [Lecture 10: Folding with ReLU layers, interactive demo](/teaching/2026F/IS507/lecture-10-fold-demo.html)
 
 ## IS 455: Database Design & Prototyping
