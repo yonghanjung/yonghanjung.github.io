@@ -191,15 +191,16 @@
       minimumIPW = metadata?.method_id === "minimum_variance_ipw_v1";
     const propensityIPW = metadata?.method_id === "xgboost_propensity_ipw_v1";
     const continuousOR = metadata?.method_id === "xgboost_continuous_outcome_regression_v1";
+    const conditional = ["xgboost_conditional_outcome_regression_v1", "uca_joint_conditional_projection_v1"].includes(metadata?.method_id);
     const noFit = ["empirical_observed_mean_v1", "empirical_zero_contrast_v1"].includes(metadata?.method_id);
     const minimum = minimumAIPW || minimumIPW,
-      xgboostOR = continuousOR || metadata?.method_id === "xgboost_outcome_regression_v1";
+      xgboostOR = conditional || continuousOR || metadata?.method_id === "xgboost_outcome_regression_v1";
     const aipw = minimumAIPW || ["balancing_aipw_v1", "balancing_aipw_v2"].includes(metadata?.method_id);
     const outcomeRegression = xgboostOR || metadata?.method_id === "outcome_regression_v1",
       ucaIPW = metadata?.method_id === "uca_balancing_ipw_v1",
       ipw = propensityIPW || minimumIPW || ucaIPW || metadata?.method_id === "balancing_ipw_v1";
     const xgboost = propensityIPW || minimum || xgboostOR || /XGBoost/.test(metadata?.nuisance?.outcome || "");
-    const direct = !continuousOR && (aipw || outcomeRegression || ipw);
+    const direct = !conditional && !continuousOR && (aipw || outcomeRegression || ipw);
     const fitted = metadata?.nuisance?.used || metadata?.nuisance?.fitted || { outcome: aipw, weights: aipw };
     const method = estimate?.method || "Not available";
     const armMethods = [
@@ -213,31 +214,33 @@
     const methodName = element("p", "Estimator: " + shownMethod, "estimator-name");
     CausalMethodHelp.add(
       methodName,
-      noFit
-        ? "empiricalNoFit"
-        : propensityIPW
-          ? "propensityIPW"
-          : minimumAIPW
-            ? "minimumAIPW"
-            : minimumIPW
-              ? "minimumIPW"
-              : xgboostOR
-                ? continuousOR
-                  ? "continuousOR"
-                  : "xgboostOR"
-                : aipw
-                  ? "aipw"
-                  : outcomeRegression
-                    ? "outcomeRegression"
-                    : ucaIPW
-                      ? "ipw"
-                      : ipw
-                        ? "actualSettings"
-                        : xgboost
-                          ? "xgboostGraph"
-                          : metadata?.method_id
-                            ? "legacy"
-                            : "estimator"
+      conditional
+        ? "conditionalOR"
+        : noFit
+          ? "empiricalNoFit"
+          : propensityIPW
+            ? "propensityIPW"
+            : minimumAIPW
+              ? "minimumAIPW"
+              : minimumIPW
+                ? "minimumIPW"
+                : xgboostOR
+                  ? continuousOR
+                    ? "continuousOR"
+                    : "xgboostOR"
+                  : aipw
+                    ? "aipw"
+                    : outcomeRegression
+                      ? "outcomeRegression"
+                      : ucaIPW
+                        ? "ipw"
+                        : ipw
+                          ? "actualSettings"
+                          : xgboost
+                            ? "xgboostGraph"
+                            : metadata?.method_id
+                              ? "legacy"
+                              : "estimator"
     );
     section.append(methodName);
     const details = element("details", undefined, "estimation-details");
@@ -273,7 +276,25 @@
     field(list, "Estimator", method);
     const queryKind =
       metadata?.options?.estimand || metadata?.inputs?.estimand || context?.query?.estimand || (context?.query?.summary === "mean" ? "apo" : "ate");
-    field(list, "Query", queryKind === "apo" ? "APO — E[Y(a)]" : "ATE — E[Y(a)] − E[Y(a₀)]");
+    field(
+      list,
+      "Query",
+      conditional
+        ? queryKind === "apo"
+          ? "Row-specific E[Y | do(A=a), C=Cᵢ]"
+          : "Row-specific E[Y | do(A=a), C=Cᵢ] − E[Y | do(A=a₀), C=Cᵢ]"
+        : queryKind === "apo"
+          ? "APO — E[Y(a)]"
+          : "ATE — E[Y(a)] − E[Y(a₀)]"
+    );
+    if (conditional) {
+      field(list, "Conditioning on", metadata.inputs?.conditioning);
+      field(list, "Original observed rows", estimate.n);
+      field(list, "Available predictions", estimate.rowwise?.available);
+      field(list, "Synthetic integration draws", estimate.diagnostics?.synthetic_draws);
+      field(list, "Actual outcome fits", estimate.diagnostics?.outcome_fits);
+      field(list, "Row order", "Original input order, starting at row 1; unavailable rows retained.");
+    }
     field(list, "Intervention", metadata?.inputs?.intervention || context?.query?.intervention);
     if (queryKind === "ate") field(list, "Reference intervention", metadata?.inputs?.reference || context?.query?.reference);
     field(list, "Treatment members", metadata?.inputs?.treatment_members);
@@ -367,7 +388,7 @@
     if (estimate?.reason) field(list, "Reason", estimate.reason);
     details.append(list);
     const documentLink = element("a", "Full methods documentation");
-    documentLink.href = "./methods.html#" + (continuousOR ? "continuous-or" : direct ? "score" : "dispatch");
+    documentLink.href = "./methods.html#" + (conditional ? "conditioning" : continuousOR ? "continuous-or" : direct ? "score" : "dispatch");
     documentLink.target = "_blank";
     documentLink.rel = "noopener";
     const documentRow = element("p");
@@ -450,7 +471,7 @@
         )
       );
       CausalMethodHelp.add(panel.querySelector("p"), "reproduce");
-      if (continuousOR)
+      if (continuousOR || conditional)
         panel.append(
           element(
             "p",

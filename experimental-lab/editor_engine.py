@@ -282,7 +282,7 @@ def _sample_warning(result, code, message, **context):
     result.setdefault("warning", message)
 
 
-def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
+def _estimate_uca_mean(data, graph, schema, payload, seed, deadline, *, _joint_draws=False):
     """Approximate certified UCA: XGBoost terminal conditional means, unchanged kNN sampling kernels."""
     extrapolate = payload.get("allow_continuous_extrapolation", True)
     if type(extrapolate) is not bool:
@@ -355,14 +355,16 @@ def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
             if perf_counter() >= deadline:
                 return fail("UNKNOWN", "Sample estimator deadline exhausted.")
             read_later = {key for _, given in schedule[stage+1:] for _, key, _ in given}
-            terminal = event is None and not any(key in read_later for _, key, _ in head)
+            terminal = not _joint_draws and event is None and not any(key in read_later for _, key, _ in head)
             h = indices(v for v, _, _ in head)
             output = np.empty((len(evaluation), len(h)))
             diagnostic = dict(fold=heldout, stage=stage, head=[v for v, _, _ in head], context=[v for v, _, _ in context],
                               terminal_mean=terminal, weak_rows=0, off_range_rows=0, k=[], requested_k=[])
             diagnostic["actual_k"] = diagnostic["k"]
             if not context:
-                source = evaluation[:, h]
+                source = training[:, h] if _joint_draws else evaluation[:, h]
+                if not len(source):
+                    return fail("UNKNOWN", "EMPTY_KERNEL_SOURCE: no training rows for the joint-draw marginal.")
                 output[:] = source.mean(axis=0) if terminal else source[rng.integers(len(source), size=len(evaluation))]
             else:
                 q = np.concatenate([np.broadcast_to(fixed, (len(evaluation), len(fixed))) if key is None else values[key]
@@ -470,6 +472,13 @@ def _estimate_uca_mean(data, graph, schema, payload, seed, deadline):
     if not np.isfinite(draws).all():
         return fail("UNKNOWN", "UCA kernels produced nonfinite values.")
     outcomes = [c for v in targets for c in schema[v]["columns"]]
+    if _joint_draws:
+        if result["diagnostics"].get("fixed_range_violations"):
+            _sample_warning(result, "KERNEL_EXTRAPOLATION", "An explicitly allowed fixed intervention is outside kernel training support; joint draws are extrapolated.")
+        if result["diagnostics"].get("worst_weak_fraction", 0) > .05:
+            _sample_warning(result, "WEAK_KERNEL_COVERAGE", "Some joint-distribution kernels have weak empirical coverage.")
+        return dict(result, status="OK", _draws=draws, _columns=outcomes,
+                    method="Certified joint-distribution draws from existing normalized kernels")
     mean = _event_hits(draws, outcomes, event).mean(keepdims=True) if event is not None else draws.mean(axis=0)
     if not np.isfinite(mean).all():
         return fail("UNKNOWN", "UCA kernels produced nonfinite values.")
@@ -492,6 +501,10 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline, *, adjustment_o
     """
     from graph import marginalize_hidden_nodes
     graph = marginalize_hidden_nodes(graph)
+    if payload.get("conditioning"):
+        reason = _data_query(payload, schema)
+        if reason: return dict(status="UNSUPPORTED", reason=reason, n=len(data))
+        return _conditional_estimate(data, graph, schema, payload, seed, deadline)
     result = dict(status="UNSUPPORTED", method="2-fold XGBoost g-computation", n=len(data), approximate=True, warnings=[],
                   diagnostics={"folds": 2, "data_uncertainty": "not estimated",
                                "limitations": "XGBoost approximation bias and sparse support; nearest-neighbor coverage diagnostics are not the regression",
@@ -759,6 +772,159 @@ def _continuous_outcome_regression(data, graph, schema, payload, seed, deadline)
     return result
 
 
+def _conditional_estimate(data, graph, schema, payload, seed, deadline, *, original_data=None, original_schema=None):
+    """Row-ordered conditional means, using a Rule-2 or certified joint route.
+
+    Every learned stage uses only outer-training rows. Synthetic draws are
+    numerical integration data, not additional observational sample size.
+    """
+    from graph import marginalize_hidden_nodes, do_calculus_2
+    from balancing_aipw import fit_xgboost_mean
+    graph = marginalize_hidden_nodes(graph)
+    conditions = payload["conditioning"]
+    original_data = data if original_data is None else original_data
+    original_schema = schema if original_schema is None else original_schema
+    target = payload["targets"][0]
+    relevant = set([target, *conditions])
+    for v in [target, *conditions]: relevant.update(nx.ancestors(graph, v))
+    actions = {v: a for v, a in payload.get("intervention", {}).items() if v in relevant}
+    contrast = _query_estimand(payload) == "ate"
+    arms = [actions, {v: payload["reference"][v] for v in actions}] if contrast and actions else [actions]
+    n = len(data)
+    ccols = [c for v in conditions for c in schema[v]["columns"]]
+    ycol = schema[target]["columns"][0]
+    direct = do_calculus_2(graph, [target], list(actions), [], conditions)
+    method = "Cross-fitted conditional Outcome Regression (Rule 2; XGBoost)" if direct else "Conditional graph plug-in (joint kernel draws; XGBoost projection)"
+    values = [np.full(n, np.nan) for _ in arms]
+    reasons = [["Unfinished estimation"] * n for _ in arms]
+    diagnostics = dict(folds=2, observed_rows=n, synthetic_draws=0, outcome_fits=0,
+                       route="do_calculus_rule_2" if direct else "certified_joint_kernels", support=[],
+                       data_uncertainty="not estimated", train_only_stages=True)
+    warnings = []
+    if n < 128:
+        warnings.append(dict(code="SMALL_SAMPLE", message=f"Only {n} observed rows; conditional learning may be unreliable."))
+    fold = np.empty(n, dtype=int)
+    fold[np.random.default_rng(seed).permutation(n)] = np.arange(n) % 2
+
+    def support(source, query, specs):
+        valid = np.ones(len(query), dtype=bool)
+        why = [""] * len(query)
+        discrete = np.array([schema[v].get("component_types", [schema[v]["type"]] * len(schema[v]["columns"]))[j] in {"binary", "categorical"}
+                             for v in specs for j in range(len(schema[v]["columns"]))], dtype=bool)
+        if not len(source):
+            return np.zeros(len(query), dtype=bool), ["EMPTY_TRAINING_SOURCE"] * len(query)
+        groups = np.unique(query[:, discrete], axis=0) if discrete.any() else np.zeros((1, 0))
+        for group in groups:
+            rows = np.flatnonzero(np.all(query[:, discrete] == group, axis=1))
+            pool = source[np.all(source[:, discrete] == group, axis=1)]
+            if not len(pool):
+                for i in rows: valid[i], why[i] = False, "No exact joint discrete support in this arm's training source."
+                continue
+            continuous = ~discrete
+            if continuous.any():
+                lo, hi = pool[:, continuous].min(axis=0), pool[:, continuous].max(axis=0)
+                outside = ((query[rows][:, continuous] < lo) | (query[rows][:, continuous] > hi)).any(axis=1)
+                for i in rows[outside]: valid[i], why[i] = False, "Outside this arm's empirical conditional training range; conditional support is unverified."
+        return valid, why
+
+    for heldout in (0, 1):
+        train = np.flatnonzero(fold != heldout)
+        test = np.flatnonzero(fold == heldout)
+        if not len(test): continue
+        if not len(train):
+            for why in reasons:
+                for i in test: why[i] = "EMPTY_TRAINING_FOLD"
+            continue
+        try:
+            def check():
+                if perf_counter() >= deadline: raise TimeoutError("Conditional estimator deadline exhausted.")
+            check()
+            if direct:
+                variables = [*actions, *conditions]
+                columns = [c for v in variables for c in schema[v]["columns"]]
+                training = data.iloc[train][columns].to_numpy(dtype=float)
+                queries, slots = [], []
+                for a, assignment in enumerate(arms):
+                    query = data.iloc[test][columns].to_numpy(dtype=float).copy()
+                    offset = 0
+                    for name in actions:
+                        value = assignment[name]
+                        width = len(schema[name]["columns"])
+                        query[:, offset:offset+width] = _array(value, schema[name]["shape"]).reshape(-1)
+                        offset += width
+                    valid, why = support(training, query, variables)
+                    for j, i in enumerate(test): reasons[a][i] = why[j]
+                    diagnostics["support"].append(dict(fold=heldout, arm=a, training_rows=len(train), available_rows=int(valid.sum()), query_rows=len(test)))
+                    queries.append(query[valid]); slots.append((a, test[valid]))
+                if sum(len(x) for x in queries):
+                    prediction, fit = fit_xgboost_mean(training, data.iloc[train][[ycol]].to_numpy(dtype=float), np.concatenate(queries),
+                        seed=(seed+104729*(heldout+1)) % 2**32, check=check)
+                    diagnostics.setdefault("regressions", []).append(fit)
+                    diagnostics["outcome_fits"] += len(fit.get("fits", []))
+                    offset = 0
+                    for a, rows in slots:
+                        values[a][rows] = prediction[offset:offset+len(rows), 0]
+                        offset += len(rows)
+            else:
+                for a, assignment in enumerate(arms):
+                    check()
+                    joint = _estimate_uca_mean(data.iloc[train], graph, schema,
+                        dict(payload, summary="mean", targets=[target, *conditions], intervention=assignment, evidence={},
+                             allow_continuous_extrapolation=payload.get("allow_continuous_extrapolation", False)),
+                        (seed+104729*(heldout+1)+1009*a) % 2**32, deadline, _joint_draws=True)
+                    warnings.extend(dict(w, fold=heldout, arm=a) for w in joint.get("warnings", []))
+                    if joint["status"] != "OK":
+                        for i in test: reasons[a][i] = joint.get("reason", joint["status"])
+                        continue
+                    draws, columns = joint["_draws"], joint["_columns"]
+                    training = draws[:, [columns.index(c) for c in ccols]]
+                    query = data.iloc[test][ccols].to_numpy(dtype=float)
+                    valid, why = support(training, query, conditions)
+                    for j, i in enumerate(test): reasons[a][i] = why[j]
+                    diagnostics["synthetic_draws"] += len(draws)
+                    diagnostics["support"].append(dict(fold=heldout, arm=a, training_rows=len(train), synthetic_draws=len(draws), available_rows=int(valid.sum()), query_rows=len(test), kernels=joint["diagnostics"]))
+                    if valid.any():
+                        prediction, fit = fit_xgboost_mean(training, draws[:, [columns.index(ycol)]], query[valid],
+                            seed=(seed+104729*(heldout+1)+1009*a) % 2**32, check=check)
+                        diagnostics.setdefault("regressions", []).append(fit)
+                        diagnostics["outcome_fits"] += len(fit.get("fits", []))
+                        values[a][test[valid]] = prediction[:, 0]
+        except (TimeoutError, ValueError, RuntimeError, FloatingPointError, NotImplementedError) as error:
+            for a in range(len(arms)):
+                for i in test:
+                    if not np.isfinite(values[a][i]): reasons[a][i] = str(error)
+    if contrast and not actions:
+        values.append(values[0].copy())
+        reasons.append(list(reasons[0]))
+    rows = []
+    for i in range(n):
+        valid = all(np.isfinite(out[i]) for out in values)
+        conditions_i = {v: (float(original_data.iloc[i][original_schema[v]["columns"][0]]) if not original_schema[v]["shape"] else original_data.iloc[i][original_schema[v]["columns"]].to_numpy(dtype=float).tolist()) for v in conditions}
+        row = dict(row_index=i+1, conditioning=conditions_i, prediction=float(values[0][i]-values[1][i] if contrast else values[0][i]) if valid else None,
+                   intervention=float(values[0][i]) if np.isfinite(values[0][i]) else None,
+                   status="OK" if valid else "UNAVAILABLE", reason="; ".join(f"{'Intervention' if a==0 else 'Reference'}: {why[i]}" for a, why in enumerate(reasons) if not np.isfinite(values[a][i])))
+        if contrast:
+            row["reference"] = float(values[1][i]) if np.isfinite(values[1][i]) else None
+            if not actions: row["arm_mean_status"] = "Identical intervention worlds; one shared conditional mean fit."
+        row["warnings"] = list(dict.fromkeys(w["message"] for w in warnings if "fold" not in w or w["fold"] == int(fold[i])))
+        rows.append(row)
+    available = sum(row["status"] == "OK" for row in rows)
+    from pathlib import Path
+    import hashlib
+    details = dict(method_id="xgboost_conditional_outcome_regression_v1" if direct else "uca_joint_conditional_projection_v1",
+        method=method, implementation=dict(file="editor_engine.py", entry="_conditional_estimate", sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()),
+        options=dict(seed=seed, folds=diagnostics["folds"], estimand=_query_estimand(payload)),
+        inputs=dict(conditioning=conditions, intervention=actions, reference=payload.get("reference"), outcome=target),
+        nuisance=dict(outcome=method, weights="Not fitted", used=dict(outcome=bool(diagnostics["outcome_fits"]), weights=False), fit_completed=dict(outcome=diagnostics["outcome_fits"], weights=0)),
+        normalization="One prediction per original observed row; no averaging over conditioning values.",
+        limitations=["Conditional support/range diagnostics are not positivity certificates.", "Kernel integration and regression approximation can be inaccurate; synthetic draws are not new observed rows."],
+        uncertainty="Not computed: no conditional confidence interval or double-robustness claim.")
+    return dict(status="OK" if available==n else "PARTIAL" if available else "UNKNOWN", method=method, n=n, approximate=True,
+                rowwise=dict(conditioning=conditions, estimand=_query_estimand(payload), outcome=target, rows=rows, available=available, unavailable=n-available),
+                warnings=warnings, diagnostics=diagnostics, estimation_details=details,
+                reason="" if available==n else f"{n-available} rows lack supported predictions; see each original row's reason.")
+
+
 def _balancing_baseline(data,graph,schema,payload,seed,deadline,original_schema,feature_view):
     """Verified baseline scalar/ordered binary-treatment ATE or APO adapter."""
     from graph import marginalize_hidden_nodes
@@ -795,6 +961,8 @@ def _balancing_baseline(data,graph,schema,payload,seed,deadline,original_schema,
 
 def _reference(model, payload, n, seed, seconds):
     """Verified scalar linear means/contrasts; otherwise existing paired simulation."""
+    if payload.get("conditioning"):
+        return dict(status="UNSUPPORTED", reason="Row-specific conditional SCM references are not implemented; no unconditional reference was substituted.", query=dict(type=payload.get("type", "interventional"), targets=payload.get("targets"), conditioning=payload["conditioning"]))
     started = perf_counter()
     options = dict(query_type=payload.get("type", "interventional"),
                    intervention=payload.get("intervention", {}), evidence=payload.get("evidence", {}),
@@ -933,6 +1101,14 @@ def _data_query(payload, schema):
             if (spec["type"]=="binary" or spec["shape"]) and not np.isin(array,[0,1]).all():
                 raise ValueError(label+": binary action members must be0/1 in their stored order.")
     if targets[0] in actions:return "The outcome must differ from the intervention nodes."
+    conditions = payload.get("conditioning", [])
+    if not isinstance(conditions, list) or any(not isinstance(v, str) for v in conditions) or len(conditions) != len(set(conditions)):
+        raise ValueError("Conditioning on must be a list of unique observed variable names.")
+    for name in conditions:
+        if name not in schema:
+            return f"Conditioning variable {name} is Unobserved or absent. Choose an Observed variable from this graph."
+    if set(conditions) & (set(targets) | set(actions)):
+        return "This conditional adapter requires disjoint treatment, outcome and Conditioning on variables; overlapping roles are not currently supported."
     return None
 
 
@@ -1258,7 +1434,7 @@ class Editor:
                 raise ValueError("Use an estimate budget greater than 0 and at most 30 seconds.")
             reason = _data_query(payload, schema)
             certificate = None
-            if reason is None:
+            if reason is None and not payload.get("conditioning"):
                 reason, certificate = _cluster_adjustment_guard(graph, schema, payload)
             if certificate is not None:
                 response["cluster_adjustment"] = certificate
@@ -1270,8 +1446,13 @@ class Editor:
                 estimate_payload = dict(payload, type="interventional", summary="mean" if _query_estimand(payload)=="apo" else "mean_difference")
                 deadline = perf_counter() + seconds
                 split_seed = seed ^ 0x5A5A5A5A
-                estimate = (_balancing_baseline(fitting_data, graph, fitting_schema,
-                    estimate_payload, split_seed, deadline, schema, feature_view) if requested_method != "legacy_knn" else None)
+                if payload.get("conditioning"):
+                    estimate = (_conditional_estimate(fitting_data, graph, fitting_schema, estimate_payload, split_seed, deadline, original_data=data, original_schema=schema)
+                        if requested_method in {"auto", "outcome_regression", "legacy_knn"} else
+                        dict(status="UNSUPPORTED", n=len(data), reason="Row-specific conditioning uses Outcome Regression/conditional graph plug-in only. Conditional AIPW and IPW are not implemented; no method substitution was run."))
+                else:
+                    estimate = (_balancing_baseline(fitting_data, graph, fitting_schema,
+                        estimate_payload, split_seed, deadline, schema, feature_view) if requested_method != "legacy_knn" else None)
                 if estimate is None and requested_method == "outcome_regression":
                     estimate = _continuous_outcome_regression(fitting_data, graph, fitting_schema,
                         estimate_payload, split_seed, deadline)
@@ -1321,6 +1502,8 @@ class Editor:
             if n < 256 or type(seconds) not in (int, float) or not np.isfinite(seconds) or not 0 < seconds <= 30:
                 raise ValueError("Use 256 to 10000 reference draws and a budget greater than 0 and at most 30 seconds.")
             reason = _data_query(payload, schema)
+            if not reason and payload.get("conditioning"):
+                reason = "Row-specific conditional SCM references are not implemented; no unconditional reference was substituted."
             if reason is None:
                 reason, _ = _cluster_adjustment_guard(self.model.graph, schema, payload)
             seed = self._sample_seed ^ 0xA5A5A5A5

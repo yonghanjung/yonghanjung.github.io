@@ -7,8 +7,70 @@ window.CausalExpectation = (() => {
   };
   const list = (xs) => el("mrow", ...xs.flatMap((x, i) => (i ? [el("mo", ","), x] : [x])));
   const fence = (x, l = "(", r = ")") => el("mrow", el("mo", l), x, el("mo", r));
+  function conditionalMean(result, target, actions, graphNodes, options) {
+    const conditions = result.conditioning.variables,
+      alias = options.reference ? "a₀" : "a";
+    const assignments = actions.map((v, i) => el("mrow", el("mi", v), el("mo", "="), el("mi", actions.length === 1 ? alias : alias + (i + 1))));
+    const cases = conditions.map((v) => el("mrow", el("mi", v), el("mo", "="), el("msub", el("mi", v.toLowerCase()), el("mi", "i"))));
+    const observationalAssignments = assignments.filter((_, i) => (result.query?.actions || actions).includes(actions[i]));
+    const expectation = (intervene) =>
+      el(
+        "mrow",
+        el("mi", "E"),
+        fence(
+          el(
+            "mrow",
+            el("mi", target),
+            el("mo", "|"),
+            list([
+              ...((intervene ? assignments : observationalAssignments).length
+                ? [
+                    intervene
+                      ? el("mrow", el("mi", "do"), fence(list((intervene ? assignments : observationalAssignments).map((n) => n.cloneNode(true)))))
+                      : list((intervene ? assignments : observationalAssignments).map((n) => n.cloneNode(true))),
+                  ]
+                : []),
+              ...cases.map((n) => n.cloneNode(true)),
+            ])
+          ),
+          "[",
+          "]"
+        )
+      );
+    let right;
+    if (result.conditioning.route === "do_calculus_rule_2") right = expectation(false);
+    else {
+      const density = renderMean(result.conditioning.joint_result, target, actions, graphNodes, {
+        ...options,
+        densityOnly: true,
+        conditioningNames: conditions,
+      });
+      const node = graphNodes.find((n) => n.name === target),
+        y = target.toLowerCase();
+      const integrate = (weighted) => {
+        const expression = el("mrow", ...(weighted ? [el("mi", y), el("mo", "·")] : []), density.firstChild.cloneNode(true));
+        return node?.family === "binary" || node?.variable_type === "binary"
+          ? el(
+              "mrow",
+              el(
+                "munder",
+                el("mo", "∑"),
+                el("mrow", el("mi", y), el("mo", "∈"), el("mo", "{"), el("mn", 0), el("mo", ","), el("mn", 1), el("mo", "}"))
+              ),
+              expression
+            )
+          : el("mrow", el("mo", "∫"), expression, el("mi", "d"), el("mi", y));
+      };
+      right = el("mfrac", integrate(true), integrate(false));
+    }
+    const math = el("math", expectation(true), el("mo", "="), right);
+    math.setAttribute("display", "block");
+    math.setAttribute("aria-label", "Identified row-specific conditional mean for " + target);
+    return math;
+  }
   function renderMean(result, target, actions, graphNodes, options = {}) {
     if (result.identification.status !== "IDENTIFIABLE") return null;
+    if (result.conditioning) return conditionalMean(result, target, actions, graphNodes, options);
     const candidate = formulaSource(result),
       source = ["BD", "AC", "FD", "SBD"].includes(candidate)
         ? candidate
@@ -39,6 +101,8 @@ window.CausalExpectation = (() => {
         });
       symbols.set(action, width > 1 ? aliases : aliases[0]);
     }
+    for (const v of options.conditioningNames || []) symbols.set(v, v.toLowerCase() + "ᵢ");
+    if (options.densityOnly) symbols.set(target, target.toLowerCase());
     for (const symbol of [...symbols.values()].flat()) used.add(symbol);
     const fresh = (name) => {
       let x = name.toLowerCase();
@@ -128,6 +192,7 @@ window.CausalExpectation = (() => {
       if (t.type === "add") return el("mrow", child(t.left), el("mo", "+"), child(t.right));
       throw Error("The expression still contains an unexpanded kernel.");
     }
+    if (options.densityOnly) return el("math", walk(tree));
     const sourceRow = result.criteria[source],
       adjustment =
         ["BD", "AC"].includes(source) && sourceRow?.status === "ACCEPT" && Array.isArray(sourceRow.witness?.Z) ? sourceRow.witness.Z : null,

@@ -2011,10 +2011,14 @@ permalink: /experimental-lab/
           </div>
         </div>
         <div id="node-menu" role="dialog" aria-label="Node actions" hidden>
-          <input id="rename-input" aria-label="Rename node" />
-          <button id="rename-node">Rename</button><button id="connect-node">Connect</button>
-          <button id="toggle-observed" type="button">Mark as Unobserved</button>
-          <p id="node-observed-note" role="status" hidden></p>
+          <strong id="selection-menu-label"></strong>
+          <div id="node-menu-fields">
+            <input id="rename-input" aria-label="Rename node" />
+            <button id="rename-node">Rename</button><button id="connect-node">Connect</button>
+            <button id="toggle-observed" type="button">Mark as Unobserved</button>
+            <p id="node-observed-note" role="status" hidden></p>
+          </div>
+          <button id="delete-selection" type="button">Delete node</button>
         </div>
         <section id="query-panel" class="output" aria-label="Query">
           <form id="identification-query" class="query">
@@ -2068,7 +2072,10 @@ permalink: /experimental-lab/
               <summary>Query options</summary>
               <div class="actions">
                 <label>Draws<input id="query-draws" type="number" min="256" max="10000" value="2048" /></label>
-                <label title="A supplied back-door adjustment set; blank checks the empty set. Automatic BD search is separate."
+                <label title="Observed variable names. Predict separately at each input row’s conditioning values."
+                  >Conditioning on<input id="query-conditioning" aria-label="Conditioning on variables" placeholder="∅"
+                /></label>
+                <label hidden title="Legacy API supplied adjustment witness; separate from conditioning."
                   >Check Z<input id="query-z" aria-label="Supplied BD adjustment set Z" placeholder="∅"
                 /></label>
                 <label title="Shared search deadline. UNKNOWN means the search was not completed."
@@ -2465,14 +2472,39 @@ permalink: /experimental-lab/
       menu.style.left = `${Math.max(8, Math.min(x, innerWidth - bounds.width - 8))}px`;
       menu.style.top = `${Math.max(8, Math.min(y, innerHeight - bounds.height - 8))}px`;
     }
+    function selectedGraphElement() {
+      return [...svg.querySelectorAll("[data-node],[data-edge]")].find((group) =>
+        selected?.name ? group.dataset.node === selected.name : selected?.edge && group.dataset.edge === JSON.stringify(selected.edge)
+      );
+    }
+    function focusGraphSelection() {
+      selectedGraphElement()?.focus({ preventScroll: true });
+    }
     function openMenu(name, x, y, focus = false) {
       select({ name });
       $("rename-input").value = name;
       const menu = $("node-menu");
+      menu.setAttribute("aria-label", "Node actions");
+      $("selection-menu-label").textContent = name;
+      $("node-menu-fields").hidden = false;
+      $("delete-selection").textContent = "Delete node";
       syncNodeMeasurement();
       menu.hidden = false;
       positionNodeMenu(x, y);
       if (focus) $("toggle-observed").focus({ preventScroll: true });
+      else focusGraphSelection();
+    }
+    function openEdgeMenu(edge, x, y, focus = false) {
+      select({ edge });
+      const menu = $("node-menu");
+      menu.setAttribute("aria-label", "Edge actions");
+      $("selection-menu-label").textContent = `${edge[0]} → ${edge[1]}`;
+      $("node-menu-fields").hidden = true;
+      $("delete-selection").textContent = "Delete edge";
+      menu.hidden = false;
+      positionNodeMenu(x, y);
+      if (focus) $("delete-selection").focus({ preventScroll: true });
+      else focusGraphSelection();
     }
     $("toggle-observed").onclick = () => {
       const node = nodes.find((n) => n.name === selected?.name);
@@ -2487,7 +2519,7 @@ permalink: /experimental-lab/
       if (event.key !== "Escape") return;
       event.preventDefault();
       $("node-menu").hidden = true;
-      [...svg.querySelectorAll("[data-node]")].find((g) => g.dataset.node === selected?.name)?.focus();
+      focusGraphSelection();
     });
     document.addEventListener("pointerdown", (event) => {
       if (!event.target.closest("#node-menu")) $("node-menu").hidden = true;
@@ -2504,7 +2536,7 @@ permalink: /experimental-lab/
       node.name = name;
       edges = edges.map((edge) => edge.map((n) => (n === old ? name : n)));
       bends = new Map([...bends].map(([key, value]) => [JSON.stringify(JSON.parse(key).map((n) => (n === old ? name : n))), value]));
-      for (const id of ["query-x", "query-y", "query-z"])
+      for (const id of ["query-x", "query-y", "query-z", "query-conditioning"])
         if (queryNames(id).includes(old))
           $(id).value = queryNames(id)
             .map((n) => (n === old ? name : n))
@@ -2573,15 +2605,20 @@ permalink: /experimental-lab/
     svg.onpointerup = (event) => {
       if (!drag) return;
       if (drag.edge) {
+        const { edge, moved } = drag;
         drag = null;
+        if (!moved) openEdgeMenu(edge, event.clientX, event.clientY);
+        else focusGraphSelection();
         if ($("graph-input").open) graphText();
         return;
       }
       const { node, x, y, moved } = drag;
       drag = null;
       if (!moved) {
-        if (mode === "edge") addEdge(node.name);
-        else openMenu(node.name, event.clientX, event.clientY);
+        if (mode === "edge") {
+          addEdge(node.name);
+          focusGraphSelection();
+        } else openMenu(node.name, event.clientX, event.clientY);
       } else {
         const p = point(event),
           target = nodes.find((n) => n !== node && Math.hypot(p.x - n.x, p.y - n.y) <= RADIUS);
@@ -2591,6 +2628,7 @@ permalink: /experimental-lab/
           source = node.name;
           addEdge(target.name);
         }
+        focusGraphSelection();
       }
     };
     svg.onpointercancel = () => {
@@ -2599,15 +2637,22 @@ permalink: /experimental-lab/
     svg.onkeydown = (event) => {
       const node = event.target.closest("[data-node]"),
         edge = event.target.closest("[data-edge]");
-      if (event.key === "Enter" && node) {
-        if (mode === "edge") addEdge(node.dataset.node);
-        else {
-          event.preventDefault();
+      if (["Enter", " "].includes(event.key) && node) {
+        event.preventDefault();
+        if (mode === "edge") {
+          select({ name: node.dataset.node });
+          addEdge(node.dataset.node);
+          focusGraphSelection();
+        } else {
           const bounds = node.getBoundingClientRect();
           openMenu(node.dataset.node, bounds.right, bounds.top, true);
         }
       }
-      if (event.key === "Enter" && edge) select({ edge: JSON.parse(edge.dataset.edge) });
+      if (["Enter", " "].includes(event.key) && edge) {
+        event.preventDefault();
+        const bounds = edge.getBoundingClientRect();
+        openEdgeMenu(JSON.parse(edge.dataset.edge), bounds.right, bounds.top, true);
+      }
     };
     $("add-node").onclick = () => {
       createNode(
@@ -2618,7 +2663,7 @@ permalink: /experimental-lab/
       );
     };
     $("remove").onclick = () => {
-      if (busy || !selected) return;
+      if (busy || !selected || $("editor-view").inert || svg.closest("[inert]")) return;
       $("node-menu").hidden = true;
       if (selected.name) {
         nodes = nodes.filter((n) => n.name !== selected.name);
@@ -2628,10 +2673,10 @@ permalink: /experimental-lab/
       invalidate();
       select(null);
     };
+    $("delete-selection").onclick = () => $("remove").click();
     document.addEventListener("keydown", (event) => {
-      if (!event.target.closest("#canvas")) return;
-      if (!["Delete", "Backspace"].includes(event.key) || !selected || event.target.closest("input,textarea,select,[contenteditable],#node-menu"))
-        return;
+      if (!event.target.closest("#canvas,#node-menu,#remove,#move-mode,#edge-mode")) return;
+      if (!["Delete", "Backspace"].includes(event.key) || !selected || event.target.closest("input,textarea,select,[contenteditable]")) return;
       event.preventDefault();
       $("remove").click();
     });
@@ -2804,9 +2849,9 @@ permalink: /experimental-lab/
           throw Error("Each bend needs one existing edge and finite x/y offsets.");
         curveKeys.add(key);
       }
-      for (const key of ["X", "Y", "Z"])
+      for (const key of ["X", "Y", "Z", "conditioning"])
         if (key in graph && (!Array.isArray(graph[key]) || graph[key].some((name) => !next.some((n) => n.name === name && n.observed))))
-          throw Error("Query roles must contain observed node names.");
+          throw Error("Query roles and Conditioning on must contain observed node names.");
       return { ...graph, nodes: next, edges: pairs, bends: curves.map((curve) => [...curve]) };
     }
     function graphText() {
@@ -2829,8 +2874,9 @@ permalink: /experimental-lab/
         ["X", "query-x"],
         ["Y", "query-y"],
         ["Z", "query-z"],
+        ["conditioning", "query-conditioning"],
       ])
-        if (key in graph) $(id).value = graph[key].join(", ");
+        if (key in graph || key === "conditioning") $(id).value = (graph[key] || []).join(", ");
       const defaults = (value) =>
         Object.fromEntries(
           queryNames("query-x").map((name) => {
@@ -2844,7 +2890,7 @@ permalink: /experimental-lab/
       $("node-menu").hidden = true;
       invalidate();
       setMode("move");
-      select({ name: graph.X?.[0] || graph.Y?.[0] || nodes.find((n) => n.observed)?.name || nodes[0].name });
+      select(null);
       $("new-name").value = nextName();
       graphText();
       clearAnalysis();
@@ -3847,11 +3893,28 @@ permalink: /experimental-lab/
         evidence = queryEvidence(),
         summary = checkedSummary(),
         counterfactual = $("query-type").value === "counterfactual",
+        conditions = queryNames("query-conditioning").map((name) =>
+          m("mrow", mathName(name), m("mo", "="), m("msub", mathName(name.toLowerCase()), m("mi", "i")))
+        ),
         targets = () => mathList(queryNames("query-y").map(mathName)),
         action = (values) => m("mrow", m("mi", "do"), fence(assignmentMath(values))),
         decorated = (target, values) => (Object.keys(values).length ? m("msub", target, assignmentMath(values)) : target),
         expect = (target, values) =>
-          m("mrow", m("mi", "E"), fence(m("mrow", target, ...(Object.keys(values).length ? [m("mo", "|"), action(values)] : [])), "[", "]"));
+          m(
+            "mrow",
+            m("mi", "E"),
+            fence(
+              m(
+                "mrow",
+                target,
+                ...(Object.keys(values).length || conditions.length
+                  ? [m("mo", "|"), mathList([...(Object.keys(values).length ? [action(values)] : []), ...conditions.map((n) => n.cloneNode(true))])]
+                  : [])
+              ),
+              "[",
+              "]"
+            )
+          );
       let body;
       if (summary === "mean_difference" && !counterfactual)
         body = m("mrow", expect(targets(), intervention), m("mo", "−"), expect(targets(), checkedAssignments("query-reference")));
@@ -3863,8 +3926,11 @@ permalink: /experimental-lab/
           ? Object.keys(evidence).length
             ? [m("mo", "|"), assignmentMath(evidence)]
             : []
-          : Object.keys(intervention).length
-            ? [m("mo", "|"), action(intervention)]
+          : Object.keys(intervention).length || conditions.length
+            ? [
+                m("mo", "|"),
+                mathList([...(Object.keys(intervention).length ? [action(intervention)] : []), ...conditions.map((n) => n.cloneNode(true))]),
+              ]
             : [];
         body = m(
           "mrow",
@@ -3921,7 +3987,7 @@ permalink: /experimental-lab/
       renderEstimand();
       controls();
     }
-    for (const id of ["query-x", "query-y", "query-z", "search-budget"])
+    for (const id of ["query-x", "query-y", "query-z", "query-conditioning", "search-budget"])
       $(id).oninput = () => {
         clearAnalysis();
         clearComputation();
@@ -3955,6 +4021,10 @@ permalink: /experimental-lab/
       };
     async function computeQuery() {
       clearComputation();
+      if (queryNames("query-conditioning").length) {
+        queryMessage("Use Estimate below the graph for row-specific Conditioning on. No unconditional SCM value was substituted.", false, true);
+        return;
+      }
       const summary = checkedSummary();
       if (summary === "distribution") return;
       const intervention = actionValues(),
@@ -3998,6 +4068,7 @@ permalink: /experimental-lab/
           nodes,
           edges,
           Z: queryNames("query-z"),
+          conditioning: queryNames("query-conditioning"),
         };
         const dataResult = await request("estimate_data", dataPayload);
         if (
@@ -4119,7 +4190,7 @@ permalink: /experimental-lab/
       event.preventDefault();
       const version = analysisRevision,
         signature = graphSignature(),
-        fields = ["query-x", "query-y", "query-z", "search-budget"].map((id) => $(id).value);
+        fields = ["query-x", "query-y", "query-z", "query-conditioning", "search-budget"].map((id) => $(id).value);
       perform(async () => {
         $("identification-results").hidden = true;
         analysisMessage("Checking identification…");
@@ -4137,6 +4208,7 @@ permalink: /experimental-lab/
             X: actions,
             Y: queryNames("query-y"),
             Z: queryNames("query-z"),
+            conditioning: queryNames("query-conditioning"),
             max_seconds: Number($("search-budget").value),
             max_orders: 256,
             max_mc_unions: 256,
@@ -4157,7 +4229,7 @@ permalink: /experimental-lab/
         if (
           version !== analysisRevision ||
           signature !== graphSignature() ||
-          fields.some((value, i) => value !== $(["query-x", "query-y", "query-z", "search-budget"][i]).value)
+          fields.some((value, i) => value !== $(["query-x", "query-y", "query-z", "query-conditioning", "search-budget"][i]).value)
         ) {
           analysisMessage("Changed. Identify.");
           renderEstimand();
@@ -4196,11 +4268,11 @@ permalink: /experimental-lab/
   <script src="./role-layout.js"></script>
   <script src="./csv-data.js"></script>
   <script src="./data-preview.js"></script>
-  <script src="./expectation-formula.js?query=ate-apo-joint-v1"></script>
+  <script src="./expectation-formula.js?query=rowwise-conditioning-v5"></script>
   <script src="./cluster-view.js"></script>
-  <script src="./method-help.js?ui=continuous-or-v1"></script>
-  <script src="./estimation-details.js?ui=continuous-or-v1"></script>
-  <script src="./role-ui.js?ui=continuous-or-v2"></script>
+  <script src="./method-help.js?ui=rowwise-conditioning-v5"></script>
+  <script src="./estimation-details.js?ui=rowwise-conditioning-v5"></script>
+  <script src="./role-ui.js?ui=rowwise-conditioning-v5"></script>
   <script src="./benchmark-ui.js?ui=estimate-warnings-v1"></script>
   <script src="./select-picker.js"></script>
 </html>

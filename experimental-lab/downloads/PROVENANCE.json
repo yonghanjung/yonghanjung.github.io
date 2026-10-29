@@ -199,16 +199,16 @@
   },
   "license_note": "Upstream repository MIT notice preserved verbatim; the notice credits the original site template author. No new ownership attribution is asserted.",
   "web_theme_source": "/tmp/causal-science-lab-preview-20261019/apps/causalengine/",
-  "web_changes": "Historical package plus scoped current sync: four native and ten web members listed in continuous_or_sync_20261029. No whole-package parity claim; other members and historical upstream bytes preserved.",
-  "web_ui_sha256": "89fbcca605aee001c9370151304712ebb276107ab0d9dee17688e6c1748a0d73",
+  "web_changes": "Historical package plus scoped current sync: two native and nine web members listed in rowwise_conditioning_sync_20261029. No whole-package parity claim; other members and historical upstream bytes preserved.",
+  "web_ui_sha256": "621633fd3663892b41294852dafbc9901ed6562111ac3478fedea48b24ac0982",
   "benchmark_assets": "web/benchmarks/manifest.json records dataset-specific versions, sources, transforms, hashes and terms; not covered by engine MIT notice",
   "benchmark_reference_assets": "Separate same-pinned-row conditional-mean ATE and APO aggregates only; factual CSVs unchanged and no reference used for estimation. LaLonde unavailable.",
   "method_documentation": {
     "path": "web/methods.html",
     "canonical_source": "preview/apps/causalengine/methods.html",
-    "sha256": "79122e8ee8f815d81a8b65a507bd4496f12ceea07c398355898fa8db62ff4181",
+    "sha256": "4765bc62edd6d327ecfdb7f36dab27fa4a859af845c9461a1b09aac0a9759356",
     "numerical_source_sha256": "a515c4fecc37171e4c6349627a299c266753264425f7104556563caa2798089d",
-    "scope": "Current binary estimators plus explicit continuous scalar verified-adjustment Outcome Regression, latent projection and observation-mask semantics; no continuous AIPW/IPW or data confidence interval."
+    "scope": "Original-row conditional means and contrasts, Rule 2/joint-distribution certificates, train-only kernels/projection, support/reasons and select/delete controls; no conditional AIPW/IPW or confidence interval."
   },
   "runtime_dependency": {
     "native": "xgboost==2.1.4",
@@ -297,6 +297,43 @@
     "version": "0.1.0 unchanged",
     "dependencies": "unchanged; XGBoost 2.1.4 remains pinned",
     "method": "Explicit continuous scalar verified-adjustment two-fold Outcome Regression; no general-ID fallback, AIPW/IPW substitution, or confidence interval.",
+    "verification": "Archive exhaustive member/byte preservation, compilation, normalized native AST, wheel RECORD/CRC/checksum, native no-fit API and actual retained-data Pyodide replay. See companion QA report for completed runtime results."
+  },
+  "rowwise_conditioning_sync_20261029": {
+    "scope": "Exactly two native modules plus nine bundled web members; all other code members preserved.",
+    "baseline_artifact_sha256": {
+      "causalengine-0.1.0-py3-none-any.whl": "3b61acbb00491801d4e99b35551e0e224d949a39bb5970a4f478cd37a10e2fb9",
+      "causalengine-0.1.0-source.zip": "17f82d2ae2b2a09674a6ce813ba4034f85bba2b55f74d9523ba39944e8e12245",
+      "causalengine-0.1.0.tar.gz": "58c55c6b6be6c043c86f544857c8e424931fa97fda2993ef9fe8ac5a84256261"
+    },
+    "raw_web_source_sha256": {
+      "editor_engine.py": "8b00d32a2b0c66577c6ccfc796cd4d73a7d3c33c0e6904f02fcf71d86c23fc33",
+      "identification_engine.py": "51a99bf5d5396460356386b7cdf3a383df0b7f38fa7c5fe666ee815aa0646e5c",
+      "index.html": "621633fd3663892b41294852dafbc9901ed6562111ac3478fedea48b24ac0982",
+      "role-ui.js": "3c9df465a2ffe188636668393af6c17ab01ad932962292503a6464a5a04af288",
+      "expectation-formula.js": "d959cfd9dedfac44d10054c2cdfb2485574aa39b3ff23957565e9c8052a2cf31",
+      "guide.html": "a5672282aeea5b2fd104276e5b0ea9f28f4d30561260f0dbb6fd78b273b06886",
+      "methods.html": "4765bc62edd6d327ecfdb7f36dab27fa4a859af845c9461a1b09aac0a9759356",
+      "estimation-details.js": "4de7e11f1e1584b61b603fdbe41abd1a7fbe1408dcd1d254b64d9e7af40e61f6",
+      "method-help.js": "11369b505e841fb8195d9c9133dc31f5fce2e0d7cd2e5bcad888276dec4ae617"
+    },
+    "packaged_active_members_sha256": {
+      "editor_engine.py": "4722dd8901d66433e0580c08dc3ff7dfb6fc3c16d5148a1583c2f8a6506792d7",
+      "identification_engine.py": "6cbacef08c71fd2786f0a71069b372cbf4bf97c247da2cffab3781ae1d9b70c6",
+      "web/editor_engine.py": "8b00d32a2b0c66577c6ccfc796cd4d73a7d3c33c0e6904f02fcf71d86c23fc33",
+      "web/identification_engine.py": "51a99bf5d5396460356386b7cdf3a383df0b7f38fa7c5fe666ee815aa0646e5c",
+      "web/index.html": "5cae17ef33213723cb066dd9c5b1bb341a7b4d7c52d05729f9f44b669b4eb86c",
+      "web/role-ui.js": "3c9df465a2ffe188636668393af6c17ab01ad932962292503a6464a5a04af288",
+      "web/expectation-formula.js": "d959cfd9dedfac44d10054c2cdfb2485574aa39b3ff23957565e9c8052a2cf31",
+      "web/guide.html": "dd7db771fd2595547c7da90e50c47a432a1552febe5685fe21b169b20c7070b8",
+      "web/methods.html": "69287465ce587d132c1e0c4438e9dbfba3c045b1e56ca774f9835193ae87ffec",
+      "web/estimation-details.js": "4de7e11f1e1584b61b603fdbe41abd1a7fbe1408dcd1d254b64d9e7af40e61f6",
+      "web/method-help.js": "11369b505e841fb8195d9c9133dc31f5fce2e0d7cd2e5bcad888276dec4ae617"
+    },
+    "adaptations": "Native package-relative imports and SCM module identities only; HTML Jekyll frontmatter removed and Code links made absolute for the standalone server.",
+    "version": "0.1.0 unchanged",
+    "dependencies": "unchanged; XGBoost 2.1.4 remains pinned",
+    "method": "Row-specific conditional Outcome Regression or certified joint-kernel projection; no conditional AIPW/IPW, confidence interval, or unconditional truth substitute.",
     "verification": "Archive exhaustive member/byte preservation, compilation, normalized native AST, wheel RECORD/CRC/checksum, native no-fit API and actual retained-data Pyodide replay. See companion QA report for completed runtime results."
   }
 }

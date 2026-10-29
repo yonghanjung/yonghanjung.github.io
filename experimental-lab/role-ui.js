@@ -52,6 +52,7 @@
         "query-x",
         "query-y",
         "query-z",
+        "query-conditioning",
         "query-summary",
         "query-values",
         "query-reference",
@@ -304,6 +305,7 @@
       scalarTargets =
         targets.length > 0 &&
         targets.every((name) => nodes.find((n) => n.name === name)?.observed && nodes.find((n) => n.name === name)?.dimension === 1),
+      conditional = supportedQuery && queryNames("query-conditioning").length > 0,
       continuous = supportedQuery && actions.length === 1 && action?.observed && action.dimension === 1 && kind === "continuous" && scalarTargets;
     const baseline =
       current === "adjustment" &&
@@ -315,17 +317,19 @@
       action.observed &&
       kind === "binary" &&
       scalarTargets;
-    const mode = continuous ? "continuous" : baseline ? "binary" : "auto",
+    const mode = conditional ? "conditional" : continuous ? "continuous" : baseline ? "binary" : "auto",
       select = $("estimation-method");
-    if (mode !== methodMode && mode !== "auto") select.value = continuous ? continuousMethod : binaryMethod;
+    if (mode !== methodMode && mode !== "auto") select.value = conditional ? "outcome_regression" : continuous ? continuousMethod : binaryMethod;
     const changed = mode !== methodMode;
     methodMode = mode;
-    for (const option of select.options) option.disabled = !option.value || (continuous && option.value !== "outcome_regression");
+    for (const option of select.options) option.disabled = !option.value || ((continuous || conditional) && option.value !== "outcome_regression");
     $("estimation-method-wrap").hidden = mode === "auto";
-    $("estimation-method-note").hidden = !continuous;
-    $("estimation-method-note").textContent = continuous
-      ? "Continuous scalar treatment: select Outcome Regression (Plug-in). AIPW and IPW currently support binary treatment only."
-      : "";
+    $("estimation-method-note").hidden = !(continuous || conditional);
+    $("estimation-method-note").textContent = conditional
+      ? "Row-specific conditioning uses certified conditional Outcome Regression or graph plug-in; conditional AIPW/IPW and confidence intervals are not implemented."
+      : continuous
+        ? "Continuous scalar treatment: select Outcome Regression (Plug-in). AIPW and IPW currently support binary treatment only."
+        : "";
     $("estimation-method").disabled = running;
     if (changed) window.CausalPickers?.refresh();
     return mode === "auto" ? "auto" : select.value;
@@ -501,6 +505,7 @@
         $("query-x").value = "";
         $("query-y").value = "";
         $("query-z").value = "";
+        $("query-conditioning").value = "";
         invalidate();
         select(null);
         render();
@@ -827,7 +832,7 @@
     if (draftDirty) throw Error("Update the graph before continuing.");
     const issue = temporalIssue();
     if (issue) throw Error(issue);
-    if (!queryNames("query-x").length || !queryNames("query-y").length)
+    if ((!queryNames("query-x").length && !queryNames("query-conditioning").length) || !queryNames("query-y").length)
       throw Error("Enter at least one treatment and outcome, then update the graph.");
     for (const [id, label] of [
       ["query-x", "Treatment"],
@@ -838,8 +843,15 @@
         if (!node) throw Error(label + " " + name + " is not in the current graph. Choose an existing Observed node.");
         if (!node.observed) throw Error(label + " " + name + " is Unobserved. Choose an Observed node or mark it as Observed.");
       }
-    if (queryNames("query-z").some((name) => !nodes.some((node) => node.name === name && node.observed)))
-      throw Error("Check Z must contain observed node names from the current graph.");
+    const conditioning = queryNames("query-conditioning");
+    for (const name of conditioning) {
+      if (!nodes.some((node) => node.name === name && node.observed))
+        throw Error("Conditioning variable " + name + " must be an Observed node in the current graph.");
+      if ([...queryNames("query-x"), ...queryNames("query-y")].includes(name))
+        throw Error("This conditional interface requires distinct Treatment, Outcome and Conditioning on roles.");
+    }
+    if (conditioning.length && $("query-type").value !== "interventional")
+      throw Error("Row-specific Conditioning on currently supports Interventional queries; factual counterfactual evidence is separate.");
     if (!custom && current === "frontdoor" && !fields()[0].m.length) throw Error("Enter at least one mediator for the Front-door template.");
   }
   function resultPanel(title) {
@@ -873,7 +885,8 @@
           edges,
           X: actions,
           Y: [target],
-          Z: queryNames("query-z"),
+          Z: [],
+          conditioning: queryNames("query-conditioning"),
           max_seconds: 10,
           max_orders: 256,
           max_mc_unions: 256,
@@ -984,9 +997,16 @@
   const analysisHost = $("graph-analysis"),
     querySettings = $("graph-query-settings"),
     queryFields = $("graph-query-fields"),
-    queryParts = ["estimate-query", "query-type", "query-x", "query-y", "query-values", "query-reference", "query-evidence", "query-z"].map((id) =>
-      $(id).closest("label")
-    ),
+    queryParts = [
+      "estimate-query",
+      "query-type",
+      "query-x",
+      "query-y",
+      "query-values",
+      "query-reference",
+      "query-evidence",
+      "query-conditioning",
+    ].map((id) => $(id).closest("label")),
     analysisParts = [
       identifyButton.parentElement,
       $("estimate-options"),
@@ -1076,7 +1096,7 @@
       !queryNames("query-x").includes(name) &&
       !queryNames("query-y").includes(name) &&
       queryNames("query-x").every((a) => !ancestorsOf(name).has(a)) &&
-      (roles[name]?.role === "c" || queryNames("query-z").includes(name))
+      (roles[name]?.role === "c" || queryNames("query-conditioning").includes(name))
     );
   }
 
@@ -1835,6 +1855,7 @@
     reference,
     queryKind
   ) {
+    if (queryNames("query-conditioning").length) return;
     const stamp = truthStamp();
     let label = "Ground truth",
       value = null,
@@ -1997,6 +2018,130 @@
     const e = result.data_estimate,
       section = document.createElement("section");
     section.className = "outcome-result";
+    if (e?.rowwise) {
+      const title = document.createElement("h3"),
+        note = document.createElement("p"),
+        scroll = document.createElement("div"),
+        table = document.createElement("table"),
+        button = document.createElement("button");
+      title.textContent = outcome + " · row-specific " + (e.rowwise.estimand === "ate" ? "conditional mean difference" : "conditional mean");
+      const rows = e.rowwise.rows,
+        conditions = e.rowwise.conditioning;
+      note.textContent =
+        e.rowwise.available +
+        " of " +
+        rows.length +
+        " original input rows have predictions. Showing the first 10. Conditioning values are kept per row; no overall average is substituted. Conditional ground truth and confidence intervals are not computed.";
+      scroll.className = "scroll";
+      table.setAttribute("aria-label", outcome + " row-specific conditional predictions");
+      const header = document.createElement("tr");
+      const labels = [
+        "Input row",
+        ...conditions,
+        "Intervention mean",
+        ...(e.rowwise.estimand === "ate" ? ["Reference mean", "Difference"] : []),
+        "Status / reason",
+        "Warnings",
+      ];
+      for (const label of labels) {
+        const th = document.createElement("th");
+        th.textContent = label;
+        th.scope = "col";
+        header.append(th);
+      }
+      const head = document.createElement("thead"),
+        body = document.createElement("tbody");
+      head.append(header);
+      for (const row of rows.slice(0, 10)) {
+        const tr = document.createElement("tr");
+        tr.dataset.inputRow = row.row_index;
+        const cells = [
+          row.row_index,
+          ...conditions.map((c) => row.conditioning[c]),
+          row.intervention,
+          ...(e.rowwise.estimand === "ate" ? [row.reference, row.prediction] : []),
+          row.status + (row.reason ? ": " + row.reason : ""),
+          (row.warnings || []).join("; "),
+        ];
+        for (const value of cells) {
+          const cell = document.createElement("td");
+          cell.textContent =
+            value === null
+              ? "N/A"
+              : Array.isArray(value)
+                ? JSON.stringify(value)
+                : typeof value === "number" && !Number.isInteger(value)
+                  ? value.toFixed(5)
+                  : String(value);
+          tr.append(cell);
+        }
+        body.append(tr);
+      }
+      table.append(head, body);
+      scroll.append(table);
+      button.type = "button";
+      button.textContent = "Download all conditional predictions (CSV)";
+      button.onclick = () => {
+        const quote = (value) => '"' + String(value ?? "").replaceAll('"', '""') + '"';
+        const csv =
+          [
+            [
+              "input_row",
+              ...conditions.map((c) => "conditioning:" + c),
+              "intervention_mean",
+              ...(e.rowwise.estimand === "ate" ? ["reference_mean", "conditional_difference"] : []),
+              "row_status",
+              "row_reason",
+              "warnings",
+            ],
+            ...rows.map((row) => [
+              row.row_index,
+              ...conditions.map((c) => JSON.stringify(row.conditioning[c])),
+              row.intervention,
+              ...(e.rowwise.estimand === "ate" ? [row.reference, row.prediction] : []),
+              row.status,
+              row.reason,
+              (row.warnings || []).join("; "),
+            ]),
+          ]
+            .map((row) => row.map(quote).join(","))
+            .join("\n") + "\n";
+        const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })),
+          link = document.createElement("a");
+        link.href = url;
+        link.download = "causalengine-conditional-predictions.csv";
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      };
+      section.append(title, note, scroll, button);
+      const unavailable = rows.filter((row) => row.status !== "OK");
+      if (unavailable.length) {
+        const summary = document.createElement("p");
+        summary.className = "estimate-reason";
+        summary.textContent =
+          unavailable
+            .slice(0, 5)
+            .map((row) => "Input row " + row.row_index + ": " + row.reason)
+            .join(" ") +
+          (unavailable.length > 5 ? " " + (unavailable.length - 5) + " more unavailable rows." : "") +
+          " Download all conditional predictions (CSV) for every row and reason.";
+        section.append(summary);
+      }
+      if (omitted.length) {
+        const p = document.createElement("p");
+        p.textContent =
+          omitted.join(", ") + " are not ancestors of the outcome or conditioning variables; their interventions are irrelevant in this graph.";
+        section.append(p);
+      }
+      for (const warning of e.warnings || []) {
+        const p = document.createElement("p");
+        p.className = "easy-warning";
+        p.textContent = warning.message;
+        section.append(p);
+      }
+      CausalEstimationDetails.attach(section, e, context);
+      return section;
+    }
     const h = document.createElement("h3");
     h.textContent = outcome;
     if (multiple) section.append(h);
@@ -2164,7 +2309,15 @@
       source = dataSource,
       requestedMethod = methodChoice();
     setBusy(true, "Estimate");
-    resultPanel(queryKind === "apo" ? "APO · E[Y(a)]" : "ATE · Mean difference");
+    resultPanel(
+      queryNames("query-conditioning").length
+        ? queryKind === "apo"
+          ? "Row-specific conditional mean"
+          : "Row-specific conditional mean difference"
+        : queryKind === "apo"
+          ? "APO · E[Y(a)]"
+          : "ATE · Mean difference"
+    );
     $("data-error").textContent = "";
     progress.textContent = source === "csv" ? "Reading selected data on your device…" : "Estimating the current random records on your device…";
     const results = [];
@@ -2184,7 +2337,7 @@
       }
       for (const target of targets) {
         if (revision !== version || draftDirty) throw Error("The graph changed. Estimate again.");
-        const ancestors = ancestorsOf(target),
+        const ancestors = new Set([target, ...queryNames("query-conditioning")].flatMap((name) => [...ancestorsOf(name)])),
           validKeys = [fullAction, ...(fullReference ? [fullReference] : [])].every(
             (o) => Object.keys(o).length === actions.length && actions.every((n) => n in o)
           ),
@@ -2205,7 +2358,8 @@
           targets: [target],
           intervention: pick(fullAction),
           ...(queryKind === "ate" ? { reference: pick(fullReference) } : {}),
-          Z: queryNames("query-z"),
+          Z: [],
+          conditioning: queryNames("query-conditioning"),
           ...(source === "csv" && window.causalEngineBenchmark?.estimate_options ? window.causalEngineBenchmark.estimate_options : {}),
           max_seconds: 10,
         });
@@ -2221,7 +2375,8 @@
             estimation_method: requestedMethod,
             intervention: pick(fullAction),
             ...(queryKind === "ate" ? { reference: pick(fullReference) } : {}),
-            Z: queryNames("query-z"),
+            Z: [],
+            conditioning: queryNames("query-conditioning"),
             max_seconds: 10,
           },
           estimate_options: source === "csv" ? structuredClone(window.causalEngineBenchmark?.estimate_options || {}) : {},
@@ -2257,7 +2412,9 @@
           : "");
       $("easy-result").hidden = false;
       const computed = results.filter(
-        (row) => row.result.data_estimate?.status === "OK" && Object.values(row.result.data_estimate.values || {}).some(Number.isFinite)
+        (row) =>
+          ["OK", "PARTIAL"].includes(row.result.data_estimate?.status) &&
+          (row.result.data_estimate.rowwise?.available > 0 || Object.values(row.result.data_estimate.values || {}).some(Number.isFinite))
       ).length;
       const rowsLabel = sourceInfo.n.toLocaleString() + (source === "csv" ? " CSV rows." : " random records.");
       progress.textContent =
@@ -2305,6 +2462,7 @@
     "query-x",
     "query-y",
     "query-z",
+    "query-conditioning",
     "query-summary",
     "query-values",
     "query-reference",

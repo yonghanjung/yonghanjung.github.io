@@ -311,6 +311,36 @@ permalink: /experimental-lab/methods.html
           </p>
         </section>
 
+        <section id="conditioning">
+          <h2>Row-specific interventional conditioning</h2>
+          <p>
+            For conditioning variables C, the target is θₐ(c) = E[Y | do(A=a), C=c] in the intervened-world distribution Pₐ. The interface evaluates
+            θₐ(Cᵢ) at every original observed row’s Cᵢ. A mean difference is θₐ(Cᵢ) − θₐ₀(Cᵢ), without averaging the row-specific predictions. When C
+            is post-treatment, this is a contrast between separately conditioned intervention worlds, not a factual-world subgroup CATE. Conditioning
+            is distinct from the legacy API’s supplied adjustment witness Z and from counterfactual factual evidence.
+          </p>
+          <p>
+            The fast path certifies do-calculus Rule 2 by testing Y ⫫ A | C after deleting outgoing action arrows. It fits observational Y on A,C with
+            XGBoost on each outer-training fold and predicts the held-out Cᵢ with the action fixed. If that certificate fails, the app seeks a
+            certified joint Pₐ(Y,C), compiles the existing normalized observable-kernel schedule, samples every joint head without terminal-mean
+            replacement, and fits synthetic Y on C. Every kernel pool and the final regression use outer-training data only; predictions return to the
+            original row order. A multivariate head uses one common sampled source row. No per-row refits are used.
+          </p>
+          <p>
+            Joint identification failure does not prove conditional non-identifiability; the interface reports missing/unfinished supported
+            certification, not a complete IDC result. The mathematical target and Rule 2 are described in
+            <a href="https://arxiv.org/pdf/1206.6876">Shpitser and Pearl, Identification of Conditional Interventional Distributions</a>. Joint-draw
+            projection here is a numerical approximation, not a finite-sample guarantee from that paper.
+          </p>
+          <p>
+            The adapter currently requires disjoint observed treatment, scalar outcome and conditioning roles. Treatment vectors require binary
+            components; conditioning vectors retain their ordered bound columns. Support is required in each intervention world. Exact joint discrete
+            and continuous range checks are engineering diagnostics, not positivity certificates. Fixed-action kernel extrapolation is off by default
+            in this route. Unavailable rows keep their original indices and reasons; no zero or overall-mean substitute is used. Synthetic integration
+            draws are not extra observed data. Conditional AIPW/IPW, confidence intervals and known-SCM row-specific references are not implemented.
+            Empty conditioning preserves the existing overall workflow.
+          </p>
+        </section>
         <section id="continuous-or">
           <h2>Continuous scalar Outcome Regression</h2>
           <p>

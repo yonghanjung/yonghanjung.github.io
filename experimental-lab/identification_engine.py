@@ -294,6 +294,37 @@ def _observational_trace_tree(H, X, Y, trace, deadline=None, limit=50000, return
     return (tree, contexts) if return_contexts else tree
 
 
+def _conditional_analyze(payload, G, actions, outcomes, conditions):
+    """Sufficient conditional certificates, not a complete IDC implementation."""
+    if (not isinstance(conditions, list) or any(not isinstance(v, str) for v in conditions)
+            or len(set(conditions)) != len(conditions)):
+        raise ValueError('Conditioning on must list unique observed variable names.')
+    observed = graph.observed_nodes(G)
+    if any(v not in observed for v in actions+outcomes+conditions):
+        raise ValueError('Treatment, Outcome and Conditioning on must name Observed variables in this graph.')
+    if not outcomes or set(actions)&set(outcomes) or set(conditions)&set(actions+outcomes):
+        raise ValueError('This conditional interface requires disjoint treatment, outcome and conditioning roles.')
+    _, retained, _ = graph.preprocess_query(G, actions, outcomes+conditions)
+    direct = graph.do_calculus_2(G, outcomes, list(retained), [], conditions)
+    query = dict(original_actions=actions, actions=list(retained), outcomes=outcomes, conditioning=conditions,
+                 pruned_actions=[v for v in actions if v not in retained])
+    if direct:
+        return dict(query=query, identification=dict(status='IDENTIFIABLE',
+            formula='P_a(Y | C) = P(Y | A=a, C), certified by do-calculus Rule 2.',
+            reason='Rule 2 certifies the conditional observational regression, including eligible post-treatment conditions.'),
+            conditioning=dict(variables=conditions, route='do_calculus_rule_2', rowwise=True), criteria={}, indexed=dict(status='NOT_RUN'))
+    joint = analyze(dict(payload, conditioning=[], Y=outcomes+conditions, Z=[]))
+    status = joint['identification']['status']
+    accepted = status == 'IDENTIFIABLE'
+    return dict(query=query,
+        identification=dict(status='IDENTIFIABLE' if accepted else 'UNKNOWN' if status=='UNKNOWN' else 'UNSUPPORTED',
+            formula='P_a(Y | C) = P_a(Y,C) / integral_Y P_a(Y,C).' if accepted else None,
+            reason='Conditional ratio of a certified joint interventional distribution; defined only on its conditioning support.' if accepted else
+                   'No supported joint-distribution conditional certificate was obtained. This does not establish conditional non-identifiability; full IDC was not run.'),
+        conditioning=dict(variables=conditions, route='certified_joint_ratio', rowwise=True, joint_result=joint),
+        criteria=joint.get('criteria', {}), indexed=joint.get('indexed', {}))
+
+
 def analyze(payload):
     """Analyze an immutable graph snapshot; UNKNOWN never means not identifiable.
 
@@ -307,6 +338,10 @@ def analyze(payload):
     X, Y = payload.get('X', []), payload.get('Y', [])
     if not isinstance(X,list) or not isinstance(Y,list) or any(not isinstance(v,str) for v in X+Y):
         raise ValueError('X and Y must be lists of variable names.')
+    if 'conditioning' in payload and not isinstance(payload['conditioning'], list):
+        raise ValueError('Conditioning on must be a list of observed variable names.')
+    if payload.get('conditioning'):
+        return _conditional_analyze(payload, G, X, Y, payload['conditioning'])
     H, actions, outcomes = graph.preprocess_query(G, X, Y)
     order = graph.find_topological_order(H)
     ordered = lambda values: [v for v in order if v in values]

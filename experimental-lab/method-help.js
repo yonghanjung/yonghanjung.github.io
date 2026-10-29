@@ -1,6 +1,11 @@
 /* Contextual explanations only. Estimation and data state are never modified. */
 (() => {
   const topics = {
+    conditionalOR: [
+      "Row-specific conditional means",
+      "Conditioning on names C evaluates E[Y | do(A=a), C=C_i] at each original row’s observed C_i. ATE subtracts the two arm-specific conditional means at the same C_i. A do-calculus Rule 2 certificate permits direct XGBoost Y~A,C; otherwise a certified joint interventional distribution is sampled with existing kernels and projected to Y~C. All learned stages use outer-training data only. Identical conditioning values in different held-out folds can have slightly different predictions because each fold uses a different fitted model. Synthetic draws are integration data, not more observations. Per-arm unsupported rows remain unavailable. No AIPW/IPW or confidence interval is claimed.",
+      "conditioning",
+    ],
     empiricalNoFit: [
       "Observed data without a relevant intervention",
       "No relevant intervention remains for this outcome. APO is the direct observed sample mean; ATE subtracts identical observed means and is exactly zero. No outcome model, propensity, inverse weights, cross-fitting or nearest-neighbor estimator is fitted. No sampling confidence interval is reported.",

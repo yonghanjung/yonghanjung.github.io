@@ -244,6 +244,14 @@ permalink: /experimental-lab/guide.html
             <h2>5. Read each result and its warning</h2>
             <h3>Which estimator ran?</h3>
             <p>
+              <strong>Conditioning on</strong> takes observed variable names, such as X or C1, C2. With names entered, Identify checks the conditional
+              query and Estimate returns one prediction for each original input row’s values. APO is E[Y | do(A=a), C=Cᵢ]; a mean difference subtracts
+              the two conditional arm means at the same Cᵢ. Preview shows ten rows and Download all conditional predictions exports every row,
+              including unavailable reasons. The app uses certified conditional Outcome Regression or joint-distribution graph plug-in, not
+              conditional AIPW/IPW. Conditional SCM references and confidence intervals are N/A. Clear the names to restore the overall estimators.
+              See <a href="./methods.html#conditioning">conditional methods and support limits</a>.
+            </p>
+            <p>
               For one binary scalar or ordered binary-cluster treatment, scalar outcomes, and a verified baseline adjustment set, choose
               <strong>AIPW</strong>, <strong>Outcome Regression (Plug-in)</strong>, or <strong>IPW</strong>. All use two-fold cross-fitting and the
               same retained rows. AIPW fits arm-specific XGBoost outcome predictions and minimum-second-moment weights constrained by training mass
