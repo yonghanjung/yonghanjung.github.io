@@ -35,7 +35,7 @@
   let stages = structuredClone(defaults.sequential.stages);
   const structure = () =>
     JSON.stringify({
-      nodes: nodes.map(({ name, observed, dimension, family, variable_type, category_levels, members }) => ({
+      nodes: nodes.map(({ name, observed, dimension, family, variable_type, category_levels, members, noise_only }) => ({
         name,
         observed,
         dimension,
@@ -43,6 +43,7 @@
         variable_type,
         category_levels,
         members,
+        noise_only,
       })),
       edges,
       query: [
@@ -564,7 +565,7 @@
   }
   const dataGraphKey = () =>
     JSON.stringify({
-      nodes: nodes.map(({ name, observed, dimension, family, variable_type, category_levels, members }) => ({
+      nodes: nodes.map(({ name, observed, dimension, family, variable_type, category_levels, members, noise_only }) => ({
         name,
         observed,
         dimension,
@@ -572,6 +573,7 @@
         variable_type,
         category_levels,
         members,
+        noise_only,
       })),
       edges,
     });
@@ -1563,7 +1565,7 @@
         const value = Number(input.value);
         if (input.value === "" || !Number.isSafeInteger(value) || value < 1 || value > 50) throw Error("Use a whole-number dimension from 1 to 50.");
       }
-    for (const n of randomCandidates()) {
+    for (const n of nodes.filter((n) => randomCandidates().includes(n) || (!n.observed && (randomSizes[n.name] || declaredClusters[n.name])))) {
       const p = randomSize(n.name);
       if (!Number.isSafeInteger(p) || p < 1 || p > 50) throw Error("Random covariate dimensions must be whole numbers from 1 to 50.");
       if (declaredClusters[n.name] && declaredClusters[n.name].length !== p)
@@ -2494,6 +2496,7 @@
       const name = drag.node.name;
       drag = null;
       toggleView(name);
+      openMenu(name, event.clientX, event.clientY);
       return;
     }
     nativePointerUp(event);
@@ -2509,7 +2512,8 @@
       const name = group.dataset.node;
       if (isCluster(name)) {
         toggleView(name);
-      } else select({ name });
+      }
+      openMenu(name, event.clientX, event.clientY);
     },
     true
   );
@@ -2521,6 +2525,8 @@
         event.preventDefault();
         event.stopImmediatePropagation();
         toggleView(name);
+        const bounds = [...svg.querySelectorAll("[data-node]")].find((g) => g.dataset.node === name).getBoundingClientRect();
+        openMenu(name, bounds.right, bounds.top, true);
       }
     },
     true

@@ -153,7 +153,7 @@ permalink: /experimental-lab/guide.html
               <li>
                 Match a scalar treatment and outcome to numeric columns. A declared treatment cluster binds its ordered binary member columns; a
                 baseline covariate can contain several columns: expand its name in Data columns and check its members. A column cannot be reused.
-                Headers can differ from graph names; hidden roots need no column.
+                Headers can differ from graph names; Unobserved nodes need no column.
               </li>
               <li>Check the visible treatment and reference values, then press <strong>Run estimate</strong>.</li>
             </ol>
@@ -354,25 +354,27 @@ permalink: /experimental-lab/guide.html
               improve appearance. Dense graphs may still contain crossings. On a phone, swipe within the graph to inspect a large model.
             </p>
             <p>
-              <strong>Edit tools</strong> adds or deletes nodes and arrows. A causal change marks the graph as <strong>Your edited model</strong> and
-              clears prior results; moving a node does not change the question. Use <strong>Update graph</strong> explicitly to replace an edited
-              graph with the role template, and review its replacement prompt.
+              <strong>Edit tools</strong> adds or deletes nodes and arrows. A causal change marks the graph as
+              <strong>Edit your own graph</strong> and clears prior results; moving a node does not change the question. Use
+              <strong>Update graph</strong> explicitly to replace an edited graph with the role template, and review its replacement prompt.
             </p>
             <p>
-              <strong>Node &amp; model settings</strong> opens on the right. The left variable fields and source choices stay in place. Inspect
-              observed/hidden status, dimension, functions, seeds, and detailed query settings there; select <strong>Close settings</strong> to
-              return. Simulated functions control Random Data and are not fitted to your uploaded CSV. Current data-only estimation supports
-              interventional APO means and ATE mean differences without factual evidence. Baseline methods support ordered binary treatment clusters
-              and a scalar outcome; other graph branches report their actual capabilities. Random baseline covariates can contain 1–50 components; CSV
-              clusters use their bound columns.
+              Click a variable and use <strong>Mark as Unobserved</strong> or <strong>Mark as Observed</strong>, including variables with parents.
+              Arrows and mechanisms are preserved. Random Data samples the full model and exports only Observed columns; calculations marginalize
+              Unobserved variables on a separate analysis graph. Node &amp; model settings shows the mechanism beside the graph; select
+              <strong>Close settings</strong> to return. Simulated functions control Random Data and are not fitted to your uploaded CSV. Current
+              data-only estimation supports interventional APO means and ATE mean differences without factual evidence. Baseline methods support
+              ordered binary treatment clusters and a scalar outcome; other graph branches report their actual capabilities. Random baseline
+              covariates can contain 1–50 components; CSV clusters use their bound columns.
             </p>
           </section>
           <section id="help">
             <h2>Help</h2>
             <h3>I cannot update the graph</h3>
             <p>
-              Check duplicate names, invalid characters, and the reserved U prefix. The engine allows at most 100 variables, including hidden roots.
-              Large graphs can be slow and may exceed a particular identification search or estimator’s limits.
+              Check duplicate names and invalid characters. Custom graph editing uses explicit Observed status; role templates reserve U-prefixed
+              names. The engine allows at most 100 variables, including Unobserved nodes. Large graphs can be slow and may exceed a particular
+              identification search or estimator’s limits.
             </p>
             <h3>My CSV will not run</h3>
             <p>

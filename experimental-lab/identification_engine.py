@@ -302,7 +302,8 @@ def analyze(payload):
     max_seconds is one shared Analyze deadline, including all Q queries.
     """
     started = perf_counter()
-    G = _graph(payload)
+    original_graph = _graph(payload)
+    G = graph.marginalize_hidden_nodes(original_graph)
     X, Y = payload.get('X', []), payload.get('Y', [])
     if not isinstance(X,list) or not isinstance(Y,list) or any(not isinstance(v,str) for v in X+Y):
         raise ValueError('X and Y must be lists of variable names.')
@@ -316,7 +317,7 @@ def analyze(payload):
     deadline = None if seconds is None else started+seconds
     remaining = lambda: None if deadline is None else max(0, deadline-perf_counter())
     query = dict(original_actions=list(X), actions=x, outcomes=y, retained_nodes=list(H),
-                 source_nodes=list(G), pruned_actions=[v for v in X if v not in actions])
+                 source_nodes=list(original_graph), pruned_actions=[v for v in X if v not in actions])
     criteria, indexed = {}, dict(status='NOT_RUN', formula=None)
 
     def safe(name, run):
@@ -453,6 +454,7 @@ def analyze(payload):
             identification['observational_formula_reason'] = str(error)
     snapshot = dict(nodes=[dict(name=v,**G.nodes[v]) for v in G],edges=[list(edge) for edge in G.edges])
     return _json_ready(dict(snapshot=snapshot,query=query,identification=identification,criteria=criteria,indexed=indexed,
+        latent_projection=G.graph.get('latent_projection'),
         budget=dict(max_seconds=seconds,max_orders=orders,max_mc_unions=unions,elapsed_seconds=perf_counter()-started)))
 
 

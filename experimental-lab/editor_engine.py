@@ -57,6 +57,10 @@ def build_scm(payload, *, _random_clusters=None):
                        shape=() if dimension == 1 else (dimension,),
                        columns=[name] if dimension == 1 else list(members) if members is not None else [f"{name}[{i}]" for i in range(dimension)],
                        pos=(node.get("x", 0), node.get("y", 0)))
+        if "noise_only" in node:
+            if type(node["noise_only"]) is not bool:
+                raise ValueError("noise_only must be boolean.")
+            graph.nodes[name]["noise_only"] = node["noise_only"]
         if observed:
             family = node.get("family") or "random"
             if family not in {*EQUATION_FAMILIES, "random"}:
@@ -66,6 +70,15 @@ def build_scm(payload, *, _random_clusters=None):
         if not isinstance(edge, list) or len(edge) != 2 or any(name not in graph for name in edge):
             raise ValueError("Each edge must connect two existing nodes.")
         graph.add_edge(*edge)
+    for node in nodes:
+        name = node["name"]
+        if not node.get("observed", True) and (graph.in_degree(name) or graph.nodes[name].get("noise_only") is False):
+            family = node.get("family") or "random"
+            if family not in {*EQUATION_FAMILIES, "random"}:
+                raise ValueError("Unknown equation family")
+            families[name] = list(EQUATION_FAMILIES) if family == "random" else family
+        if graph.nodes[name].get("noise_only") is True:
+            families.pop(name, None)
     # Public node validation remains capped at eight. Only the validated local
     # Random Data adapter injects a larger, private baseline vector here.
     for name, spec in (_random_clusters or {}).items():
@@ -477,6 +490,8 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
     Support cutoffs are engineering diagnostics, not a proof of positivity.
     Finite-sample regression approximation remains; no data standard error is asserted.
     """
+    from graph import marginalize_hidden_nodes
+    graph = marginalize_hidden_nodes(graph)
     result = dict(status="UNSUPPORTED", method="2-fold XGBoost g-computation", n=len(data), approximate=True, warnings=[],
                   diagnostics={"folds": 2, "data_uncertainty": "not estimated",
                                "limitations": "XGBoost approximation bias and sparse support; nearest-neighbor coverage diagnostics are not the regression",
@@ -698,6 +713,8 @@ def _estimate_mean(data, graph, schema, payload, seed, deadline):
 
 def _balancing_baseline(data,graph,schema,payload,seed,deadline,original_schema,feature_view):
     """Verified baseline scalar/ordered binary-treatment ATE or APO adapter."""
+    from graph import marginalize_hidden_nodes
+    graph = marginalize_hidden_nodes(graph)
     estimand=_query_estimand(payload);actions=payload.get("intervention",{});reference=payload.get("reference",{});targets=payload.get("targets",[])
     if payload.get("type","interventional")!="interventional"or payload.get("evidence")or len(actions)!=1 or len(targets)!=1:return None
     action,target=next(iter(actions)),targets[0]
@@ -768,7 +785,7 @@ def _reference(model, payload, n, seed, seconds):
                 mean_noise = np.asarray(0 if noise is None else noise.mean())
                 if mean_noise.shape or not np.isfinite(mean_noise):
                     return None
-                if function is _noise_value and not model._variables[v]["observed"] and not model.graph.in_degree(v):
+                if function is _noise_value and not model.graph.in_degree(v):
                     means[v] = float(mean_noise)
                 elif getattr(function, "__code__", None) is linear_code:
                     bindings = dict(zip(function.__code__.co_freevars, (c.cell_contents for c in function.__closure__)))
@@ -798,7 +815,7 @@ def _reference(model, payload, n, seed, seconds):
     return model.query(payload.get("targets"), **options, max_seconds=max(0, seconds - (perf_counter() - started)))
 
 
-def _data_graph(payload):
+def _data_graph(payload, *, allow_empty=False):
     """Validate public graph metadata without constructing a simulated SCM."""
     from identification_engine import _graph
     graph = _graph(payload)
@@ -816,7 +833,7 @@ def _data_graph(payload):
             if kind not in {"binary", "continuous", "categorical"}:
                 raise ValueError("Data-only estimation supports binary, continuous, or numeric-coded categorical variables only.")
             schema[name] = {"shape": () if dimension == 1 else (dimension,), "columns": [name], "type": kind}
-    if not schema:
+    if not schema and not allow_empty:
         raise ValueError("The graph must contain an observed variable.")
     return graph, schema
 
@@ -930,6 +947,8 @@ def _bound_columns(data, public_schema, mapping, column_types, codebooks):
 
 
 def _cluster_adjustment_guard(graph,schema,payload):
+    from graph import marginalize_hidden_nodes
+    graph = marginalize_hidden_nodes(graph)
     actions=list(payload.get("intervention",{}));targets=payload["targets"]
     clusters=[v for v,spec in schema.items()if spec.get("cluster")or spec["shape"]]
     if not clusters:return None,None
@@ -1006,8 +1025,10 @@ def _random_cluster_specs(payload):
     specs = {}
     continuous = {"linear", "quadratic", "bounded", "neural_network", "decision_tree"}
     for name, size in sizes.items():
-        if name not in schema or schema[name]["type"] != "continuous" or nodes[name].get("dimension", 1) != 1:
-            raise ValueError("Random clusters require an observed continuous node with public dimension 1.")
+        if name not in nodes or nodes[name].get("dimension", 1) != 1:
+            raise ValueError("Random clusters require a continuous node with public dimension 1.")
+        if name in schema and schema[name]["type"] != "continuous":
+            raise ValueError("Random covariate clusters require continuous mechanisms.")
         if nodes[name].get("family") not in continuous:
             raise ValueError("Choose an explicit continuous mechanism family for each Random covariate cluster.")
         size = _integer(size, "Random covariate dimension", 50)
@@ -1027,8 +1048,8 @@ def _random_cluster_specs(payload):
     return specs
 
 
-def _random_public_graph_key(payload, model):
-    graph, schema = _data_graph(payload)
+def _random_public_graph_key(payload, model, *, allow_empty=False):
+    graph, schema = _data_graph(payload, allow_empty=allow_empty)
     for node in payload["nodes"]:
         name = node["name"]
         if name in schema and name in model._variables and node.get("family", "random") == "random" and not node.get("variable_type"):
@@ -1040,7 +1061,7 @@ def _random_config_key(public_key, specs, payload):
     if not specs:
         return None
     import hashlib
-    families = sorted((node["name"], node.get("family"), node.get("variable_type")) for node in payload["nodes"])
+    families = sorted((node["name"], node.get("family"), node.get("variable_type"), node.get("noise_only")) for node in payload["nodes"])
     return hashlib.sha256(json.dumps([public_key, specs, payload.get("model_seed", 7), payload.get("noise", "random"), families],
                                     sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
@@ -1297,6 +1318,8 @@ class Editor:
             n = _integer(payload.get("n", 10), "rows", 5000)
             if n < 1:
                 raise ValueError("Use 1 to 5000 sample rows.")
+            if not any(d["observed"] for d in self.model._variables.values()):
+                raise ValueError("Observe at least one variable before generating data.")
             seed = _integer(payload.get("data_seed", 5), "data seed", 2**32 - 1)
             if self._random_key is not None and payload.get("random_key") != self._random_key:
                 raise ValueError("Random cluster configuration expired. Generate Random Data again.")
@@ -1318,8 +1341,36 @@ class Editor:
         if action == "update":
             old = self.model
             details = old._variables[name]
-            if not details["observed"]:
-                raise ValueError("Hidden roots use their noise law.")
+            if "observed" in payload:
+                if type(payload["observed"]) is not bool or "family" in payload or "parameters" in payload:
+                    raise ValueError("An observation-only update needs one boolean observed flag, without family or parameters.")
+                candidate = old._copy_model()
+                candidate._variables[name]["observed"] = payload["observed"]
+                candidate.graph.nodes[name]["observed"] = payload["observed"]
+                candidate.graph.nodes[name]["noise_only"] = candidate.equations[name] is _noise_value
+                if candidate.equations[name] is _noise_value and payload["observed"]:
+                    candidate._variables[name]["variable_type"] = "continuous"
+                if payload["observed"]:
+                    candidate.unobserved_variables.pop(name, None)
+                else:
+                    candidate.unobserved_variables[name] = candidate.noise_distributions[name]
+                public_payload = copy.deepcopy(self._random_public_payload)
+                for node in public_payload["nodes"]:
+                    if node["name"] == name:
+                        node["observed"] = payload["observed"]
+                        node["noise_only"] = candidate.equations[name] is _noise_value
+                        if candidate.equations[name] is _noise_value and payload["observed"]:
+                            node["variable_type"] = "continuous"
+                public_key = _random_public_graph_key(public_payload, candidate, allow_empty=True)
+                config_key = _random_config_key(public_key, self._random_specs, public_payload)
+                _, bindings = _random_schema(candidate, self._random_specs)
+                self.model, self.token = candidate, self.token + 1
+                self._random_public_payload, self._random_public_key = public_payload, public_key
+                self._random_key, self._random_bindings = config_key, bindings
+                self._sample, self._sample_seed = None, None
+                return {"token": self.token, "model": self.model.describe(), "node": name,
+                        "function": _function_info(self.model.equations[name]),
+                        "random_key": self._random_key, "random_bindings": bindings}
             candidate = old._copy_model()
             family = payload.get("family")
             if name in self._random_specs and family == "binary":
@@ -1335,6 +1386,7 @@ class Editor:
                 family = equation._scm_parameters["kind"]
             candidate = candidate.replace_mechanism(name, equation, list(old.graph.predecessors(name)),
                 parameters={**details["parameters"], "family": family})
+            candidate.graph.nodes[name]["noise_only"] = False
             candidate._variables[name]["variable_type"] = "binary" if family == "binary" else "continuous"
             probe = candidate.generate_samples(4, seed=0)
             if not np.isfinite(probe.to_numpy(dtype=float)).all():
@@ -1343,7 +1395,7 @@ class Editor:
             public_payload = copy.deepcopy(self._random_public_payload)
             for node in public_payload["nodes"]:
                 if node["name"] == name:
-                    node.update(family=family, variable_type=candidate._variables[name]["variable_type"])
+                    node.update(family=family, variable_type=candidate._variables[name]["variable_type"], noise_only=False)
             public_key = _random_public_graph_key(public_payload, candidate)
             config_key = _random_config_key(public_key, self._random_specs, public_payload)
             _, bindings = _random_schema(candidate, self._random_specs)

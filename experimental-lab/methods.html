@@ -255,6 +255,13 @@ permalink: /experimental-lab/methods.html
             outcome means; AIPW also fits balance weights. IPW learns treatment probabilities and derives their inverse weights, without outcome
             fitting. The target uses the whole cohort, not just treated rows. No rows are trimmed to redefine the target.
           </p>
+          <p>
+            Marking a variable <strong>Unobserved</strong> changes its visibility, not its arrows or mechanism. Random Data runs the full SCM and
+            returns only Observed columns. Identification and data estimation use a separate latent projection: hidden-interior directed paths become
+            directed edges, and each hidden variable's independent noise remains shared by its first Observed descendants. Existing identification and
+            estimator restrictions still apply; marginalization does not make every effect identifiable. See
+            <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC7685307/">Shpitser (2020), Section 5.2</a>.
+          </p>
         </section>
 
         <section id="dispatch">

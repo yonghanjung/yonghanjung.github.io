@@ -432,8 +432,8 @@ class StructuralCausalModel:
 
     def _query_kind(self, name):
         equation = self.equations[name]
-        if equation is _noise_value and not self._variables[name]["observed"]:
-            return "hidden_root"
+        if equation is _noise_value:
+            return "noise_only"
         kind = getattr(equation, "_scm_parameters", {}).get("kind")
         if (kind not in EQUATION_FAMILIES or getattr(equation, "__module__", None) != "scm_registry"
                 or self._uses_legacy_rng(name)):
@@ -442,6 +442,8 @@ class StructuralCausalModel:
 
     def _query_location(self, name, parents, n):
         """Pre-noise score; reuse fixed neural/tree functions without duplicating them."""
+        if self.equations[name] is _noise_value:
+            return np.zeros((n,) + self._variables[name]["shape"])
         parameters = self.equations[name]._scm_parameters
         shape = self._variables[name]["shape"]
         if parameters["kind"] in {"neural_network", "decision_tree"}:
@@ -680,6 +682,7 @@ class StructuralCausalModel:
             variables[name] = {
                 "parents": list(self.graph.predecessors(name)),
                 "observed": details["observed"],
+                "noise_only": self.equations[name] is _noise_value,
                 "shape": details["shape"],
                 "variable_type": details["variable_type"],
                 "parameters": copy.deepcopy(details["parameters"]),
@@ -692,7 +695,7 @@ class StructuralCausalModel:
                 variables[name]["dimension"] = details["shape"][0] if details["shape"] else 1
         return {"model_seed": self.model_seed, "variables": variables,
                 "callable_state": "Callables/noise laws are shared on replacement; use pure functions.",
-                "counterfactual_supported": all(((self.equations[v] is _noise_value and not d["observed"])
+                "counterfactual_supported": all(((self.equations[v] is _noise_value)
                     or (getattr(self.equations[v], "__module__", None) == "scm_registry" and not self._uses_legacy_rng(v)
                         and getattr(self.equations[v], "_scm_parameters", {}).get("kind") in EQUATION_FAMILIES)
                     ) and U(self.noise_distributions[v].distribution if isinstance(self.noise_distributions[v], U)
@@ -745,10 +748,11 @@ class StructuralCausalModel:
 
         Legacy conventions without explicit metadata: U-prefixed names are hidden
         roots; X/Y names are binary. Explicit observed metadata overrides the
-        U-prefix fallback; actual hidden nodes must still be roots.
+        U-prefix fallback. Explicit noise_only separates mechanisms from the
+        observation mask; hidden internal nodes retain parent-dependent equations.
         Use add_variable to choose types and observed flags independently of names.
         A seed resets model coefficients, not the data sampling seed.
-        equation_families is a global name/pool or observed-node choice dictionary.
+        equation_families is a global name/pool or equation-node choice dictionary.
         noise_distributions is a global name/pool or node dictionary of named
         choices, U, raw samplers, or None. Named laws are chosen and fixed here.
         Explicit families override X/Y binary defaults. Factories run only here.
@@ -775,8 +779,6 @@ class StructuralCausalModel:
                 raise ValueError("Node dimension must match its shape")
         if any(not isinstance(value, (bool, np.bool_)) for value in observed.values()):
             raise TypeError("observed must be a boolean")
-        if any(not observed[name] and graph.in_degree(name) for name in graph):
-            raise ValueError("Hidden nodes in random builders must be roots")
         if any(shape is None for shape in shapes.values()):
             raise ValueError("Random graph nodes need explicit scalar or vector shapes")
         all_columns = [column for name in graph for column in graph.nodes[name].get("columns", [name] if not shapes[name]
@@ -788,7 +790,8 @@ class StructuralCausalModel:
             if isinstance(mapping, (str, list, tuple)):
                 if not mapping:
                     raise ValueError(f"{label} choices must not be empty")
-                nodes = [name for name in graph if label == "noise_distributions" or observed[name]]
+                nodes = [name for name in graph if label == "noise_distributions" or observed[name]
+                         or graph.in_degree(name) or graph.nodes[name].get("noise_only") is False]
                 mapping = dict.fromkeys(nodes, mapping)
             if not isinstance(mapping, dict):
                 raise TypeError(f"{label} must be a name, name sequence, or node-name dictionary")
@@ -796,8 +799,12 @@ class StructuralCausalModel:
                 raise ValueError(f"{label} contains unknown nodes: {set(mapping) - set(graph)}")
             mappings.append(mapping)
         families, noises = mappings
-        if any(not observed[name] for name in families):
-            raise ValueError("equation_families is for observed nodes; hidden U roots use their noise law")
+        noise_only = {name: graph.nodes[name].get("noise_only",
+            not observed[name] and not graph.in_degree(name) and name not in families) for name in graph}
+        if any(type(value) not in (bool, np.bool_) for value in noise_only.values()):
+            raise TypeError("noise_only must be a boolean")
+        if any(noise_only[name] and graph.in_degree(name) for name in graph):
+            raise ValueError("A noise-only mechanism cannot have parents; choose an equation mechanism.")
         model = StructuralCausalModel(self.model_seed if seed is None else seed)
         if seed is None:
             model._model_rng = copy.deepcopy(self._model_rng)
@@ -808,12 +815,12 @@ class StructuralCausalModel:
                 noise_family = _select_family(noise, NOISE_FAMILIES, model._model_rng)
                 noise = U(NOISE_FAMILIES[noise_family](model._model_rng))
             shape = shapes[name]
-            if not observed[name]:
+            if noise_only[name]:
                 noise = stats.norm(0, 1) if noise is _KEEP else noise
                 if shape:
                     noise = _cluster_noise(noise, shape[0], model._model_rng)
-                model.add_variable(name, _noise_value, noise_distribution=noise, observed=False, shape=shape)
-                model.unobserved_variables[name] = noise
+                model.add_variable(name, _noise_value, noise_distribution=noise, observed=observed[name], shape=shape,
+                                   variable_type="continuous" if observed[name] else "custom")
             else:
                 parents = list(graph.predecessors(name))
                 binary = discrete or name.startswith(("X", "Y"))
@@ -828,7 +835,9 @@ class StructuralCausalModel:
                 if shape:
                     noise = _cluster_noise(noise, shape[0], model._model_rng)
                 model.add_equation(name, equation, parents, noise, shape=shape,
-                                   variable_type=variable_type, parameters={"family": family})
+                                   observed=observed[name], variable_type=variable_type, parameters={"family": family})
+            if not observed[name]:
+                model.unobserved_variables[name] = noise
             model.graph.nodes[name].update(copy.deepcopy(graph.nodes[name]))
             if "columns" in graph.nodes[name]:
                 columns = graph.nodes[name]["columns"]

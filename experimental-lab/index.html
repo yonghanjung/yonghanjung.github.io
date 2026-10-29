@@ -2002,7 +2002,7 @@ permalink: /experimental-lab/
                 ><button id="edge-mode" aria-pressed="false">Edge</button> <button id="remove">Delete</button
                 ><button id="restore-graph" type="button" hidden>Restore previous graph</button>
               </div>
-              <p>For an existing node without incoming arrows, select it and clear Observed in Node &amp; model settings to make it Unmeasured.</p>
+              <p>Click a variable and use Mark as Unobserved or Mark as Observed. Its arrows and mechanism stay in the graph.</p>
             </details>
           </div>
           <div id="graph-viewport">
@@ -2012,6 +2012,8 @@ permalink: /experimental-lab/
         <div id="node-menu" role="dialog" aria-label="Node actions" hidden>
           <input id="rename-input" aria-label="Rename node" />
           <button id="rename-node">Rename</button><button id="connect-node">Connect</button>
+          <button id="toggle-observed" type="button">Mark as Unobserved</button>
+          <p id="node-observed-note" role="status" hidden></p>
         </div>
         <section id="query-panel" class="output" aria-label="Query">
           <form id="identification-query" class="query">
@@ -2125,6 +2127,7 @@ permalink: /experimental-lab/
             <label
               >Function
               <select id="family">
+                <option value="noise_only" disabled>Noise only</option>
                 <option value="">Random</option>
                 <option>linear</option>
                 <option>quadratic</option>
@@ -2251,8 +2254,9 @@ permalink: /experimental-lab/
         "#mechanism input,#mechanism textarea,#mechanism select,#properties input,#properties select,#graph-form input,#graph-form textarea,.settings input,.settings select,#rows"
       ))
         el.disabled = busy;
-      $("family").disabled = busy || !nodes?.find((n) => n.name === selected?.name)?.observed;
-      $("family").options[0].disabled = Boolean(model);
+      $("family").disabled = busy || !nodes?.find((n) => n.name === selected?.name);
+      $("toggle-observed").disabled = busy;
+      [...$("family").options].find((option) => option.value === "").disabled = Boolean(model);
     }
     function invalidate(definition = true) {
       revision++;
@@ -2365,10 +2369,10 @@ permalink: /experimental-lab/
       if (node) {
         $("observed").checked = node.observed;
         $("dimension").value = node.dimension;
-        $("family").value = model?.variables[node.name]?.parameters.family || node.family;
-        $("family").disabled = !node.observed;
+        $("family").value = nodeNoiseOnly(node) ? "noise_only" : model?.variables[node.name]?.parameters.family || node.family;
+        $("family").disabled = false;
       }
-      $("family").closest("label").hidden = !node?.observed;
+      $("family").closest("label").hidden = !node;
       showEquation();
       if (!node || !model) $("mechanism").hidden = true;
       else inspectNode(node.name);
@@ -2402,10 +2406,10 @@ permalink: /experimental-lab/
       const from = source;
       source = null;
       if (from === target || connects(target, from)) message("A directed acyclic graph cannot contain a self-loop or cycle.", true);
-      else if (!nodes.find((n) => n.name === target).observed)
-        message("This editor supports Unmeasured nodes only as roots, without incoming arrows.", true);
       else if (edges.some(([a, b]) => a === from && b === target)) message("This arrow already exists.");
       else {
+        const node = nodes.find((n) => n.name === target);
+        if (nodeNoiseOnly(node)) node.noise_only = false;
         edges.push([from, target]);
         invalidate();
       }
@@ -2434,6 +2438,7 @@ permalink: /experimental-lab/
       nodes.push({
         name,
         observed,
+        noise_only: !observed,
         dimension: 1,
         family: "",
         x: Math.max(60, Math.min(svg.viewBox.baseVal.width - 60, x)),
@@ -2443,14 +2448,46 @@ permalink: /experimental-lab/
       invalidate();
       select({ name });
     }
-    function openMenu(name, x, y) {
+    function nodeNoiseOnly(node) {
+      return node.noise_only ?? (!node.observed && !edges.some(([, target]) => target === node.name));
+    }
+    function syncNodeMeasurement() {
+      const node = nodes.find((n) => n.name === selected?.name);
+      if (!node) return;
+      $("toggle-observed").textContent = node.observed ? "Mark as Unobserved" : "Mark as Observed";
+      $("node-observed-note").hidden = false;
+      $("node-observed-note").textContent = "Unobserved variables are marginalized in calculations.";
+    }
+    function positionNodeMenu(x, y) {
+      const menu = $("node-menu"),
+        bounds = menu.getBoundingClientRect();
+      menu.style.left = `${Math.max(8, Math.min(x, innerWidth - bounds.width - 8))}px`;
+      menu.style.top = `${Math.max(8, Math.min(y, innerHeight - bounds.height - 8))}px`;
+    }
+    function openMenu(name, x, y, focus = false) {
       select({ name });
       $("rename-input").value = name;
       const menu = $("node-menu");
-      menu.style.left = `${Math.max(8, Math.min(x, innerWidth - 236))}px`;
-      menu.style.top = `${Math.max(8, Math.min(y, innerHeight - 145))}px`;
+      syncNodeMeasurement();
       menu.hidden = false;
+      positionNodeMenu(x, y);
+      if (focus) $("toggle-observed").focus({ preventScroll: true });
     }
+    $("toggle-observed").onclick = () => {
+      const node = nodes.find((n) => n.name === selected?.name);
+      if (!node || busy || $("observed").disabled || $("editor-view").inert) return;
+      $("observed").checked = !node.observed;
+      $("observed").dispatchEvent(new Event("change", { bubbles: true }));
+      syncNodeMeasurement();
+      const bounds = $("node-menu").getBoundingClientRect();
+      positionNodeMenu(bounds.left, bounds.top);
+    };
+    $("node-menu").addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      $("node-menu").hidden = true;
+      [...svg.querySelectorAll("[data-node]")].find((g) => g.dataset.node === selected?.name)?.focus();
+    });
     document.addEventListener("pointerdown", (event) => {
       if (!event.target.closest("#node-menu")) $("node-menu").hidden = true;
     });
@@ -2561,7 +2598,14 @@ permalink: /experimental-lab/
     svg.onkeydown = (event) => {
       const node = event.target.closest("[data-node]"),
         edge = event.target.closest("[data-edge]");
-      if (event.key === "Enter" && node) mode === "edge" ? addEdge(node.dataset.node) : select({ name: node.dataset.node });
+      if (event.key === "Enter" && node) {
+        if (mode === "edge") addEdge(node.dataset.node);
+        else {
+          event.preventDefault();
+          const bounds = node.getBoundingClientRect();
+          openMenu(node.dataset.node, bounds.right, bounds.top, true);
+        }
+      }
       if (event.key === "Enter" && edge) select({ edge: JSON.parse(edge.dataset.edge) });
     };
     $("add-node").onclick = () => {
@@ -2595,6 +2639,7 @@ permalink: /experimental-lab/
         const node = nodes.find((n) => n.name === selected?.name);
         if (!node) return;
         if (id === "family" && model) {
+          node.noise_only = false;
           dirty = true;
           invalidate(false);
           changeFunction({ family: $("family").value });
@@ -2602,19 +2647,22 @@ permalink: /experimental-lab/
         }
         const dimension = Number($("dimension").value),
           observed = $("observed").checked;
-        if (!Number.isInteger(dimension) || dimension < 1 || dimension > 8) {
+        if (id === "observed" && model) {
+          changeFunction({ observed });
+          return;
+        }
+        if (id !== "observed" && (!Number.isInteger(dimension) || dimension < 1 || dimension > 8)) {
           message("Dimension must be an integer from 1 to 8.", true);
           $("dimension").value = node.dimension;
           return;
         }
-        if (!observed && edges.some(([, b]) => b === node.name)) {
-          message("This editor supports Unmeasured nodes only as roots, without incoming arrows. Remove the incoming arrows first.", true);
-          $("observed").checked = true;
-          return;
+        if (id === "observed") node.noise_only = nodeNoiseOnly(node);
+        if (id === "dimension") node.dimension = dimension;
+        if (id === "family") {
+          node.family = $("family").value;
+          node.noise_only = false;
         }
-        node.dimension = dimension;
         node.observed = observed;
-        node.family = $("family").value;
         invalidate();
         select({ name: node.name });
       };
@@ -2635,7 +2683,17 @@ permalink: /experimental-lab/
     function typedGraph() {
       const text = $("graph-edges").value.trim(),
         json = /^[{[]/.test(text) ? JSON.parse(text) : null;
-      if (json && !Array.isArray(json) && "nodes" in json && "edges" in json) return json;
+      if (json && !Array.isArray(json) && "nodes" in json && "edges" in json) {
+        if ($("graph-nodes").dataset.generated !== undefined && $("graph-nodes").value !== $("graph-nodes").dataset.generated) {
+          const edited = $("graph-nodes")
+            .value.trim()
+            .split(/[\s,]+/)
+            .filter(Boolean)
+            .map(nodeSpec);
+          return { ...json, nodes: edited.map((node) => ({ ...json.nodes.find((old) => old.name === node.name), ...node })) };
+        }
+        return json;
+      }
       const declared = $("graph-nodes")
         .value.trim()
         .split(/[\s,]+/)
@@ -2691,7 +2749,8 @@ permalink: /experimental-lab/
           };
           if (typeof node.observed !== "boolean" || !Number.isInteger(node.dimension) || node.dimension < 1 || node.dimension > 8)
             throw Error("Use observed true/false and dimensions from 1 to 8.");
-          if (![...$("family").options].some((o) => o.value === node.family)) throw Error("Unknown function family.");
+          if (![...$("family").options].some((o) => o.value === node.family && o.value !== "noise_only")) throw Error("Unknown function family.");
+          if ("noise_only" in node && typeof node.noise_only !== "boolean") throw Error("noise_only must be true or false.");
           if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) throw Error("Node positions must be finite.");
           node.x = Math.max(60, Math.min(svg.viewBox.baseVal.width - 60, node.x));
           node.y = Math.max(40, Math.min(svg.viewBox.baseVal.height - 40, node.y));
@@ -2706,7 +2765,6 @@ permalink: /experimental-lab/
         const [from, to] = pair,
           target = next.find((n) => n.name === to);
         if (from === to) throw Error("Self-loops are not allowed.");
-        if (!target.observed) throw Error("This editor supports Unmeasured nodes only as roots, without incoming arrows.");
         const key = JSON.stringify(pair);
         if (seen.has(key)) continue;
         seen.add(key);
@@ -2725,6 +2783,11 @@ permalink: /experimental-lab/
           }
       }
       if (visited !== next.length) throw Error("Directed cycles are not allowed.");
+      for (const node of next) {
+        const hasParents = pairs.some(([, target]) => target === node.name);
+        node.noise_only ??= !node.observed && !hasParents;
+        if (node.noise_only && hasParents) throw Error("A noise-only mechanism cannot have parents; choose an equation mechanism.");
+      }
       const curves = graph.bends === undefined ? [] : graph.bends,
         curveKeys = new Set();
       if (!Array.isArray(curves)) throw Error("Bends must be an array of [source, target, x, y].");
@@ -2749,9 +2812,12 @@ permalink: /experimental-lab/
       $("graph-nodes").value = nodes
         .map((n) => (n.observed ? "" : "~") + n.name + (n.dimension > 1 ? "[" + n.dimension + "]" : "") + "@" + n.x + ":" + n.y)
         .join(", ");
-      $("graph-edges").value = bends.size
-        ? JSON.stringify({ edges, bends: [...bends].map(([key, value]) => [...JSON.parse(key), value.x, value.y]) }, null, 2)
-        : edges.map(([a, b]) => a + " -> " + b).join("\n");
+      $("graph-nodes").dataset.generated = $("graph-nodes").value;
+      $("graph-edges").value = JSON.stringify(
+        { nodes, edges, bends: [...bends].map(([key, value]) => [...JSON.parse(key), value.x, value.y]) },
+        null,
+        2
+      );
     }
     function loadGraph(input) {
       const graph = validateGraph(input);
@@ -2989,7 +3055,7 @@ permalink: /experimental-lab/
         sub = (label, index) => m("msub", m("mi", label), index instanceof Node ? index : m("mn", index)),
         rows = [],
         line = (left, operator, right) => rows.push(m("mtr", m("mtd", left, m("mo", operator), right)));
-      if (!variable.observed) line(mathName(name), "=", epsilon(name));
+      if (variable.noise_only) line(mathName(name), "=", epsilon(name));
       else
         for (const [i, p] of (variable.equation.parameters.coordinates || [variable.equation.parameters]).entries()) {
           const output = outputName(variable, i, name),
@@ -3094,7 +3160,7 @@ permalink: /experimental-lab/
         );
       signal.append(m("mo", "+"), noise);
       let value = noise;
-      if (node.observed) {
+      if (!nodeNoiseOnly(node)) {
         if (simple && ["linear", "quadratic", "bounded", "binary"].includes(family)) {
           value = ["bounded", "binary"].includes(family) ? m("mrow", m("mi", "σ"), fence(signal)) : signal;
           if (family === "binary") value = m("mrow", m("mi", "𝟙"), fence(m("mrow", sub("R", [node.name]), m("mo", "<"), value), "[", "]"));
@@ -3143,7 +3209,7 @@ permalink: /experimental-lab/
         const parameters = variable?.equation?.parameters,
           known =
             variable &&
-            (!variable.observed ||
+            (variable.noise_only ||
               (parameters?.coordinates || [parameters]).every((p) =>
                 ["linear", "quadratic", "bounded", "binary", "neural_network", "decision_tree"].includes(p?.kind)
               ));
@@ -3154,7 +3220,7 @@ permalink: /experimental-lab/
       }
       $("equation-title").textContent = variable ? "Applied equation" : "Function template";
       $("applied-equation").replaceChildren(variable ? equationMath(variable, node.name) : equationTemplate(node));
-      $("equation-state").textContent = variable ? "" : node.observed ? "Generate Sample draws the parameters." : "Noise only.";
+      $("equation-state").textContent = variable ? "" : nodeNoiseOnly(node) ? "Noise only." : "Generate Data draws the parameters.";
     }
     function noiseMath(variable, name) {
       const noise = variable.noise,
@@ -3272,11 +3338,11 @@ permalink: /experimental-lab/
       draft = structuredClone(variable.equation.parameters || {});
       $("applied-equation").replaceChildren(equationMath(variable, name));
       $("parameter-state").textContent = "Parameters";
-      $("parameter-state").hidden = !variable.observed;
+      $("parameter-state").hidden = variable.noise_only;
       $("parameters").replaceChildren();
-      if (variable.observed) parameterFields(draft, $("parameters"));
-      $("apply").hidden = !variable.observed;
-      $("family").value = variable.parameters.family || "";
+      if (!variable.noise_only) parameterFields(draft, $("parameters"));
+      $("apply").hidden = variable.noise_only;
+      $("family").value = variable.noise_only ? "noise_only" : variable.parameters.family || "";
       $("noise-law").replaceChildren(noiseMath(variable, name));
       $("mechanism").hidden = false;
       controls();
@@ -3303,15 +3369,30 @@ permalink: /experimental-lab/
         version = revision;
       perform(async () => {
         message("Applying changes…");
-        const result = await request("update", { token, name, ...changes });
+        let result;
+        try {
+          result = await request("update", { token, name, ...changes });
+        } catch (error) {
+          $("observed").checked = nodes.find((node) => node.name === name)?.observed ?? true;
+          syncNodeMeasurement();
+          throw error;
+        }
         if (version !== revision) {
           invalidate();
           throw Error("The graph changed. Generate data again.");
         }
         install(result);
-        nodes.find((n) => n.name === name).family = model.variables[name].parameters.family;
+        const node = nodes.find((n) => n.name === name),
+          variable = model.variables[name];
+        if (!("observed" in changes) && variable.parameters.family) node.family = variable.parameters.family;
+        node.observed = variable.observed;
+        node.noise_only = variable.noise_only;
         invalidate(false);
-        if (selected?.name === name) showFunction(result);
+        if (selected?.name === name) {
+          select({ name });
+          showFunction(result);
+          syncNodeMeasurement();
+        }
         message("");
       });
     }
@@ -4118,7 +4199,7 @@ permalink: /experimental-lab/
   <script src="./cluster-view.js"></script>
   <script src="./method-help.js?ui=outcome-models-v1"></script>
   <script src="./estimation-details.js?ui=estimate-warnings-v1"></script>
-  <script src="./role-ui.js?ui=graph-editor-audit-v5"></script>
+  <script src="./role-ui.js?ui=graph-editor-audit-v7"></script>
   <script src="./benchmark-ui.js?ui=estimate-warnings-v1"></script>
   <script src="./select-picker.js"></script>
 </html>

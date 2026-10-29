@@ -190,6 +190,59 @@ def require_latent_roots(G):
         raise ValueError("This method requires independent hidden roots.")
 
 
+def marginalize_hidden_nodes(G):
+    """Private analysis graph; never replace the full simulated/editor DAG.
+
+    Recursively substitute hidden equations. Each hidden variable's independent
+    exogenous noise becomes one root with its first observed descendants as
+    children. Keep shared-noise frontiers whole (not independent pair roots).
+    Existing independent-root graphs are copied without changing their labels.
+    """
+    if not isinstance(G, nx.DiGraph) or not nx.is_directed_acyclic_graph(G):
+        raise ValueError("A directed acyclic graph is required.")
+    observed = observed_nodes(G)
+    hidden = set(G) - observed
+    if all(G.in_degree(v) == 0 for v in hidden):
+        return G.copy()
+
+    def frontier(start):
+        reached, pending, result = set(), list(G.successors(start)), set()
+        while pending:
+            node = pending.pop()
+            if node in reached:
+                continue
+            reached.add(node)
+            if node in observed:
+                result.add(node)
+            else:
+                pending.extend(G.successors(node))
+        return result
+
+    H = nx.DiGraph()
+    H.graph.update(G.graph)
+    H.add_nodes_from((v, dict(G.nodes[v])) for v in G if v in observed)
+    for source in G:
+        if source in observed:
+            H.add_edges_from((source, child) for child in frontier(source))
+    noise_roots = {}
+    used = set(G)
+    for node in G:
+        if node not in hidden:
+            continue
+        root = "U_noise_" + str(node)
+        while root in used:
+            root += "_"
+        used.add(root)
+        noise_roots[root] = node
+        H.add_node(root, observed=False, dimension=1, projection_noise_for=node)
+        H.add_edges_from((root, child) for child in frontier(node))
+    H.graph["latent_projection"] = dict(
+        kind="hidden-equation substitution with independent noise frontiers",
+        source_nodes=list(G), noise_roots=noise_roots,
+        information="Analysis copy only; original hidden variables and SCM equations are unchanged.")
+    return H
+
+
 def preprocess_query(G, X, Y):
     """Apply A1 to this query, preserving the input graph and source map.
 
