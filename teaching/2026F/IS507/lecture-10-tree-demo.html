@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Two-Question Tree Explorer</title>
+<style>
+:root {
+  --bg: #FFFFFF; --panel: #F8FAFC; --ink: #11233F; --muted: #53657A; --line: #CBD5E1;
+  --grid: #E2E8F0; --navy: #173B7A; --teal: #0E7490; --rust: #9A3412; --on-teal: #FFFFFF; --ring: #FFFFFF;
+  --low: #7FA3D9; --high: #9A3412;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F172A; --panel: #16213A; --ink: #E2E8F0; --muted: #94A3B8; --line: #334155;
+    --grid: #1E293B; --navy: #8FB3F0; --teal: #38BDD8; --rust: #F59E73; --on-teal: #0F172A; --ring: #E2E8F0;
+    --low: #3B5C93; --high: #F59E73;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F172A; --panel: #16213A; --ink: #E2E8F0; --muted: #94A3B8; --line: #334155;
+  --grid: #1E293B; --navy: #8FB3F0; --teal: #38BDD8; --rust: #F59E73; --on-teal: #0F172A; --ring: #E2E8F0;
+  --low: #3B5C93; --high: #F59E73;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+       font: 19px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1400px; margin: 0 auto; padding: 18px 16px 28px; }
+.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 24px; margin-bottom: 14px; }
+h1 { font-size: 30px; margin: 0; }
+.sub { color: var(--muted); }
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px 26px;
+            background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+.ctl label { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; font-size: 19px; margin-bottom: 6px; }
+.ctl output { font-variant-numeric: tabular-nums; color: var(--teal); font-size: 22px; }
+.ctl label.check { justify-content: flex-start; align-items: center; gap: 10px; margin-top: 8px; cursor: pointer; font-weight: 400; }
+.check input { width: 22px; height: 22px; accent-color: var(--teal); }
+input[type=range] { width: 100%; height: 28px; accent-color: var(--teal); }
+button { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+         border-radius: 8px; padding: 6px 14px; cursor: pointer; white-space: nowrap; }
+button.primary { background: var(--teal); color: var(--on-teal); border-color: var(--teal); font-weight: 700; }
+button[aria-pressed="true"] { background: var(--navy); color: var(--bg); border-color: var(--navy); font-weight: 700; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+.buttons { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.seg { display: flex; gap: 0; }
+.seg button { border-radius: 0; }
+.seg button:first-child { border-radius: 8px 0 0 8px; }
+.seg button:last-child { border-radius: 0 8px 8px 0; border-left: none; }
+.readouts { display: flex; flex-wrap: wrap; gap: 8px 40px; margin: 16px 4px 12px; font-size: 26px; }
+.readouts b { font-variant-numeric: tabular-nums; }
+.te { color: var(--teal); } .ru { color: var(--rust); } .mu { color: var(--muted); }
+.plots { display: grid; grid-template-columns: 1.15fr 1fr; gap: 16px; align-items: start; }
+.curves { display: grid; grid-template-rows: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 900px) { .plots { grid-template-columns: 1fr; } }
+canvas { width: 100%; display: block; border: 1px solid var(--line); border-radius: 12px; }
+#part { height: 600px; touch-action: none; }
+.curves canvas { height: 193px; cursor: crosshair; }
+table { border-collapse: collapse; margin: 18px 0 6px; font-size: 18px; width: 100%; }
+.tablewrap { overflow-x: auto; }
+th, td { padding: 6px 12px; border-bottom: 1px solid var(--line); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--muted); font-weight: 600; }
+tr.you td { font-weight: 700; }
+.note { color: var(--muted); font-size: 17px; max-width: 1100px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <h1>Two-question tree explorer</h1>
+    <span class="sub">IS 507 Lecture 10 · diabetes data, BMI and blood pressure (bp)</span>
+  </div>
+
+  <div class="controls">
+    <div class="ctl">
+      <label><span>Which question comes first?</span></label>
+      <div class="seg" role="group" aria-label="Order of the two questions">
+        <button id="ord-bmi" type="button">BMI, then bp</button>
+        <button id="ord-bp" type="button">bp, then BMI</button>
+      </div>
+      <label class="check"><input id="test" type="checkbox"> Show the 111 test patients</label>
+    </div>
+    <div class="ctl">
+      <label for="s1"><span id="s1l">Question 1</span> <output id="s1o"></output></label>
+      <input id="s1" type="range" step="0.05">
+      <label for="sL"><span id="sLl">Question 2, if yes</span> <output id="sLo"></output></label>
+      <input id="sL" type="range" step="0.05">
+      <label for="sR"><span id="sRl">Question 2, if no</span> <output id="sRo"></output></label>
+      <input id="sR" type="range" step="0.05">
+    </div>
+    <div class="ctl">
+      <div class="buttons">
+        <button id="greedy" type="button" class="primary">Best cuts, one at a time</button>
+        <button id="second" type="button">Best question 2 for this cut</button>
+      </div>
+      <p class="note" style="margin:10px 0 0">Drag a line in the plane, move a slider, or click a curve.</p>
+    </div>
+  </div>
+
+  <div class="readouts">
+    <span>Training RMSE: <b class="te" id="trr"></b></span>
+    <span>Test RMSE: <b class="ru" id="ter"></b></span>
+  </div>
+
+  <div class="plots">
+    <canvas id="part" role="img" aria-label="Training patients in the plane of BMI and bp, split into four rectangles by the two questions; each rectangle shows its average progression"></canvas>
+    <div class="curves">
+      <canvas id="c1" role="img" aria-label="RMSE of the tree for every cut of question 1"></canvas>
+      <canvas id="cL" role="img" aria-label="RMSE of the tree for every cut of question 2 on the yes side"></canvas>
+      <canvas id="cR" role="img" aria-label="RMSE of the tree for every cut of question 2 on the no side"></canvas>
+    </div>
+  </div>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Tree</th><th>Question 1</th><th>Question 2, yes</th><th>Question 2, no</th><th>Training RMSE</th><th>Test RMSE</th><th></th></tr></thead>
+    <tbody id="board"></tbody>
+  </table>
+  </div>
+
+  <p class="note">Each patient lands in one of four rectangles, and the rectangle predicts the average progression of its training patients. RMSE is the root mean squared miss. Right, top: the RMSE for every cut of question 1; the thin gray curve is question 1 alone (two rectangles), the curve a greedy tree minimizes, and the navy curve is the whole tree when question 2 is re-chosen as well as possible for that cut. Right, middle and bottom: the RMSE of the whole tree for every cut of question 2 on each side, with the other two cuts held fixed. With test patients shown, the dashed curves give the test RMSE.</p>
+  <p class="note">Data: Efron, Hastie, Johnstone, and Tibshirani (2004), "Least Angle Regression," <i>Annals of Statistics</i> 32(2); the unscaled copy in scikit-learn, <code>load_diabetes(scaled=False)</code>. The Lecture 9 split, <code>train_test_split(test_size=0.25, random_state=507)</code>: 331 training and 111 test patients.</p>
+</main>
+
+<script>
+// DATA-BEGIN (train and test: BMI, bp, and progression one year later)
+const DATA = {"train":{"bmi":[26.5,31.9,29.9,26.5,25.7,24.5,23.5,29.0,19.8,36.6,23.7,30.7,25.4,28.6,25.8,22.6,27.7,19.6,34.3,20.1,23.0,26.2,20.7,29.0,23.1,28.1,23.1,24.0,30.6,32.0,32.7,20.5,19.2,26.3,24.8,30.2,27.4,32.0,23.3,29.4,22.2,21.0,22.7,33.5,23.6,27.4,25.8,24.3,25.5,31.2,28.7,18.0,30.6,23.0,25.5,32.0,35.0,25.6,23.6,21.9,42.2,22.1,30.8,25.7,28.1,22.0,24.5,23.3,24.5,24.0,24.1,22.0,22.9,27.8,36.7,25.3,21.2,19.3,22.1,28.8,21.0,28.0,24.1,26.0,19.9,29.5,24.5,37.0,33.0,23.0,21.4,24.0,23.4,24.8,25.4,25.9,24.1,22.6,20.2,24.5,23.5,33.6,31.4,25.2,23.4,22.1,20.6,20.4,25.9,26.2,22.8,26.3,22.2,18.9,27.7,25.0,21.0,31.6,31.6,27.0,25.4,32.9,26.2,32.8,24.0,19.4,24.1,27.0,30.3,24.1,27.5,23.8,24.9,23.3,33.0,25.3,24.2,26.0,26.5,21.0,24.4,21.8,25.3,20.3,28.0,25.5,23.5,30.1,30.4,28.3,30.4,29.7,20.9,21.2,23.4,31.9,22.1,23.5,31.5,25.6,22.1,34.6,31.4,22.5,18.8,22.6,23.5,26.9,32.1,31.0,30.6,27.2,21.9,31.8,31.9,21.2,37.8,23.9,23.5,22.5,25.8,23.6,23.6,24.9,27.7,33.2,20.6,25.8,22.8,22.8,24.9,25.5,25.4,28.8,24.7,24.3,28.4,25.2,27.3,22.8,26.5,19.0,34.6,27.3,32.4,35.0,29.6,36.1,24.2,24.7,20.3,25.6,28.0,30.1,22.5,24.2,33.8,20.8,28.3,27.9,30.2,24.6,33.0,22.4,26.5,20.0,26.1,31.2,21.7,31.9,27.5,24.7,28.1,30.5,26.9,25.6,31.6,25.2,23.2,24.7,27.7,38.3,35.1,24.5,23.0,25.3,20.8,29.2,19.2,29.2,23.7,33.1,24.2,18.1,28.5,25.7,26.9,33.0,23.2,32.1,29.0,25.7,24.1,25.4,22.7,22.6,28.5,23.0,31.5,29.3,35.0,29.2,25.2,24.1,24.0,30.8,27.7,23.3,23.4,20.3,30.7,31.4,35.3,34.3,21.1,19.7,20.7,32.3,26.3,22.2,25.1,27.9,20.9,29.6,26.0,26.2,27.0,26.8,27.7,24.6,26.8,24.2,23.5,24.9,26.8,28.1,31.3,25.9,26.9,20.2,27.0,21.6,22.1,28.2,28.8,22.0,22.1,33.9,27.2,28.0,21.3,23.1,23.1,25.6,25.3,32.6,25.9,30.6,18.8,30.0,28.3],"bp":[97.0,78.33,83.0,93.0,103.0,94.0,93.0,85.0,88.0,113.0,92.0,90.0,90.33,97.0,98.0,75.0,95.0,71.0,84.0,63.0,73.0,114.0,87.0,90.0,87.0,121.0,86.0,89.67,121.0,126.0,97.0,78.0,87.0,87.0,101.0,98.0,89.0,103.67,85.0,109.0,104.67,92.33,93.0,102.0,94.0,78.0,89.0,85.33,112.0,79.0,97.0,78.0,101.0,94.67,109.0,110.0,98.33,85.0,83.0,89.0,99.0,85.0,112.0,99.0,106.0,88.0,79.0,88.0,108.0,98.0,87.0,90.0,81.0,85.0,117.0,98.0,102.0,82.0,98.0,111.67,88.0,101.0,110.0,92.0,75.0,104.33,90.0,103.0,97.0,101.0,83.0,84.0,83.0,91.0,95.0,76.0,96.0,90.0,81.0,84.0,97.0,110.0,115.0,103.0,87.0,93.0,98.0,105.0,91.0,101.0,110.0,70.0,78.0,70.0,93.0,89.67,78.0,117.0,116.0,105.0,102.0,102.0,97.0,105.67,107.0,83.0,105.0,78.33,109.0,94.67,111.0,97.0,99.67,90.0,123.0,85.0,88.0,85.67,94.0,82.0,92.0,84.0,84.0,71.0,85.0,95.33,87.0,91.0,120.0,101.0,85.0,88.0,95.0,94.0,88.0,111.0,85.0,96.0,93.0,87.0,87.0,120.0,89.0,98.0,83.0,85.0,101.0,98.0,110.0,100.0,103.33,80.0,91.0,115.0,94.0,84.0,119.0,109.0,101.0,89.0,90.0,96.0,73.0,115.0,99.0,82.67,73.0,103.0,87.0,87.0,86.0,93.0,84.0,92.0,83.0,86.0,111.0,115.0,81.0,101.0,70.0,93.0,115.0,109.0,94.0,79.33,122.0,115.0,74.0,85.0,83.0,101.0,88.0,117.0,82.0,76.0,123.33,84.0,93.0,96.0,87.0,101.0,78.0,79.0,105.0,74.67,126.0,117.67,94.0,95.0,107.0,114.0,113.0,93.0,93.0,78.0,84.0,83.0,75.0,118.0,107.0,113.0,123.0,93.0,70.0,83.0,86.0,107.0,81.0,119.0,92.0,117.0,83.0,73.0,109.0,109.0,92.0,95.0,110.67,83.0,115.0,83.0,111.0,93.0,103.0,89.0,110.0,107.0,83.0,124.0,89.0,110.0,77.0,82.33,83.0,81.0,113.0,88.0,76.67,74.33,99.0,75.33,125.0,113.0,82.0,81.0,83.0,115.0,115.0,113.0,90.0,101.0,104.0,94.33,93.0,91.0,102.0,108.0,73.0,109.0,105.0,93.0,88.0,75.0,98.0,111.0,110.0,81.0,104.0,62.0,93.33,87.0,66.0,106.0,113.0,94.0,82.0,101.0,107.0,104.0,79.0,113.0,104.0,76.0,111.0,77.0,93.0,103.0,78.0,83.0,87.0],"y":[49,91,167,229,182,111,55,145,49,258,179,174,61,121,134,42,220,57,306,55,200,63,99,302,52,113,125,74,175,243,259,65,137,113,80,198,111,245,214,208,90,158,78,332,118,276,262,84,257,164,182,94,272,146,197,215,200,131,160,111,242,72,258,155,265,72,97,94,241,170,84,138,129,242,336,94,63,134,47,52,252,173,65,68,158,198,233,237,295,135,83,199,53,90,25,116,200,72,59,47,91,233,293,292,87,178,45,170,92,44,253,115,93,72,142,97,63,310,303,67,179,288,185,220,252,55,66,182,166,58,144,209,132,54,252,190,71,198,142,88,107,128,206,59,69,81,42,147,195,281,103,184,64,135,104,263,114,172,173,81,77,310,187,75,51,71,154,249,281,221,232,174,96,275,268,109,281,152,66,185,219,69,88,104,191,275,53,164,127,93,53,59,97,196,168,51,178,91,210,40,51,101,264,150,95,140,236,321,92,150,214,100,128,155,178,150,257,70,197,268,52,214,220,64,196,72,217,230,87,178,143,77,248,141,67,39,272,202,140,171,118,259,263,148,102,200,72,244,116,202,88,131,64,104,232,248,60,141,190,110,170,52,110,168,91,97,265,50,68,296,128,222,160,89,71,317,297,65,78,96,99,192,274,261,68,77,89,217,292,102,83,212,86,84,88,109,109,191,90,219,107,144,43,104,200,273,163,126,311,77,131,75,74,237,283,200,69,180,127,139,42,185,53,31,181,78,230,202,85,85,246]},"test":{"bmi":[26.6,38.2,26.4,29.8,22.3,30.1,24.4,31.8,21.3,20.4,22.5,30.0,31.4,22.9,25.8,38.0,31.0,29.8,25.0,26.7,29.5,26.5,23.2,23.6,21.0,33.0,30.3,24.4,24.2,21.7,22.7,32.4,27.3,35.4,21.1,28.7,18.6,29.2,24.9,29.2,32.1,26.6,27.9,32.0,24.3,25.5,36.1,20.6,31.0,35.5,27.8,25.6,29.5,18.5,19.9,24.0,26.8,23.3,28.2,20.4,22.8,30.0,30.5,26.6,24.0,19.9,29.7,25.6,28.2,26.8,27.5,26.1,20.3,32.0,28.6,24.1,21.3,21.2,22.9,32.8,24.3,32.1,20.5,26.8,34.6,21.5,19.5,23.5,20.2,31.9,25.1,27.0,26.1,26.7,33.3,26.0,27.8,39.1,22.7,32.7,26.0,19.6,27.3,30.0,22.6,41.3,23.3,26.9,28.9,25.7,24.7],"bp":[111.0,123.0,91.33,80.0,113.0,78.0,120.0,82.0,72.0,98.0,125.0,95.0,87.0,77.0,113.0,103.0,123.0,101.0,111.67,115.0,97.0,86.0,107.33,111.33,71.0,73.0,89.0,73.0,90.0,126.0,83.0,105.0,100.0,93.0,80.0,99.0,97.0,93.0,91.0,73.0,101.0,93.0,103.0,88.0,103.0,99.0,117.0,87.0,78.67,120.0,89.0,94.0,131.0,87.0,91.0,83.0,123.0,89.33,91.0,65.0,91.0,85.0,89.0,99.0,91.0,76.0,109.0,96.0,112.0,87.0,106.0,85.0,93.0,109.0,88.0,112.0,87.0,90.0,87.0,112.0,95.0,112.67,80.0,79.0,87.33,85.0,80.0,80.33,95.0,83.0,133.0,103.0,109.0,105.0,114.0,91.0,73.0,90.0,65.33,93.0,83.0,78.0,82.0,108.0,71.0,81.0,88.0,111.0,87.33,80.0,97.0],"y":[85,308,259,90,71,180,281,136,60,83,103,220,142,128,283,341,280,70,124,129,150,258,120,108,162,55,137,131,71,189,124,109,235,275,183,122,101,122,151,172,151,245,225,132,156,60,270,115,144,243,96,161,270,90,48,98,48,84,262,96,206,310,129,123,118,63,248,177,178,59,235,139,153,186,265,163,143,39,113,277,49,242,37,144,279,181,48,102,79,85,216,277,141,73,275,202,201,233,65,121,61,142,151,246,152,346,168,138,225,95,101]}};
+// DATA-END
+
+const TR = DATA.train, TE = DATA.test, N = TR.y.length, NT = TE.y.length;
+const VAR = {
+  bmi: { name: "BMI", range: [17, 44], ticks: [20, 25, 30, 35, 40] },
+  bp:  { name: "bp",  range: [58, 136], ticks: [60, 80, 100, 120] }
+};
+const mids = v => { const u = [...new Set(v)].sort((a, b) => a - b); return u.slice(1).map((x, i) => (u[i] + x) / 2); };
+const MIDS = { bmi: mids(TR.bmi), bp: mids(TR.bp) };
+const MEAN = TR.y.reduce((a, b) => a + b, 0) / N;
+const fix2 = v => Math.round(v * 100) / 100;
+
+let A = "bmi", B = "bp", s1 = 0, sL = 0, sR = 0;
+
+// leaf k: 0 = yes/yes, 1 = yes/no, 2 = no/yes, 3 = no/no
+function leafOf(a, b, t) { return a <= t[0] ? (b <= t[1] ? 0 : 1) : (b <= t[2] ? 2 : 3); }
+function fitTree(a, b, t) {
+  const S = [0, 0, 0, 0], C = [0, 0, 0, 0], xa = TR[a], xb = TR[b];
+  for (let i = 0; i < N; i++) { const k = leafOf(xa[i], xb[i], t); S[k] += TR.y[i]; C[k]++; }
+  const side = [(S[0] + S[1]) / (C[0] + C[1]), (S[2] + S[3]) / (C[2] + C[3])];
+  // an empty rectangle borrows its side's average; an empty side borrows the overall average
+  const m = [0, 1, 2, 3].map(k => C[k] ? S[k] / C[k] : (isFinite(side[k >> 1]) ? side[k >> 1] : MEAN));
+  return { m, n: C };
+}
+function rmseOn(D, a, b, t, m) {
+  let e = 0; const xa = D[a], xb = D[b];
+  for (let i = 0; i < D.y.length; i++) e += (D.y[i] - m[leafOf(xa[i], xb[i], t)]) ** 2;
+  return Math.sqrt(e / D.y.length);
+}
+function evalTree(a, b, t) { const f = fitTree(a, b, t); return { ...f, tr: rmseOn(TR, a, b, t, f.m), te: rmseOn(TE, a, b, t, f.m) }; }
+
+// best single cut of variable v among the training patients in mask (squared-error formula of the slides)
+function bestCut(v, mask) {
+  const idx = []; for (let i = 0; i < N; i++) if (mask(i)) idx.push(i);
+  idx.sort((i, j) => TR[v][i] - TR[v][j]);
+  const n = idx.length; let tot = 0, tot2 = 0;
+  for (const i of idx) { tot += TR.y[i]; tot2 += TR.y[i] ** 2; }
+  let best = { s: n ? TR[v][idx[n - 1]] + 1 : 0, err: tot2 - (n ? tot * tot / n : 0) }, sl = 0, sl2 = 0;
+  for (let k = 0; k < n - 1; k++) {
+    const y = TR.y[idx[k]]; sl += y; sl2 += y * y;
+    const a = TR[v][idx[k]], b = TR[v][idx[k + 1]];
+    if (a === b) continue;
+    const nl = k + 1, nr = n - nl, err = (sl2 - sl * sl / nl) + ((tot2 - sl2) - (tot - sl) ** 2 / nr);
+    if (err < best.err - 1e-9) best = { s: (a + b) / 2, err };
+  }
+  return best;
+}
+function bestSecond(a, b, t1) {
+  return [bestCut(b, i => TR[a][i] <= t1).s, bestCut(b, i => TR[a][i] > t1).s];
+}
+function greedy(a, b) { const t1 = bestCut(a, () => true).s; return [t1, ...bestSecond(a, b, t1)]; }
+
+// curves for question 1, cached per order: question 1 alone, and the whole tree with the best question 2
+const Q1 = {};
+function q1curves(a, b) {
+  const key = a + b; if (Q1[key]) return Q1[key];
+  const xs = MIDS[a].filter((s, i, arr) => i % 2 === 0 || i === arr.length - 1);
+  const one = [], tree = [], test = [];
+  for (const s of xs) {
+    let sl = 0, nl = 0, sr = 0, nr = 0;
+    for (let i = 0; i < N; i++) if (TR[a][i] <= s) { sl += TR.y[i]; nl++; } else { sr += TR.y[i]; nr++; }
+    let e = 0; for (let i = 0; i < N; i++) e += (TR.y[i] - (TR[a][i] <= s ? sl / nl : sr / nr)) ** 2;
+    one.push(Math.sqrt(e / N));
+    const r = evalTree(a, b, [s, ...bestSecond(a, b, s)]); tree.push(r.tr); test.push(r.te);
+  }
+  return (Q1[key] = { xs, one, tree, test });
+}
+function q2curve(side) {
+  const xs = MIDS[B], tr = [], te = [];
+  for (const s of xs) {
+    const t = side === "L" ? [s1, s, sR] : [s1, sL, s];
+    const r = evalTree(A, B, t); tr.push(r.tr); te.push(r.te);
+  }
+  return { xs, tr, te };
+}
+
+const $ = id => document.getElementById(id);
+function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function setup(c) {
+  const r = c.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  c.width = Math.round(r.width * d); c.height = Math.round(r.height * d);
+  const g = c.getContext("2d"); g.setTransform(d, 0, 0, d, 0, 0);
+  return [g, r.width, r.height];
+}
+function axes(g, w, h, P, xr, yr, xlab, ylab, xt, yt) {
+  const px = x => P.l + (x - xr[0]) / (xr[1] - xr[0]) * (w - P.l - P.r);
+  const py = y => h - P.b - (y - yr[0]) / (yr[1] - yr[0]) * (h - P.t - P.b);
+  g.strokeStyle = css("--grid"); g.lineWidth = 1; g.fillStyle = css("--muted"); g.font = "14px system-ui, sans-serif";
+  g.textAlign = "center"; g.textBaseline = "top";
+  for (const t of xt) { g.beginPath(); g.moveTo(px(t), P.t); g.lineTo(px(t), h - P.b); g.stroke(); g.fillText(t, px(t), h - P.b + 5); }
+  g.textAlign = "right"; g.textBaseline = "middle";
+  for (const t of yt) { g.beginPath(); g.moveTo(P.l, py(t)); g.lineTo(w - P.r, py(t)); g.stroke(); g.fillText(t, P.l - 7, py(t)); }
+  g.textAlign = "center"; g.textBaseline = "bottom"; g.font = "15px system-ui, sans-serif";
+  g.fillText(xlab, (P.l + w - P.r) / 2, h - 3);
+  if (ylab) { g.save(); g.translate(15, (P.t + h - P.b) / 2); g.rotate(-Math.PI / 2); g.textBaseline = "middle"; g.fillText(ylab, 0, 0); g.restore(); }
+  return [px, py];
+}
+function hex(c) { const v = c.replace("#", ""); return [0, 2, 4].map(k => parseInt(v.slice(k, k + 2), 16)); }
+function ramp(y) {
+  const u = Math.min(Math.max((y - 40) / 260, 0), 1), lo = hex(css("--low")), hi = hex(css("--high"));
+  return "rgb(" + lo.map((v, k) => Math.round(v + (hi[k] - v) * u)).join(",") + ")";
+}
+
+// partition plane: BMI across, bp up, whatever the order
+const PP = { l: 62, r: 16, t: 34, b: 50 };
+let PX, PY, PW, PH;
+function rects() {
+  // returns the four rectangles in data coordinates [bmi0, bmi1, bp0, bp1]
+  const X = VAR.bmi.range, Y = VAR.bp.range;
+  if (A === "bmi") return [[X[0], s1, Y[0], sL], [X[0], s1, sL, Y[1]], [s1, X[1], Y[0], sR], [s1, X[1], sR, Y[1]]];
+  return [[X[0], sL, Y[0], s1], [sL, X[1], Y[0], s1], [X[0], sR, s1, Y[1]], [sR, X[1], s1, Y[1]]];
+}
+function segments() {
+  // the three cut lines as [which, x0, y0, x1, y1] in data coordinates
+  const X = VAR.bmi.range, Y = VAR.bp.range;
+  if (A === "bmi") return [["s1", s1, Y[0], s1, Y[1]], ["sL", X[0], sL, s1, sL], ["sR", s1, sR, X[1], sR]];
+  return [["s1", X[0], s1, X[1], s1], ["sL", sL, Y[0], sL, s1], ["sR", sR, s1, sR, Y[1]]];
+}
+function drawPart(f) {
+  const [g, w, h] = setup($("part")); PW = w; PH = h;
+  g.clearRect(0, 0, w, h);
+  const [px, py] = axes(g, w, h, PP, VAR.bmi.range, VAR.bp.range, "BMI", "bp, average blood pressure", VAR.bmi.ticks, VAR.bp.ticks);
+  PX = px; PY = py;
+  g.save(); g.beginPath(); g.rect(PP.l, PP.t, w - PP.l - PP.r, h - PP.t - PP.b); g.clip();
+  rects().forEach((r, k) => {
+    g.fillStyle = ramp(f.m[k]); g.globalAlpha = 0.16;
+    g.fillRect(px(r[0]), py(r[3]), px(r[1]) - px(r[0]), py(r[2]) - py(r[3]));
+  });
+  g.globalAlpha = 0.85;
+  for (let i = 0; i < N; i++) { g.fillStyle = ramp(TR.y[i]); g.beginPath(); g.arc(px(TR.bmi[i]), py(TR.bp[i]), 3.6, 0, 2 * Math.PI); g.fill(); }
+  if ($("test").checked) {
+    g.globalAlpha = 1; g.lineWidth = 1.8;
+    for (let i = 0; i < NT; i++) { g.strokeStyle = ramp(TE.y[i]); g.strokeRect(px(TE.bmi[i]) - 4, py(TE.bp[i]) - 4, 8, 8); }
+  }
+  g.globalAlpha = 1;
+  for (const [k, x0, y0, x1, y1] of segments()) {
+    g.strokeStyle = css("--teal"); g.lineWidth = k === "s1" ? 5 : 3.5;
+    g.beginPath(); g.moveTo(px(x0), py(y0)); g.lineTo(px(x1), py(y1)); g.stroke();
+  }
+  g.font = "bold 22px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+  rects().forEach((r, k) => {
+    if (!f.n[k]) return;
+    const cx = (px(Math.max(r[0], VAR.bmi.range[0])) + px(Math.min(r[1], VAR.bmi.range[1]))) / 2;
+    const cy = (py(Math.max(r[2], VAR.bp.range[0])) + py(Math.min(r[3], VAR.bp.range[1]))) / 2;
+    g.lineWidth = 5; g.strokeStyle = css("--bg"); g.fillStyle = css("--ink");
+    g.font = "bold 22px system-ui, sans-serif"; g.strokeText(f.m[k].toFixed(0), cx, cy - 9); g.fillText(f.m[k].toFixed(0), cx, cy - 9);
+    g.font = "14px system-ui, sans-serif"; g.strokeText(f.n[k] + " patients", cx, cy + 12); g.fillText(f.n[k] + " patients", cx, cy + 12);
+  });
+  g.restore();
+  // legend: color = progression
+  g.font = "14px system-ui, sans-serif"; g.textBaseline = "middle"; g.textAlign = "left"; g.fillStyle = css("--muted");
+  let lx = PP.l; const ly = 16;
+  g.fillText("progression:", lx, ly); lx += 92;
+  for (const v of [50, 150, 250]) {
+    g.fillStyle = ramp(v); g.beginPath(); g.arc(lx, ly, 6, 0, 2 * Math.PI); g.fill();
+    g.fillStyle = css("--muted"); g.fillText(String(v), lx + 10, ly); lx += 52;
+  }
+  g.fillText("●  training", lx + 14, ly);
+  if ($("test").checked) { g.strokeStyle = css("--muted"); g.lineWidth = 1.8; g.strokeRect(lx + 108, ly - 4, 8, 8); g.fillText("test", lx + 122, ly); }
+}
+
+const CP = { l: 56, r: 14, t: 30, b: 40 }, ER = [56, 80];
+const curveX = {};
+function drawCurve(id, title, v, lines, at) {
+  const [g, w, h] = setup($(id)); g.clearRect(0, 0, w, h);
+  const [px, py] = axes(g, w, h, CP, VAR[v].range, ER, "cut on " + VAR[v].name, "RMSE", VAR[v].ticks, [60, 70, 80]);
+  curveX[id] = { v, px };
+  g.save(); g.beginPath(); g.rect(CP.l, CP.t, w - CP.l - CP.r, h - CP.t - CP.b); g.clip();
+  for (const L of lines) {
+    g.strokeStyle = css(L.color); g.lineWidth = L.width; g.setLineDash(L.dash || []); g.beginPath();
+    L.xs.forEach((x, i) => { const X = px(x), Y = py(L.ys[i]); i ? g.lineTo(X, Y) : g.moveTo(X, Y); }); g.stroke();
+  }
+  g.setLineDash([]);
+  g.strokeStyle = css("--teal"); g.lineWidth = 3; g.beginPath(); g.moveTo(px(at), CP.t); g.lineTo(px(at), h - CP.b); g.stroke();
+  g.restore();
+  g.font = "bold 15px system-ui, sans-serif"; g.textAlign = "left"; g.textBaseline = "middle"; g.fillStyle = css("--ink");
+  g.fillText(title, CP.l, 14);
+  g.font = "13px system-ui, sans-serif"; g.textAlign = "right";
+  let rx = w - CP.r;
+  for (const L of [...lines].reverse()) {
+    const tw = g.measureText(L.label).width;
+    g.fillStyle = css("--muted"); g.fillText(L.label, rx, 14);
+    g.strokeStyle = css(L.color); g.lineWidth = L.width; g.setLineDash(L.dash || []);
+    g.beginPath(); g.moveTo(rx - tw - 26, 14); g.lineTo(rx - tw - 6, 14); g.stroke(); g.setLineDash([]);
+    rx -= tw + 40;
+  }
+}
+
+function boardRows(cur) {
+  const rows = [["Best cuts one at a time, BMI first", "bmi", "bp", greedy("bmi", "bp")],
+                ["Best cuts one at a time, bp first", "bp", "bmi", greedy("bp", "bmi")],
+                ["Your tree", A, B, [s1, sL, sR]]];
+  $("board").innerHTML = rows.map(([lab, a, b, t], k) => {
+    const r = k === 2 ? cur : evalTree(a, b, t), nb = VAR[b].name;
+    return `<tr class="${k === 2 ? "you" : ""}"><td>${lab}</td><td>${VAR[a].name} ≤ ${t[0].toFixed(2)}</td>` +
+      `<td>${nb} ≤ ${t[1].toFixed(2)}</td><td>${nb} ≤ ${t[2].toFixed(2)}</td>` +
+      `<td class="te">${r.tr.toFixed(1)}</td><td class="ru">${r.te.toFixed(1)}</td>` +
+      `<td>${k < 2 ? `<button type="button" data-row="${k}">Load</button>` : ""}</td></tr>`;
+  }).join("");
+  $("board").querySelectorAll("button").forEach(bt => bt.addEventListener("click", () => {
+    const k = +bt.dataset.row; setOrder(k === 0 ? "bmi" : "bp");
+  }));
+}
+
+function setSliders() {
+  const ra = VAR[A].range, rb = VAR[B].range;
+  for (const [id, r, v] of [["s1", ra, s1], ["sL", rb, sL], ["sR", rb, sR]]) {
+    $(id).min = r[0]; $(id).max = r[1]; $(id).value = v;
+  }
+}
+function update() {
+  const t = [s1, sL, sR], cur = evalTree(A, B, t), na = VAR[A].name, nb = VAR[B].name, test = $("test").checked;
+  $("ord-bmi").setAttribute("aria-pressed", A === "bmi"); $("ord-bp").setAttribute("aria-pressed", A === "bp");
+  $("s1l").textContent = `Question 1: ${na} ≤ ?`;
+  $("sLl").textContent = `Question 2 if yes: ${nb} ≤ ?`;
+  $("sRl").textContent = `Question 2 if no: ${nb} ≤ ?`;
+  $("s1o").textContent = s1.toFixed(2); $("sLo").textContent = sL.toFixed(2); $("sRo").textContent = sR.toFixed(2);
+  $("trr").textContent = cur.tr.toFixed(1); $("ter").textContent = test ? cur.te.toFixed(1) : "hidden";
+  drawPart(cur);
+  const q = q1curves(A, B);
+  const l1 = [{ xs: q.xs, ys: q.one, color: "--muted", width: 1.5, label: "question 1 alone" },
+              { xs: q.xs, ys: q.tree, color: "--navy", width: 2.2, label: "tree, best question 2" }];
+  if (test) l1.push({ xs: q.xs, ys: q.test, color: "--rust", width: 1.8, dash: [6, 4], label: "test" });
+  drawCurve("c1", `Question 1: ${na} ≤ s`, A, l1, s1);
+  for (const side of ["L", "R"]) {
+    const c = q2curve(side), ls = [{ xs: c.xs, ys: c.tr, color: "--navy", width: 2.2, label: "training" }];
+    if (test) ls.push({ xs: c.xs, ys: c.te, color: "--rust", width: 1.8, dash: [6, 4], label: "test" });
+    drawCurve("c" + side, `Question 2 if ${side === "L" ? "yes" : "no"}: ${nb} ≤ s`, B, ls, side === "L" ? sL : sR);
+  }
+  boardRows(cur);
+  $("ter").parentElement.style.visibility = test ? "visible" : "hidden";
+}
+function setOrder(a) {
+  A = a; B = a === "bmi" ? "bp" : "bmi";
+  [s1, sL, sR] = greedy(A, B).map(fix2); setSliders(); update();
+}
+
+$("ord-bmi").addEventListener("click", () => setOrder("bmi"));
+$("ord-bp").addEventListener("click", () => setOrder("bp"));
+$("s1").addEventListener("input", e => { s1 = +e.target.value; update(); });
+$("sL").addEventListener("input", e => { sL = +e.target.value; update(); });
+$("sR").addEventListener("input", e => { sR = +e.target.value; update(); });
+$("test").addEventListener("change", update);
+$("greedy").addEventListener("click", () => setOrder(A));
+$("second").addEventListener("click", () => { [sL, sR] = bestSecond(A, B, s1).map(fix2); setSliders(); update(); });
+for (const id of ["c1", "cL", "cR"]) $(id).addEventListener("click", e => {
+  const c = curveX[id]; if (!c) return;
+  const r = e.currentTarget.getBoundingClientRect(), x = e.clientX - r.left, rg = VAR[c.v].range;
+  const v = fix2(Math.min(Math.max(rg[0] + (x - CP.l) / (r.width - CP.l - CP.r) * (rg[1] - rg[0]), rg[0]), rg[1]));
+  if (id === "c1") s1 = v; else if (id === "cL") sL = v; else sR = v;
+  setSliders(); update();
+});
+
+// drag a cut line in the plane
+let drag = null;
+function toData(e) {
+  const r = $("part").getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  const X = VAR.bmi.range, Y = VAR.bp.range;
+  return { x, y, bmi: X[0] + (x - PP.l) / (PW - PP.l - PP.r) * (X[1] - X[0]), bp: Y[0] + (PH - PP.b - y) / (PH - PP.t - PP.b) * (Y[1] - Y[0]) };
+}
+function nearest(p) {
+  let best = null, bd = 14;
+  for (const [k, x0, y0, x1, y1] of segments()) {
+    const X0 = PX(x0), Y0 = PY(y0), X1 = PX(x1), Y1 = PY(y1);
+    const dx = X1 - X0, dy = Y1 - Y0, u = Math.max(0, Math.min(1, ((p.x - X0) * dx + (p.y - Y0) * dy) / (dx * dx + dy * dy || 1)));
+    const d = Math.hypot(p.x - X0 - u * dx, p.y - Y0 - u * dy);
+    if (d < bd) { bd = d; best = k; }
+  }
+  return best;
+}
+$("part").addEventListener("pointerdown", e => { drag = nearest(toData(e)); if (drag) $("part").setPointerCapture(e.pointerId); });
+$("part").addEventListener("pointermove", e => {
+  const p = toData(e);
+  if (!drag) { $("part").style.cursor = nearest(p) ? (segments().find(s => s[0] === nearest(p))[1] === segments().find(s => s[0] === nearest(p))[3] ? "ew-resize" : "ns-resize") : "default"; return; }
+  const v = drag === "s1" ? A : B, rg = VAR[v].range, val = fix2(Math.min(Math.max(p[v], rg[0]), rg[1]));
+  if (drag === "s1") s1 = val; else if (drag === "sL") sL = val; else sR = val;
+  setSliders(); update();
+});
+$("part").addEventListener("pointerup", () => { drag = null; });
+
+window.addEventListener("resize", update);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", update);
+new MutationObserver(update).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+setOrder(location.hash === "#bp" ? "bp" : "bmi");
+</script>
+</body>
+</html>

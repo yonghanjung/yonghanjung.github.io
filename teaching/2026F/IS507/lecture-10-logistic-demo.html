@@ -33,7 +33,7 @@ h1 { font-size: 30px; margin: 0 0 14px; }
               background: var(--teal); color: var(--on-teal); font-size: 16px; margin-right: 8px; }
 .step label { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; margin-bottom: 2px; }
 .step output { font-variant-numeric: tabular-nums; color: var(--teal); font-size: 21px; }
-.step label.check { justify-content: flex-start; align-items: center; gap: 10px; cursor: pointer; font-weight: 400; }
+.step label.check { justify-content: flex-start; align-items: center; gap: 10px; cursor: pointer; font-weight: 400; margin-bottom: 6px; }
 .check input { width: 22px; height: 22px; accent-color: var(--teal); }
 input[type=range] { width: 100%; height: 28px; accent-color: var(--teal); margin: 0 0 6px; }
 input[type=range]:disabled { opacity: 0.4; }
@@ -41,12 +41,13 @@ button { font: inherit; color: var(--ink); background: var(--bg); border: 1px so
          border-radius: 8px; padding: 6px 14px; cursor: pointer; }
 button.primary { background: var(--teal); color: var(--on-teal); border-color: var(--teal); font-weight: 700; }
 button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
-.seg { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.seg { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .seg button[aria-pressed="true"] { background: var(--teal); color: var(--on-teal); border-color: var(--teal); font-weight: 700; }
 .hint { color: var(--muted); font-size: 16px; margin: 8px 0 0; }
 .eq { font-size: 22px; margin: 16px 4px 10px; overflow-wrap: anywhere; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 0 4px 8px; font-size: 17px; color: var(--muted); align-items: center; }
 .legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend span[hidden] { display: none; }
 .sw { display: inline-block; }
 .plots { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; }
 @media (max-width: 900px) { .plots { grid-template-columns: 1fr; } }
@@ -56,6 +57,9 @@ canvas { width: 100%; height: 440px; display: block; border: 1px solid var(--lin
 table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 20px; }
 th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; }
 th:first-child, td:first-child { text-align: left; }
+.truthcol { color: var(--muted); }
+#grow[hidden] { display: none; }
+#grow { height: 230px; border: none; border-radius: 0; margin-top: 12px; }
 @media (max-width: 600px) { body { font-size: 17px; } h1 { font-size: 24px; } .eq { font-size: 18px; } canvas { height: 340px; } }
 </style>
 </head>
@@ -65,11 +69,15 @@ th:first-child, td:first-child { text-align: left; }
 
   <div class="steps">
     <div class="step">
-      <h2><span class="n">1</span>Model</h2>
-      <div class="seg" id="model" role="group" aria-label="Model">
-        <button type="button" data-m="lin" aria-pressed="true">Logistic</button>
-        <button type="button" data-m="sieve" aria-pressed="false">Logistic sieve</button>
+      <h2><span class="n">1</span>Pieces</h2>
+      <div class="seg" id="fam" role="group" aria-label="Pieces">
+        <button type="button" data-f="line" aria-pressed="true">Line</button>
+        <button type="button" data-f="relu" aria-pressed="false">ReLU</button>
+        <button type="button" data-f="poly" aria-pressed="false">Poly</button>
+        <button type="button" data-f="spline" aria-pressed="false">Spline</button>
       </div>
+      <label for="flex"><span id="flexname">Knots</span> <output id="flexo"></output></label>
+      <input id="flex" type="range" min="0" max="5" step="1" value="1">
     </div>
     <div class="step">
       <h2><span class="n">2</span>Move β</h2>
@@ -85,6 +93,7 @@ th:first-child, td:first-child { text-align: left; }
     <div class="step">
       <h2><span class="n">4</span>Test</h2>
       <label class="check"><input id="test" type="checkbox"> <span>Show test data</span></label>
+      <label class="check"><input id="truth" type="checkbox"> <span>Show the true q</span></label>
       <p class="hint"><button id="reset" type="button">Start over</button></p>
     </div>
   </div>
@@ -93,8 +102,9 @@ th:first-child, td:first-child { text-align: left; }
   <div class="legend">
     <span><svg class="sw" width="12" height="12"><circle cx="6" cy="6" r="5" fill="currentColor" style="color:var(--teal)"/></svg>approved</span>
     <span><svg class="sw" width="12" height="12"><rect x="1" y="1" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--navy)"/></svg>declined</span>
-    <span><svg class="sw" width="26" height="12"><line x1="1" y1="6" x2="25" y2="6" stroke="currentColor" stroke-width="3" style="color:var(--muted)"/></svg>share approved by age</span>
-    <span><svg class="sw" width="26" height="12"><line x1="1" y1="6" x2="25" y2="6" stroke="currentColor" stroke-width="3" style="color:var(--rust)"/></svg>q(Y=1 | age)</span>
+    <span><svg class="sw" width="26" height="12"><line x1="1" y1="6" x2="25" y2="6" stroke="currentColor" stroke-width="3" style="color:var(--muted)"/></svg>approval rate per 5-year age group</span>
+    <span><svg class="sw" width="26" height="12"><line x1="1" y1="6" x2="25" y2="6" stroke="currentColor" stroke-width="3.5" style="color:var(--rust)"/></svg>q(Y=1 | age)</span>
+    <span id="lgtruth" hidden><svg class="sw" width="26" height="12"><line x1="1" y1="6" x2="25" y2="6" stroke="currentColor" stroke-width="3" stroke-dasharray="5 4" style="color:var(--ink)"/></svg>true q</span>
     <span><svg class="sw" width="16" height="12"><rect width="16" height="12" fill="currentColor" opacity="0.22" style="color:var(--teal)"/></svg>approve</span>
   </div>
 
@@ -103,12 +113,13 @@ th:first-child, td:first-child { text-align: left; }
     <div class="panel">
       <p class="rule">Approve if q(Y=1 | age) &gt; 0.5</p>
       <table>
-        <thead><tr><th></th><th>Training</th><th>Test</th></tr></thead>
+        <thead><tr><th></th><th>Training</th><th>Test</th><th class="truthcol" hidden>True q, test</th></tr></thead>
         <tbody>
-          <tr><td>Accuracy</td><td id="tra"></td><td id="tea"></td></tr>
-          <tr><td>Cross-entropy</td><td id="trl"></td><td id="tel"></td></tr>
+          <tr><td>Accuracy</td><td id="tra"></td><td id="tea"></td><td class="truthcol" id="qa" hidden></td></tr>
+          <tr><td>Cross-entropy</td><td id="trl"></td><td id="tel"></td><td class="truthcol" id="ql" hidden></td></tr>
         </tbody>
       </table>
+      <canvas id="grow" role="img" aria-label="Training and test cross-entropy as the number of pieces grows"></canvas>
     </div>
   </div>
 </main>
@@ -120,21 +131,39 @@ const DATA = {"train":{"age":[60.41,23.14,53.66,64.59,43.9,62.93,23.67,32.47,36.
 
 const $ = id => document.getElementById(id);
 const START = [3, -0.06];                              // a plausible but wrong start
-let model = "lin", betaL = [...START], betaS = null;   // betaL, betaS: the weights of each model
-const logistic = t => Math.exp(t) / (1 + Math.exp(t));
-function feats(age, m) {                               // the pieces of each model
-  const f = [1, age];
-  if (m === "sieve") for (const c of DATA.knots) f.push(Math.max(0, age - c));
-  return f;
+const TRUE_LOGODDS = age => 2.0 - 0.008 * (age - 50) ** 2;   // how the notebook simulated the applicants (credit_toy)
+const KNOTS = {                                        // knot sets for ReLU and spline pieces; 3 knots is the slide's sieve
+  1: [45], 3: [35, 45, 55], 5: [35, 40, 45, 50, 55], 9: [25, 30, 35, 40, 45, 50, 55, 60, 65],
+  19: Array.from({ length: 19 }, (_, k) => 22.5 + 2.5 * k), 49: Array.from({ length: 49 }, (_, k) => 21 + k),
+};
+const LEVELS = { relu: [1, 3, 5, 9, 19, 49], spline: [1, 3, 5, 9, 19, 49], poly: [2, 3, 4, 5, 6, 7, 8, 9, 10] };
+let fam = "line", level = { relu: 1, spline: 1, poly: 0 };   // index into LEVELS
+let betaL = [...START];                                // the line's weights, moved by hand or fitted
+const fitted = {};                                     // fitted weights for each set of pieces, e.g. fitted["relu49"]
+const logistic = t => 1 / (1 + Math.exp(-t));
+const z = age => (age - 45) / 25;                      // poly and spline pieces use age rescaled to about −1..1
+const flexOf = f => LEVELS[f] ? LEVELS[f][level[f]] : 0;
+const keyOf = (f, k) => f === "line" ? "line" : f + k;
+function feats(age, f, k) {                            // the pieces of each model, with 1 for the intercept
+  if (f === "line") return [1, age];
+  if (f === "relu") return [1, age, ...KNOTS[k].map(c => Math.max(0, age - c))];
+  const u = z(age);
+  if (f === "poly") return [1, ...Array.from({ length: k }, (_, d) => u ** (d + 1))];
+  return [1, u, u * u, u ** 3, ...KNOTS[k].map(c => Math.max(0, u - z(c)) ** 3)];   // cubic spline
 }
-function currentBeta() { return model === "lin" ? betaL : betaS; }
-function q(beta, age) { const f = feats(age, model); let t = 0; for (let k = 0; k < f.length; k++) t += beta[k] * f[k]; return logistic(t); }
-function scores(beta, D) {
+function lineAs(f, k) {                                // the hand-moved line written in these pieces: same curve until fitted
+  const [b0, b1] = betaL, n = feats(45, f, k).length, b = new Array(n).fill(0);
+  if (f === "relu") { b[0] = b0; b[1] = b1; } else { b[0] = b0 + 45 * b1; b[1] = 25 * b1; }
+  return b;
+}
+function currentBeta() { const k = flexOf(fam); return fam === "line" ? betaL : (fitted[keyOf(fam, k)] || lineAs(fam, k)); }
+function score(beta, age, f, k) { const x = feats(age, f, k); let t = 0; for (let j = 0; j < x.length; j++) t += beta[j] * x[j]; return t; }
+function evalq(p, D) {                                 // accuracy and cross-entropy of probabilities p on data D
   let acc = 0, ll = 0;
   for (let i = 0; i < D.y.length; i++) {
-    const p = Math.min(Math.max(q(beta, D.age[i]), 1e-12), 1 - 1e-12);
-    acc += ((p > 0.5 ? 1 : 0) === D.y[i]) ? 1 : 0;
-    ll -= D.y[i] ? Math.log(p) : Math.log(1 - p);
+    const r = Math.min(Math.max(p(D.age[i]), 1e-12), 1 - 1e-12);
+    acc += ((r > 0.5 ? 1 : 0) === D.y[i]) ? 1 : 0;
+    ll -= D.y[i] ? Math.log(r) : Math.log(1 - r);
   }
   return [acc / D.y.length, ll / D.y.length];
 }
@@ -147,35 +176,55 @@ function solve(A, b) {
   }
   return M.map((r, i) => r[n] / r[i]);
 }
-function fitMLE() {                                    // maximum likelihood by Newton's method
-  const D = DATA.train, X = D.y.map((_, i) => feats(D.age[i], model)), p = X[0].length;
-  let beta = new Array(p).fill(0);
-  for (let it = 0; it < 100; it++) {
+const LAM = 1e-8;                                      // a tiny ridge so that a perfect split cannot send β to infinity
+function fitMLE(f, k) {                                // maximum likelihood by Newton's method, halving a step that does not help
+  const D = DATA.train, X = D.y.map((_, i) => feats(D.age[i], f, k)), p = X[0].length;
+  const obj = b => {
+    let s = 0;
+    X.forEach((x, i) => { let t = 0; for (let j = 0; j < p; j++) t += b[j] * x[j]; s += Math.max(t, 0) + Math.log1p(Math.exp(-Math.abs(t))) - D.y[i] * t; });
+    for (let j = 1; j < p; j++) s += 0.5 * LAM * b[j] * b[j];
+    return s;
+  };
+  let beta = new Array(p).fill(0), o = obj(beta);
+  for (let it = 0; it < 200; it++) {
     const g = new Array(p).fill(0), H = Array.from({ length: p }, () => new Array(p).fill(0));
     X.forEach((x, i) => {
-      let t = 0; for (let k = 0; k < p; k++) t += beta[k] * x[k];
+      let t = 0; for (let j = 0; j < p; j++) t += beta[j] * x[j];
       const m = logistic(t), w = m * (1 - m);
       for (let a = 0; a < p; a++) { g[a] += (D.y[i] - m) * x[a]; for (let c = 0; c < p; c++) H[a][c] += w * x[a] * x[c]; }
     });
-    for (let a = 0; a < p; a++) H[a][a] += 1e-8;
-    const step = solve(H, g);
-    beta = beta.map((v, k) => v + step[k]);
-    if (Math.max(...step.map(Math.abs)) < 1e-10) break;
+    for (let a = 0; a < p; a++) { if (a) { g[a] -= LAM * beta[a]; H[a][a] += LAM; } H[a][a] += 1e-10; }
+    const s = solve(H, g);
+    let st = 1, nb, no;
+    while (true) { nb = beta.map((v, j) => v + st * s[j]); no = obj(nb); if (no <= o + 1e-12 || st < 1e-6) break; st /= 2; }
+    const drop = o - no; beta = nb; o = no;
+    if (drop < 1e-10 * Math.max(1, Math.abs(o))) break;
   }
   return beta;
 }
-function approveAges(beta) {                           // the age intervals where q > 0.5, on a 0.1-year grid
+function approveAges(p) {                              // the age intervals where q > 0.5, on a 0.1-year grid
   const out = []; let lo = null, prev = null;
   for (let k = 0; k <= 500; k++) {
     const a = Math.round((20 + k * 0.1) * 10) / 10;
-    if (q(beta, a) > 0.5) { if (lo === null) lo = a; prev = a; }
+    if (p(a) > 0.5) { if (lo === null) lo = a; prev = a; }
     else if (lo !== null) { out.push([lo, prev]); lo = null; }
   }
   if (lo !== null) out.push([lo, prev]);
   return out;
 }
-const sgn = v => (v < 0 ? " − " : " + ") + Math.abs(v).toFixed(3);
+const sgn = (v, d = 3) => (v < 0 ? " − " : " + ") + Math.abs(v).toFixed(d);
 const num = (v, d) => (v < 0 ? "−" : "") + Math.abs(v).toFixed(d);
+function equation(beta, k) {
+  const head = "q(Y=1 | age) = logistic(";
+  if (fam === "line") return head + num(beta[0], 2) + sgn(beta[1]) + " · age)";
+  if (fam === "relu" && k <= 5)
+    return head + num(beta[0], 2) + sgn(beta[1]) + " · age" + KNOTS[k].map((c, j) => sgn(beta[2 + j]) + " · ReLU(age − " + c + ")").join("") + ")";
+  if (fam === "relu") return head + "β₀ + β₁ · age + Σ γₖ ReLU(age − cₖ)),  " + k + " knots cₖ from " + KNOTS[k][0] + " to " + KNOTS[k][k - 1];
+  if (fam === "poly") return head + "β₀ + β₁ z + β₂ z²" + (k > 2 ? " + … + β" + sub(k) + " z" + sup(k) : "") + "),  z = (age − 45)/25";
+  return head + "β₀ + β₁ z + β₂ z² + β₃ z³ + Σ γₖ (z − cₖ)₊³),  z = (age − 45)/25,  " + k + (k > 1 ? " knots" : " knot");
+}
+const sub = n => String(n).replace(/\d/g, d => "₀₁₂₃₄₅₆₇₈₉"[d]);
+const sup = n => String(n).replace(/\d/g, d => "⁰¹²³⁴⁵⁶⁷⁸⁹"[d]);
 
 function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 function setup(c) {
@@ -185,20 +234,26 @@ function setup(c) {
   return [g, r.width, r.height];
 }
 const PAD = { l: 112, r: 18, t: 16, b: 52 }, XR = [20, 70], YR = [-0.08, 1.08];
+const trueQ = a => logistic(TRUE_LOGODDS(a));
 
 function update() {
-  const beta = currentBeta(), lin = model === "lin";
+  const k = flexOf(fam), beta = currentBeta(), lin = fam === "line";
+  const qf = a => logistic(score(beta, a, fam, k));
   ["b0", "b1"].forEach(id => $(id).disabled = !lin);
+  $("flex").disabled = lin;
+  $("flexname").textContent = fam === "poly" ? "Degree" : "Knots";
+  if (!lin) { $("flex").max = LEVELS[fam].length - 1; $("flex").value = level[fam]; }
+  $("flexo").textContent = lin ? "–" : k;
   $("b0o").textContent = lin ? num(betaL[0], 2) : "–"; $("b1o").textContent = lin ? num(betaL[1], 3) : "–";
-  $("eq").textContent = lin
-    ? "q(Y=1 | age) = logistic(" + num(beta[0], 2) + sgn(beta[1]) + " · age)"
-    : "q(Y=1 | age) = logistic(" + num(beta[0], 2) + sgn(beta[1]) + " · age"
-      + DATA.knots.map((c, k) => sgn(beta[2 + k]) + " · ReLU(age − " + c + ")").join("") + ")";
-  const showTest = $("test").checked;
-  const [tra, trl] = scores(beta, DATA.train), [tea, tel] = scores(beta, DATA.test);
+  $("eq").textContent = equation(beta, k);
+  const showTest = $("test").checked, showTruth = $("truth").checked;
+  const [tra, trl] = evalq(qf, DATA.train), [tea, tel] = evalq(qf, DATA.test), [qa, ql] = evalq(trueQ, DATA.test);
   $("tra").textContent = tra.toFixed(3); $("trl").textContent = trl.toFixed(3);
   $("tea").textContent = showTest ? tea.toFixed(3) : "–"; $("tel").textContent = showTest ? tel.toFixed(3) : "–";
-  const iv = approveAges(beta);
+  $("qa").textContent = qa.toFixed(3); $("ql").textContent = ql.toFixed(3);
+  document.querySelectorAll(".truthcol").forEach(e => e.hidden = !showTruth);
+  $("lgtruth").hidden = !showTruth;
+  const iv = approveAges(qf);
 
   const [g, w, h] = setup($("map"));
   g.clearRect(0, 0, w, h);
@@ -227,45 +282,95 @@ function update() {
     if (D.y[i]) { g.fillStyle = css("--teal"); g.beginPath(); g.arc(x, py(1 - j), r, 0, 2 * Math.PI); g.fill(); }
     else { g.strokeStyle = css("--navy"); g.lineWidth = 1.3; g.strokeRect(x - r, py(j) - r, 2 * r, 2 * r); }
   }
-  // the data's own answer: share approved in each 5-year age group
+  // the data's own answer: the approval rate in each 5-year age group
   g.strokeStyle = css("--muted"); g.lineWidth = 3;
   for (let a = 20; a < 70; a += 5) {
     let n = 0, s = 0;
     for (let i = 0; i < D.y.length; i++) if (D.age[i] >= a && D.age[i] < a + 5) { n++; s += D.y[i]; }
     if (n) { g.beginPath(); g.moveTo(px(a) + 2, py(s / n)); g.lineTo(px(a + 5) - 2, py(s / n)); g.stroke(); }
   }
-  // the model's probability curve
-  g.strokeStyle = css("--rust"); g.lineWidth = 3.5; g.beginPath();
-  for (let k = 0; k <= 400; k++) { const a = XR[0] + k / 400 * (XR[1] - XR[0]); const y = py(q(beta, a)); k ? g.lineTo(px(a), y) : g.moveTo(px(a), y); }
-  g.stroke();
+  const curve = (f, color, width, dash) => {
+    g.strokeStyle = color; g.lineWidth = width; g.setLineDash(dash); g.beginPath();
+    for (let s = 0; s <= 500; s++) { const a = XR[0] + s / 500 * (XR[1] - XR[0]); const y = py(f(a)); s ? g.lineTo(px(a), y) : g.moveTo(px(a), y); }
+    g.stroke(); g.setLineDash([]);
+  };
+  if (showTruth) curve(trueQ, css("--ink"), 3, [8, 6]);
+  curve(qf, css("--rust"), 3.5, []);
+  drawGrowth(showTest, showTruth, ql);
 }
-document.querySelectorAll("#model button").forEach(b => b.addEventListener("click", () => {
-  model = b.dataset.m;
-  document.querySelectorAll("#model button").forEach(o => o.setAttribute("aria-pressed", String(o === b)));
-  if (model === "sieve" && !betaS) betaS = [...betaL, ...DATA.knots.map(() => 0)];   // same curve until fitted
+
+// Right panel: fit every size of the chosen pieces and draw training and test cross-entropy against the size.
+function drawGrowth(showTest, showTruth, ql) {
+  const c = $("grow"), on = fam !== "line" && fitted[keyOf(fam, flexOf(fam))] && !location.hash.includes("plain");
+  c.hidden = !on;
+  if (!on) return;
+  const ks = LEVELS[fam], rows = ks.map(k => {
+    const b = fitted[keyOf(fam, k)] || (fitted[keyOf(fam, k)] = fitMLE(fam, k)), qf = a => logistic(score(b, a, fam, k));
+    return [evalq(qf, DATA.train)[1], evalq(qf, DATA.test)[1]];
+  });
+  const [g, w, h] = setup(c), P = { l: 70, r: 70, t: 22, b: 40 }, Y = [0.25, 1.0];
+  g.clearRect(0, 0, w, h);
+  const px = i => P.l + i / (ks.length - 1) * (w - P.l - P.r);
+  const py = v => h - P.b - (Math.min(v, Y[1]) - Y[0]) / (Y[1] - Y[0]) * (h - P.t - P.b);
+  g.font = "14px system-ui, sans-serif"; g.strokeStyle = css("--grid"); g.lineWidth = 1; g.fillStyle = css("--muted");
+  g.textAlign = "right"; g.textBaseline = "middle";
+  [0.25, 0.5, 0.75, 1.0].forEach(v => { g.beginPath(); g.moveTo(P.l, py(v)); g.lineTo(w - P.r, py(v)); g.stroke(); g.fillText(v.toFixed(2), P.l - 6, py(v)); });
+  g.textAlign = "center"; g.textBaseline = "top";
+  ks.forEach((k, i) => g.fillText(k, px(i), h - P.b + 6));
+  g.textBaseline = "bottom"; g.fillText(fam === "poly" ? "degree" : "knots", (P.l + w - P.r) / 2, h - 2);
+  g.save(); g.translate(12, (P.t + h - P.b) / 2); g.rotate(-Math.PI / 2); g.textBaseline = "middle"; g.fillText("cross-entropy", 0, 0); g.restore();
+  g.fillStyle = css("--teal"); g.globalAlpha = 0.14;
+  g.fillRect(px(level[fam]) - 10, P.t, 20, h - P.t - P.b); g.globalAlpha = 1;
+  if (showTruth) {
+    g.strokeStyle = css("--ink"); g.setLineDash([8, 6]); g.lineWidth = 2;
+    g.beginPath(); g.moveTo(P.l, py(ql)); g.lineTo(w - P.r, py(ql)); g.stroke(); g.setLineDash([]);
+    g.fillStyle = css("--ink"); g.textAlign = "left"; g.textBaseline = "middle"; g.fillText("true q", w - P.r + 6, py(ql));
+  }
+  const series = (j, color, name) => {
+    g.strokeStyle = color; g.fillStyle = color; g.lineWidth = 3; g.beginPath();
+    rows.forEach((r, i) => i ? g.lineTo(px(i), py(r[j])) : g.moveTo(px(i), py(r[j]))); g.stroke();
+    rows.forEach((r, i) => {
+      g.beginPath(); g.arc(px(i), py(r[j]), 4.5, 0, 2 * Math.PI); g.fill();
+      if (r[j] > Y[1]) { g.textAlign = "right"; g.textBaseline = "middle"; g.fillText(r[j].toFixed(2) + " ↑", px(i) - 10, py(r[j])); }
+    });
+    const last = rows[rows.length - 1][j];
+    g.textAlign = "left"; g.textBaseline = "middle"; g.fillText(name, w - P.r + 8, Math.max(py(last) + (j ? -12 : 12), P.t + 6));
+  };
+  series(0, css("--navy"), "training");
+  if (showTest) series(1, css("--teal"), "test");
+}
+
+document.querySelectorAll("#fam button").forEach(b => b.addEventListener("click", () => {
+  fam = b.dataset.f;
+  document.querySelectorAll("#fam button").forEach(o => o.setAttribute("aria-pressed", String(o === b)));
   update();
 }));
+$("flex").addEventListener("input", () => { level[fam] = +$("flex").value; update(); });
 $("fitbtn").addEventListener("click", () => {
-  const beta = fitMLE();
-  if (model === "lin") { betaL = beta; $("b0").value = beta[0]; $("b1").value = beta[1]; }
-  else betaS = beta;
+  const k = flexOf(fam), beta = fitMLE(fam, k);
+  if (fam === "line") { betaL = beta; $("b0").value = beta[0]; $("b1").value = beta[1]; }
+  else fitted[keyOf(fam, k)] = beta;
   update();
 });
 $("reset").addEventListener("click", () => {
-  betaL = [...START]; $("b0").value = START[0]; $("b1").value = START[1]; betaS = null; $("test").checked = false;
-  model = "lin"; document.querySelectorAll("#model button").forEach(o => o.setAttribute("aria-pressed", String(o.dataset.m === "lin")));
+  betaL = [...START]; $("b0").value = START[0]; $("b1").value = START[1];
+  for (const key in fitted) delete fitted[key];
+  level = { relu: 1, spline: 1, poly: 0 }; $("test").checked = false; $("truth").checked = false;
+  fam = "line"; document.querySelectorAll("#fam button").forEach(o => o.setAttribute("aria-pressed", String(o.dataset.f === "line")));
   update();
 });
 ["b0", "b1"].forEach(id => $(id).addEventListener("input", () => { betaL = [+$("b0").value, +$("b1").value]; update(); }));
-$("test").addEventListener("input", update);
+["test", "truth"].forEach(id => $(id).addEventListener("input", update));
 window.addEventListener("resize", update);
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", update);
 new MutationObserver(update).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-// A link such as #sieve-fit-test opens the demo in that state (used for the slide screenshots).
-const hs = location.hash;
-if (hs.includes("sieve")) document.querySelector('#model button[data-m="sieve"]').click();
-if (hs.includes("fit")) $("fitbtn").click();
+// A link such as #relu3-fit-test-truth opens the demo in that state (used for the slide screenshots); #sieve means ReLU with 3 knots,
+// and #plain hides the right-hand chart.
+const hs = location.hash.replace("sieve", "relu3"), hm = hs.match(/(relu|poly|spline)(\d+)/);
+if (hm && LEVELS[hm[1]].includes(+hm[2])) { level[hm[1]] = LEVELS[hm[1]].indexOf(+hm[2]); document.querySelector('#fam button[data-f="' + hm[1] + '"]').click(); }
 if (hs.includes("test")) $("test").checked = true;
+if (hs.includes("truth")) $("truth").checked = true;
+if (hs.includes("fit")) $("fitbtn").click();
 update();
 </script>
 </body>
