@@ -723,12 +723,32 @@
   $("graph-fit").onclick = () => !running && zoomGraph(1);
   $("graph-zoom-out").onclick = () => !running && zoomGraph(graphZoom - 0.5);
   $("graph-zoom-in").onclick = () => !running && zoomGraph(graphZoom + 0.5);
+  function setInspectorOpen(open, focus = true) {
+    if (running || busy || editor.inert) return;
+    editor.hidden = !open;
+    $("right-settings-slot").hidden = !open;
+    $("open-settings").hidden = open;
+    $("open-settings").setAttribute("aria-expanded", String(open));
+    $("back-easy").setAttribute("aria-expanded", String(open));
+    document.body.dataset.settings = open ? "open" : "closed";
+    $("node-menu").hidden = true;
+    if (focus) {
+      const target = $(open ? "back-easy" : "open-settings");
+      target.focus({ preventScroll: true });
+      const rect = target.getBoundingClientRect();
+      if (rect.top < 0 || rect.left < 0 || rect.bottom > innerHeight || rect.right > innerWidth)
+        target.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+  }
   function openDetails() {
-    if (running) return;
+    if (running || busy) return;
+    if (document.body.dataset.view === "details") {
+      setInspectorOpen(true);
+      return;
+    }
     beforeEdit = signature();
-    editor.hidden = false;
-    $("right-settings-slot").hidden = false;
     document.body.dataset.view = "details";
+    setInspectorOpen(true, false);
     moveGraphAnalysis(true);
     zoomGraph(1);
   }
@@ -737,12 +757,15 @@
     editor.hidden = true;
     $("right-settings-slot").hidden = true;
     document.body.dataset.view = "easy";
+    delete document.body.dataset.settings;
+    $("open-settings").hidden = true;
     moveGraphAnalysis(false);
     zoomGraph(1);
     $("graph-viewport").style.removeProperty("--graph-zoom");
     describe();
   }
-  $("back-easy").onclick = closeDetails;
+  $("back-easy").onclick = () => setInspectorOpen(false);
+  $("open-settings").onclick = () => setInspectorOpen(true);
   for (const id of ["contrast-action", "contrast-reference"])
     $(id).onchange = () => {
       const value = Number($(id).value);
@@ -813,6 +836,8 @@
       "benchmark-download",
       "restore-graph",
       "estimation-method",
+      "open-settings",
+      "back-easy",
     ])
       $(id).disabled =
         value ||
