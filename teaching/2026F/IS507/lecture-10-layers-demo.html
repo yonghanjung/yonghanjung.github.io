@@ -109,14 +109,14 @@ canvas { width: 100%; display: block; border: 1px solid var(--line); border-radi
     </div>
   </div>
 
-  <p class="note">Each layer reads the output of the layer before it; layer 1 reads x. A layer with one unit computes a·ReLU(w·z + b) + c; with two units it adds a second term a′·ReLU(w′·z + b′). The thick line is the last layer's output; the faint lines are the earlier layers, and the dots mark the bends of the thick line. With one unit per layer, every layer's output only rises or only falls, so each new layer adds at most one bend. With two units a layer can fold: press Tent, add a layer, press Tent again, and the pieces double.</p>
+  <p class="note">Each layer reads the output of the layer before it; layer 1 reads x. A layer with one unit computes a·ReLU(w·z + b) + c; with two units it adds a second term a′·ReLU(w′·z + b′). The thick line is the last layer's output; the faint lines are the earlier layers, and the dots mark the bends of the thick line. Every new layer starts as the tent t(z) = 2·ReLU(z) − 4·ReLU(z − 0.5), two units that fold [0, 1] in half, so each press of Add 1 layer doubles the pieces: 2, 4, 8, 16, …. Move the sliders to bend the layers in other ways. Switch a layer to one unit and its output only rises or only falls, so it adds at most one bend; Tent puts the fold back.</p>
 </main>
 
 <script>
 const $ = id => document.getElementById(id);
 const relu = v => Math.max(0, v);
 const PARAMS = [["w", -4, 4], ["b", -2, 2], ["a", -4, 4]];
-const fresh = () => ({ units: [{ w: 1, b: 0, a: 1 }, { w: 1, b: -0.5, a: -1 }], k: 1, c: 0 });
+const fresh = () => ({ units: [{ w: 1, b: 0, a: 2 }, { w: 1, b: -0.5, a: -4 }], k: 2, c: 0 });   // every new layer starts as the tent
 let layers = [fresh()];
 
 const fmt = v => (Math.round(v * 100) / 100).toString().replace("-", "−");

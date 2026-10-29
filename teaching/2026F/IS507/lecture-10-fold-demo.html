@@ -41,16 +41,15 @@ canvas { width: 100%; aspect-ratio: 1 / 1; display: block; border: 1px solid var
 </head>
 <body>
 <main>
-  <h1>Fold the plane, then draw one line</h1>
+  <h1>Fold more, and the region becomes a circle</h1>
 
   <div class="controls">
     <label class="ctl" for="L">Folds L <input id="L" type="range" min="0" max="5" step="1" value="0"> <output id="Lo"></output></label>
     <div class="acc">Accuracy <b id="acc"></b></div>
   </div>
 
-  <div class="plots">
-    <canvas id="plane" role="img" aria-label="The points with the region the folded line approves, unfolded"></canvas>
-    <canvas id="folded" role="img" aria-label="The folded plane with the one line fitted on it"></canvas>
+  <div class="plots" style="grid-template-columns: minmax(0, 640px); justify-content: center">
+    <canvas id="plane" role="img" aria-label="The points, and the region the network calls inside"></canvas>
   </div>
 </main>
 
@@ -127,7 +126,7 @@ function update() {
   let ok = 0; for (let i = 0; i < N; i++) ok += (say(F[i]) ? 1 : 0) === DATA.y[i] ? 1 : 0;
   $("Lo").textContent = L; $("acc").textContent = (ok / N).toFixed(3);
 
-  // left: the plane, with the region the line approves after unfolding, and the mirror lines
+  // the plane, with the region the network calls inside (one line on the folded plane, unfolded)
   let [g, wd, ht] = setup($("plane")), [px, py, s, m] = axes(wd, ht);
   frame(g, px, py);
   const R = 160, cell = s / R;
@@ -137,19 +136,8 @@ function update() {
     if (say(fold([x, y], L))) g.fillRect(m + i * cell, m + j * cell, cell + 0.5, cell + 0.5);
   }
   g.globalAlpha = 1;
-  g.strokeStyle = css("--rust"); g.lineWidth = 1.6; g.setLineDash([7, 5]);
-  for (const th of MIRRORS(L)) { g.beginPath(); g.moveTo(px(-1.5 * Math.cos(th)), py(-1.5 * Math.sin(th))); g.lineTo(px(1.5 * Math.cos(th)), py(1.5 * Math.sin(th))); g.stroke(); }
-  g.setLineDash([]);
   g.save(); g.beginPath(); g.rect(m, m, s, s); g.clip(); points(g, px, py, X); g.restore();
 
-  // right: the folded plane, with the one line
-  [g, wd, ht] = setup($("folded")); [px, py, s, m] = axes(wd, ht);
-  frame(g, px, py); points(g, px, py, F);
-  g.save(); g.beginPath(); g.rect(m, m, s, s); g.clip();
-  g.strokeStyle = css("--teal"); g.lineWidth = 3; g.beginPath();
-  if (Math.abs(w[2]) > 1e-9) { g.moveTo(px(-1), py(-(w[0] - w[1]) / w[2])); g.lineTo(px(1), py(-(w[0] + w[1]) / w[2])); }
-  else { g.moveTo(px(-w[0] / w[1]), py(-1)); g.lineTo(px(-w[0] / w[1]), py(1)); }
-  g.stroke(); g.restore();
 }
 $("L").addEventListener("input", update);
 window.addEventListener("resize", update);

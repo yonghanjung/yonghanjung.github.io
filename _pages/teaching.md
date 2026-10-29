@@ -22,7 +22,7 @@ Interactive demos:
 - [Lecture 10: Two questions, order and cuts of a tree, interactive demo](/teaching/2026F/IS507/lecture-10-tree-demo.html)
 - [Lecture 10: Boosting fits the residuals with stumps, interactive demo](/teaching/2026F/IS507/lecture-10-boost-demo.html)
 - [Lecture 10: Stack ReLU layers one at a time, interactive demo](/teaching/2026F/IS507/lecture-10-layers-demo.html)
-- [Lecture 10: Folding with ReLU layers, interactive demo](/teaching/2026F/IS507/lecture-10-fold-demo.html)
+- [Lecture 10: Fold more, and the region becomes a circle, interactive demo](/teaching/2026F/IS507/lecture-10-fold-demo.html)
 
 ## IS 455: Database Design & Prototyping
 
