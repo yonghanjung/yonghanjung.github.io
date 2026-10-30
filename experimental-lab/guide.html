@@ -134,10 +134,11 @@ permalink: /experimental-lab/guide.html
               Press <strong>Identify</strong>. No CSV, generated sample, or simulated model is needed. Each outcome receives its own identification
               status for the supplied graph and question. <strong>Identifiable</strong> means the graph assumptions allow the requested effect to be
               determined from observed data. It does not validate those assumptions or promise an accurate estimate from your available rows. The
-              identified expectation is shown directly as an expression using observed quantities, with sums for discrete variables and integrals for
-              continuous variables. It follows the chosen query: APO displays one identified interventional mean; ATE displays the difference of two
-              identified means. Formula symbols represent complete ordered joint assignments for treatment clusters. Details contains the returned
-              reason; an unfinished formula expansion is reported without changing the identification status.
+              identified expectation is shown directly as an expression using observed quantities. Σ denotes summation for discrete variables and
+              integration for continuous variables, as noted below the formula. It follows the chosen query: APO displays one identified
+              interventional mean; ATE displays the difference of two identified means. Formula symbols represent complete ordered joint assignments
+              for treatment clusters. Details contains the returned reason; an unfinished formula expansion is reported without changing the
+              identification status.
             </p>
             <h3>Estimate: Upload CSV</h3>
             <p>
@@ -228,11 +229,11 @@ permalink: /experimental-lab/guide.html
               and one baseline covariate node, it binds the released treatment and factual outcome to your treatment/outcome aliases and all released
               covariates to the existing baseline node. For example, <code>X = (x1, …, x25)</code> keeps all 25 covariates inside X rather than adding
               25 graph nodes. The compact graph caption shows the binding; open <strong>Data columns</strong> for the complete member list. This
-              grouping preserves the information used for adjustment and does not infer causal assumptions from data. Front-door and timeline
-              structures require mediator or time-specific bindings that these working datasets do not provide; the app reports this without changing
-              your graph. Use Upload CSV for custom bindings. Counterfactual outcomes and known simulation effects are excluded from working CSVs.
-              ACIC categorical members retain their codebook and use indicator features only inside the estimator. Selecting Random Data clears the
-              active CSV binding and uses the graph’s separate Random Data dimensions.
+              grouping preserves the information used for adjustment and does not infer causal assumptions from data. Benchmarks is disabled for
+              Front-door and Sequential structures because these working datasets provide no mediator or time-specific bindings. Use Upload CSV or
+              Random Data for those structures. Counterfactual outcomes and known simulation effects are excluded from working CSVs. ACIC categorical
+              members retain their codebook and use indicator features only inside the estimator. Selecting Random Data clears the active CSV binding
+              and uses the graph’s separate Random Data dimensions.
             </p>
             <p>
               The first calculation loads numerical libraries. Keep the tab open while it prepares. Both data sources use your device’s CPU and

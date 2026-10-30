@@ -33,6 +33,22 @@
     },
   };
   let stages = structuredClone(defaults.sequential.stages);
+  window.causalEngineBenchmarkAvailability = () => ({
+    available: !["frontdoor", "sequential"].includes(current),
+    busy: running,
+    reason:
+      current === "frontdoor"
+        ? "Benchmarks have no mediator bindings for Front-door. Use Upload CSV or Random Data."
+        : current === "sequential"
+          ? "Benchmarks have no time-specific bindings for Sequential. Use Upload CSV or Random Data."
+          : "",
+  });
+  function syncBenchmarkAvailability() {
+    const state = window.causalEngineBenchmarkAvailability();
+    $("choose-benchmark").disabled = running || !state.available;
+    $("choose-benchmark").title = state.reason;
+    window.CausalBenchmarkUI?.refresh();
+  }
   const structure = () =>
     JSON.stringify({
       nodes: nodes.map(({ name, observed, dimension, family, variable_type, category_levels, members, noise_only }) => ({
@@ -335,6 +351,7 @@
     return mode === "auto" ? "auto" : select.value;
   }
   function describe() {
+    syncBenchmarkAvailability();
     if (["mean", "mean_difference"].includes($("query-summary").value))
       $("estimate-query").value = $("query-summary").value === "mean" ? "apo" : "ate";
     methodChoice();
@@ -623,6 +640,7 @@
     target?.scrollIntoView({ block: "nearest" });
   }
   function checkChanges() {
+    syncBenchmarkAvailability();
     if (groundTruthSignature && groundTruthSignature !== truthStamp()) {
       document.querySelectorAll(".comparison-definition").forEach((e) => e.remove());
       document.querySelectorAll("[data-estimate-comparison]").forEach((table) => {
@@ -843,6 +861,8 @@
         value ||
         (draftDirty && ["easy-identify", "easy-estimate", "run-estimate"].includes(id)) ||
         (id === "run-estimate" && dataSource === "random" && !randomDataReady()) ||
+        (["choose-benchmark", "benchmark-select", "benchmark-estimate", "benchmark-download"].includes(id) &&
+          !window.causalEngineBenchmarkAvailability().available) ||
         (["benchmark-estimate", "benchmark-download"].includes(id) && !$("benchmark-select").value);
     identifyButton.textContent = value && label === "Identify" ? "Identifying…" : "Identify";
     estimateButton.textContent = value && ["Estimate", "Benchmark"].includes(label) ? "Estimating…" : "Estimate";
@@ -948,6 +968,7 @@
               formula.append(math);
               if (math.dataset.integrationNote) {
                 const note = document.createElement("p");
+                note.className = "formula-note";
                 note.textContent = math.dataset.integrationNote;
                 formula.append(note);
               }

@@ -8,8 +8,30 @@
     generation = 0,
     selected = null,
     loading = false,
+    locked = false,
+    blocked = false,
     active = 0;
   trigger.value = "";
+  const availability = () => window.causalEngineBenchmarkAvailability?.() || { available: true, busy: false, reason: "" };
+  function refresh() {
+    const state = availability();
+    if (!state.available) {
+      if (!blocked) ++generation;
+      close();
+      $("benchmark-options").hidden = true;
+      $("choose-benchmark").setAttribute("aria-pressed", "false");
+      $("benchmark-status").textContent = "";
+    }
+    blocked = !state.available;
+    const disabled = blocked || locked || state.busy;
+    $("choose-benchmark").disabled = disabled;
+    $("choose-benchmark").title = state.reason;
+    trigger.disabled = disabled || loading;
+    trigger.title = state.reason;
+    list.inert = disabled || loading;
+    for (const id of ["benchmark-download", "benchmark-estimate"]) $(id).disabled = disabled || loading || !selected;
+    return !disabled;
+  }
   function close() {
     list.hidden = true;
     trigger.setAttribute("aria-expanded", "false");
@@ -23,7 +45,7 @@
     }
   }
   function open() {
-    if (trigger.disabled || !datasets.length) return;
+    if (!refresh() || trigger.disabled || !datasets.length) return;
     active = Math.max(
       0,
       datasets.findIndex((d) => d.id === selected?.id)
@@ -35,17 +57,17 @@
   function busy(value) {
     loading = value;
     if (value) close();
-    trigger.disabled = value;
-    list.inert = value;
-    for (const id of ["benchmark-download", "benchmark-estimate"]) $(id).disabled = value || !selected;
+    refresh();
   }
   window.CausalBenchmarkUI = {
     lock(value) {
+      locked = value;
       if (value) close();
-      list.inert = value || loading;
+      refresh();
     },
+    refresh,
     async estimateSelected() {
-      if (loading) return;
+      if (!refresh() || loading) return;
       if (!selected) {
         $("benchmark-status").textContent = "Choose a dataset to estimate.";
         trigger.focus();
@@ -56,6 +78,7 @@
     },
   };
   function choose(id) {
+    if (!refresh() || loading) return;
     window.causalEngineEnterBenchmark?.();
     ++generation;
     if (selected?.id !== id) {
@@ -99,6 +122,7 @@
   }
   trigger.onclick = () => (list.hidden ? open() : close());
   trigger.onkeydown = (event) => {
+    if (!refresh() || trigger.disabled) return;
     if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
       event.preventDefault();
       if (list.hidden) {
@@ -173,6 +197,7 @@
     box.append(details);
   }
   $("choose-benchmark").onclick = async () => {
+    if (!refresh() || loading) return;
     window.causalEngineEnterBenchmark?.();
     window.causalEngineCancelCSVRead?.();
     const turn = ++generation;
@@ -193,7 +218,7 @@
       const response = await fetch(new URL("manifest.json", root));
       if (!response.ok) throw Error("Dataset list is not available (" + response.status + ").");
       const manifest = await response.json();
-      if (turn !== generation) return;
+      if (turn !== generation || !availability().available) return;
       datasets = manifest.datasets || [];
       options();
       $("benchmark-status").textContent = "";
@@ -209,7 +234,7 @@
       $("choose-benchmark").setAttribute("aria-pressed", "false");
     });
   async function action(estimate) {
-    if (!selected || loading) return;
+    if (!refresh() || !selected || loading) return;
     const entry = selected,
       turn = ++generation,
       stamp = window.causalEngineBenchmarkStamp();
@@ -220,7 +245,7 @@
       const response = await fetch(new URL(entry.csv, root));
       if (!response.ok) throw Error("CSV is not available (" + response.status + ").");
       const text = await response.text();
-      if (turn !== generation) return;
+      if (turn !== generation || !availability().available) return;
       if (estimate) {
         if (stamp !== window.causalEngineBenchmarkStamp()) throw Error("The graph or inputs changed. Select Estimate again.");
         const results = await window.causalEngineEstimateBenchmark(entry, text);
@@ -251,4 +276,5 @@
   }
   $("benchmark-download").onclick = () => action(false);
   $("benchmark-estimate").onclick = () => action(true);
+  refresh();
 })();

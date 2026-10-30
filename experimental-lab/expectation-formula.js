@@ -14,7 +14,7 @@ window.CausalExpectation = (() => {
     }
     return math;
   };
-  function integrateVariable(variable, alias, expression, notes) {
+  function integrateVariable(variable, alias, expression) {
     if (!variable) throw Error("An observational integration variable is absent from the graph.");
     const continuous = ["linear", "quadratic", "bounded", "neural_network", "decision_tree"],
       kind = variable.variable_type || (variable.family === "binary" ? "binary" : continuous.includes(variable.family) ? "continuous" : null),
@@ -28,29 +28,14 @@ window.CausalExpectation = (() => {
         if (levels.every(Number.isFinite) && new Set(levels).size === levels.length) domain = levels;
       }
     }
-    if (kind === "binary" || kind === "categorical") {
-      if (!domain) notes.add("supp(V) denotes the support of V; this display does not assign category codes.");
-      return el(
-        "mrow",
-        el(
-          "munder",
-          el("mo", "∑"),
-          el("mrow", el("mi", alias), el("mo", "∈"), domain ? fence(list(domain.map((x) => el("mn", x))), "{", "}") : support())
-        ),
-        fence(expression)
-      );
-    }
-    if (kind === "continuous" && variable.dimension === 1) return el("mrow", el("mo", "∫"), fence(expression), el("mo", "d"), el("mi", alias));
-    notes.add(
-      "p denotes an observed probability mass or density. μ denotes the variable-specific reference measure, not the marginal P(V). The general integral covers discrete, continuous and mixed types. Means assume numeric outcomes."
-    );
     return el(
       "mrow",
-      el("munder", el("mo", "∫"), el("mrow", el("mi", alias), el("mo", "∈"), support())),
-      fence(expression),
-      el("mo", "d"),
-      el("msub", el("mi", "μ"), el("mi", variable.name)),
-      fence(el("mi", alias))
+      el(
+        "munder",
+        el("mo", "∑"),
+        el("mrow", el("mi", alias), el("mo", "∈"), domain ? fence(list(domain.map((x) => el("mn", x))), "{", "}") : support())
+      ),
+      fence(expression)
     );
   }
   function conditionalMean(result, target, actions, graphNodes, options) {
@@ -97,7 +82,7 @@ window.CausalExpectation = (() => {
       for (const note of JSON.parse(density.dataset.integrationNotes || "[]")) notes.add(note);
       const integrate = (weighted) => {
         const expression = el("mrow", ...(weighted ? [el("mi", y), el("mo", "·")] : []), density.firstChild.cloneNode(true));
-        return integrateVariable(node, y, expression, notes);
+        return integrateVariable(node, y, expression);
       };
       right = el("mfrac", integrate(true), integrate(false));
     }
@@ -172,7 +157,7 @@ window.CausalExpectation = (() => {
       }
       let rendered = body(current);
       for (const b of bindings.reverse()) {
-        rendered = integrateVariable(names.get(b.variable), b.alias, rendered, notes);
+        rendered = integrateVariable(names.get(b.variable), b.alias, rendered);
       }
       return rendered;
     }
@@ -255,9 +240,13 @@ window.CausalExpectation = (() => {
   function render(result, target, actions, graphNodes, options = {}) {
     const primary = renderMean(result, target, actions, graphNodes, options);
     const outcome = graphNodes.find((node) => node.name === target);
-    if (primary && outcome?.variable_type === "categorical" && (!outcome.category_levels || !Object.keys(outcome.category_levels).length)) {
-      const notes = new Set(JSON.parse(primary.dataset.integrationNotes || "[]"));
-      notes.add("Mean uses numeric outcome values; no category coding is chosen here.");
+    if (primary) {
+      const notes = new Set([
+        "Σ denotes summation for discrete variables and integration for continuous variables; p denotes a probability mass or density.",
+        ...JSON.parse(primary.dataset.integrationNotes || "[]"),
+      ]);
+      if (outcome?.variable_type === "categorical" && (!outcome.category_levels || !Object.keys(outcome.category_levels).length))
+        notes.add("Mean uses numeric outcome values; no category coding is chosen here.");
       withNotes(primary, notes);
     }
     if (!primary || options.estimand !== "ate") return primary;
