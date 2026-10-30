@@ -7,7 +7,54 @@ window.CausalExpectation = (() => {
   };
   const list = (xs) => el("mrow", ...xs.flatMap((x, i) => (i ? [el("mo", ","), x] : [x])));
   const fence = (x, l = "(", r = ")") => el("mrow", el("mo", l), x, el("mo", r));
+  const withNotes = (math, notes) => {
+    if (notes.size) {
+      math.dataset.integrationNotes = JSON.stringify([...notes]);
+      math.dataset.integrationNote = [...notes].join(" ");
+    }
+    return math;
+  };
+  function integrateVariable(variable, alias, expression, notes) {
+    if (!variable) throw Error("An observational integration variable is absent from the graph.");
+    const continuous = ["linear", "quadratic", "bounded", "neural_network", "decision_tree"],
+      kind = variable.variable_type || (variable.family === "binary" ? "binary" : continuous.includes(variable.family) ? "continuous" : null),
+      support = () => el("mrow", el("mi", "supp"), fence(el("mi", variable.name)));
+    let domain = null;
+    if (kind === "binary" && variable.dimension === 1) domain = [0, 1];
+    if (kind === "categorical" && variable.dimension === 1) {
+      const raw = variable.category_levels;
+      if (raw && typeof raw === "object" && !Array.isArray(raw) && Object.keys(raw).length) {
+        const levels = Object.keys(raw).map(Number);
+        if (levels.every(Number.isFinite) && new Set(levels).size === levels.length) domain = levels;
+      }
+    }
+    if (kind === "binary" || kind === "categorical") {
+      if (!domain) notes.add("supp(V) denotes the support of V; this display does not assign category codes.");
+      return el(
+        "mrow",
+        el(
+          "munder",
+          el("mo", "∑"),
+          el("mrow", el("mi", alias), el("mo", "∈"), domain ? fence(list(domain.map((x) => el("mn", x))), "{", "}") : support())
+        ),
+        fence(expression)
+      );
+    }
+    if (kind === "continuous" && variable.dimension === 1) return el("mrow", el("mo", "∫"), fence(expression), el("mo", "d"), el("mi", alias));
+    notes.add(
+      "p denotes an observed probability mass or density. μ denotes the variable-specific reference measure, not the marginal P(V). The general integral covers discrete, continuous and mixed types. Means assume numeric outcomes."
+    );
+    return el(
+      "mrow",
+      el("munder", el("mo", "∫"), el("mrow", el("mi", alias), el("mo", "∈"), support())),
+      fence(expression),
+      el("mo", "d"),
+      el("msub", el("mi", "μ"), el("mi", variable.name)),
+      fence(el("mi", alias))
+    );
+  }
   function conditionalMean(result, target, actions, graphNodes, options) {
+    const notes = new Set();
     const conditions = result.conditioning.variables,
       alias = options.reference ? "a₀" : "a";
     const assignments = actions.map((v, i) => el("mrow", el("mi", v), el("mo", "="), el("mi", actions.length === 1 ? alias : alias + (i + 1))));
@@ -47,26 +94,17 @@ window.CausalExpectation = (() => {
       });
       const node = graphNodes.find((n) => n.name === target),
         y = target.toLowerCase();
+      for (const note of JSON.parse(density.dataset.integrationNotes || "[]")) notes.add(note);
       const integrate = (weighted) => {
         const expression = el("mrow", ...(weighted ? [el("mi", y), el("mo", "·")] : []), density.firstChild.cloneNode(true));
-        return node?.family === "binary" || node?.variable_type === "binary"
-          ? el(
-              "mrow",
-              el(
-                "munder",
-                el("mo", "∑"),
-                el("mrow", el("mi", y), el("mo", "∈"), el("mo", "{"), el("mn", 0), el("mo", ","), el("mn", 1), el("mo", "}"))
-              ),
-              expression
-            )
-          : el("mrow", el("mo", "∫"), expression, el("mi", "d"), el("mi", y));
+        return integrateVariable(node, y, expression, notes);
       };
       right = el("mfrac", integrate(true), integrate(false));
     }
     const math = el("math", expectation(true), el("mo", "="), right);
     math.setAttribute("display", "block");
     math.setAttribute("aria-label", "Identified row-specific conditional mean for " + target);
-    return math;
+    return withNotes(math, notes);
   }
   function renderMean(result, target, actions, graphNodes, options = {}) {
     if (result.identification.status !== "IDENTIFIABLE") return null;
@@ -88,6 +126,7 @@ window.CausalExpectation = (() => {
     if (!tree || !completeFormula(tree)) throw Error("A fully expanded observational formula is not available for this graph.");
     const node = graphNodes.find((n) => n.name === target);
     if (!node || node.dimension !== 1) throw Error("Expectation display currently requires a scalar outcome.");
+    const notes = new Set();
     const used = new Set(graphNodes.map((n) => n.name)),
       names = new Map(graphNodes.map((n) => [n.name, n])),
       symbols = new Map();
@@ -133,33 +172,7 @@ window.CausalExpectation = (() => {
       }
       let rendered = body(current);
       for (const b of bindings.reverse()) {
-        const variable = names.get(b.variable),
-          knownContinuous = ["linear", "quadratic", "bounded", "neural_network", "decision_tree"],
-          kind =
-            variable?.variable_type || (variable?.family === "binary" ? "binary" : knownContinuous.includes(variable?.family) ? "continuous" : null);
-        if (!variable || variable.dimension !== 1 || !["binary", "categorical", "continuous"].includes(kind))
-          throw Error("Set scalar variable types in Node & model settings to display the integration domain.");
-        let domain = null;
-        if (kind === "binary") domain = [0, 1];
-        if (kind === "categorical") {
-          const raw = variable.category_levels;
-          if (!raw || typeof raw !== "object" || Array.isArray(raw) || !Object.keys(raw).length)
-            throw Error("A complete category codebook is required to display this expectation.");
-          domain = Object.keys(raw).map(Number);
-          if (domain.some((x) => !Number.isFinite(x)) || new Set(domain).size !== domain.length)
-            throw Error("The category codebook needs unique finite numeric levels.");
-        }
-        rendered = domain
-          ? el(
-              "mrow",
-              el(
-                "munder",
-                el("mo", "∑"),
-                el("mrow", name(b.alias), el("mo", "∈"), el("mo", "{"), list(domain.map((x) => el("mn", x))), el("mo", "}"))
-              ),
-              fence(rendered)
-            )
-          : el("mrow", el("mo", "∫"), fence(rendered), el("mo", "d"), name(b.alias));
+        rendered = integrateVariable(names.get(b.variable), b.alias, rendered, notes);
       }
       return rendered;
     }
@@ -192,7 +205,7 @@ window.CausalExpectation = (() => {
       if (t.type === "add") return el("mrow", child(t.left), el("mo", "+"), child(t.right));
       throw Error("The expression still contains an unexpanded kernel.");
     }
-    if (options.densityOnly) return el("math", walk(tree));
+    if (options.densityOnly) return withNotes(el("math", walk(tree)), notes);
     const sourceRow = result.criteria[source],
       adjustment =
         ["BD", "AC"].includes(source) && sourceRow?.status === "ACCEPT" && Array.isArray(sourceRow.witness?.Z) ? sourceRow.witness.Z : null,
@@ -237,10 +250,16 @@ window.CausalExpectation = (() => {
     math.setAttribute("display", "block");
     math.setAttribute("aria-label", "Identified expectation for " + target);
     if (adjustment?.length > 1) math.dataset.adjustmentVariables = JSON.stringify(adjustment);
-    return math;
+    return withNotes(math, notes);
   }
   function render(result, target, actions, graphNodes, options = {}) {
     const primary = renderMean(result, target, actions, graphNodes, options);
+    const outcome = graphNodes.find((node) => node.name === target);
+    if (primary && outcome?.variable_type === "categorical" && (!outcome.category_levels || !Object.keys(outcome.category_levels).length)) {
+      const notes = new Set(JSON.parse(primary.dataset.integrationNotes || "[]"));
+      notes.add("Mean uses numeric outcome values; no category coding is chosen here.");
+      withNotes(primary, notes);
+    }
     if (!primary || options.estimand !== "ate") return primary;
     const reference = renderMean(result, target, actions, graphNodes, { ...options, reference: true });
     const [left, , right] = [...primary.childNodes],

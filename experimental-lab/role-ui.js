@@ -938,7 +938,19 @@
               members: Object.fromEntries(actions.map((a) => [a, actionMembers(a)])),
             });
             if (math) {
+              status.hidden = true;
+              formula.tabIndex = 0;
+              formula.setAttribute("role", "region");
+              formula.setAttribute(
+                "aria-label",
+                "Identified observational expectation for " + target + "; scroll horizontally to read the full formula"
+              );
               formula.append(math);
+              if (math.dataset.integrationNote) {
+                const note = document.createElement("p");
+                note.textContent = math.dataset.integrationNote;
+                formula.append(note);
+              }
               if (math.dataset.adjustmentVariables) {
                 const variables = JSON.parse(math.dataset.adjustmentVariables),
                   d = document.createElement("details"),
