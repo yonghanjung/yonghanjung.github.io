@@ -229,7 +229,7 @@
         if (ns.length) {
           ns.push({ name: "U_hidden", observed: false, dimension: 1, family: "", x: 100, y: 100 });
           metadata.U_hidden = { column: 0, role: "hidden" };
-          link(["U_hidden"], [...s.a, ...s.y]);
+          link(["U_hidden"], [...s.c, ...s.a, ...s.y]);
         }
         link(s.a, s.m);
         link(s.m, s.y);
