@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Two-Layer Loss Surface</title>
+<style>
+:root{--ink:#11233F;--muted:#53657A;--navy:#173B7A;--teal:#0E7490;--rust:#9A3412;--bg:#FFFFFF;--fill:#F0FAFC;--line:#CBD5E1}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1100px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:4px 0 6px}
+p{margin:4px 0;color:var(--muted);line-height:1.45}
+code{color:var(--navy)}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:10px 0;padding:10px;background:var(--fill);border:1px solid var(--line);border-radius:8px}
+label{font-size:14px}
+input[type=number]{width:70px}
+button{background:var(--teal);color:#fff;border:0;border-radius:6px;padding:6px 12px;font-size:14px;cursor:pointer}
+button.alt{background:var(--navy)}
+#plots{display:grid;grid-template-columns:3fr 2fr;gap:8px}
+@media (max-width:760px){#plots{grid-template-columns:1fr}}
+#status{font-family:ui-monospace,monospace;font-size:13px;color:var(--ink)}
+</style>
+</head>
+<body>
+<main>
+<h1>Gradient descent on a real two-layer network</h1>
+<p>Network: <code>h(x) = 1.5 · ReLU(2 · ReLU(ω x + b) − 0.5)</code>. Layer 1 has weight ω and bias b; layer 2 and the output are fixed, so the loss depends on two numbers and can be drawn.</p>
+<p>Data: 60 simulated points from the same network with ω = 1.2, b = 0.3, plus noise. Loss: <code>L(ω, b) = mean of (y − h(x))²</code>. Drag the hill to turn it; click the map to choose a start, then press Run.</p>
+<div class="row">
+  <label>start ω <input id="w0" type="number" step="0.1" value="-0.5"></label>
+  <label>start b <input id="b0" type="number" step="0.1" value="1.5"></label>
+  <label>step size η <input id="eta" type="range" min="0.01" max="1.5" step="0.01" value="0.05"> <span id="etav">0.05</span></label>
+  <label>steps <input id="nst" type="number" min="1" max="1000" value="200"></label>
+  <button id="run">Run</button>
+  <button id="rand" class="alt">Random start</button>
+  <button id="many" class="alt">10 random starts</button>
+</div>
+<div id="status"></div>
+<div id="plots"><div><canvas id="surf" width="620" height="480" style="width:100%;cursor:grab"></canvas><p>Drag to turn the hill.</p></div><div><canvas id="map" width="420" height="420" style="width:100%;cursor:crosshair"></canvas><p>Map from above. Click to choose a start.</p></div></div>
+<p>Things to try: (1) start at ω = 0.5, b = −1.4: the first unit is always off there, the slope is exactly 0, and the walk never moves. (2) start at ω = −2, b = −1: the walk slides into that flat area and stops at a bad loss. (3) keep the default start and raise η to about 0.6 or more: the walk overshoots. Different starts can end in different places. (4) press 10 random starts: some walks get stuck in the flat area, and we keep the best one.</p>
+</main>
+<script>
+const relu=v=>v>0?v:0;
+let seed=507;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647};
+const gauss=()=>{let u=rnd()||1e-9,v=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)};
+const h=(x,w,b)=>1.5*relu(2*relu(w*x+b)-0.5);
+const X=[],Y=[];for(let i=0;i<60;i++){const x=-1+2*rnd();X.push(x);Y.push(h(x,1.2,0.3)+0.08*gauss())}
+const L=(w,b)=>{let s=0;for(let i=0;i<X.length;i++){const e=Y[i]-h(X[i],w,b);s+=e*e}return s/X.length};
+const grad=(w,b,d=1e-4)=>[(L(w+d,b)-L(w-d,b))/(2*d),(L(w,b+d)-L(w,b-d))/(2*d)];
+const W=[],B=[],Z=[];const n=81;
+for(let i=0;i<n;i++)W.push(-2.5+5*i/(n-1));for(let j=0;j<n;j++)B.push(-1.5+4*j/(n-1));
+for(let j=0;j<n;j++){const r=[];for(let i=0;i<n;i++)r.push(Math.min(L(W[i],B[j]),4));Z.push(r)}
+const col=v=>{const a=Math.min(v/4,1);const c0=[240,250,252],c1=[14,116,144];return `rgb(${c0.map((c,k)=>Math.round(c+(c1[k]-c)*a)).join(',')})`};
+let yaw=-0.8,pitch=0.6,PW=[],PB=[],MULTI=[];
+const sc=document.getElementById('surf'),sx=sc.getContext('2d');
+function proj(w,b,z){const x=w/2.5,y=(b-0.5)/2,zz=z/4*0.9-0.45;
+  const xr=x*Math.cos(yaw)-y*Math.sin(yaw),yr=x*Math.sin(yaw)+y*Math.cos(yaw);
+  const sy=zz*Math.cos(pitch)-yr*Math.sin(pitch),d=yr*Math.cos(pitch)+zz*Math.sin(pitch);
+  return [310+xr*190,250-sy*190,d]}
+function drawSurf(){sx.clearRect(0,0,sc.width,sc.height);const q=[],st=2;
+  for(let j=0;j<n-st;j+=st)for(let i=0;i<n-st;i+=st){const pts=[[i,j],[i+st,j],[i+st,j+st],[i,j+st]].map(([a,c])=>proj(W[a],B[c],Z[c][a]));
+    q.push({pts,d:pts.reduce((s,p)=>s+p[2],0)/4,z:(Z[j][i]+Z[j+st][i+st])/2})}
+  q.sort((a,b)=>b.d-a.d);
+  for(const f of q){sx.beginPath();f.pts.forEach((p,k)=>k?sx.lineTo(p[0],p[1]):sx.moveTo(p[0],p[1]));sx.closePath();sx.fillStyle=col(f.z);sx.fill();sx.strokeStyle='rgba(83,101,122,0.25)';sx.stroke()}
+  MULTI.forEach(([mw,mb])=>{sx.beginPath();mw.forEach((w,k)=>{const p=proj(w,mb[k],Math.min(L(w,mb[k]),4)+0.05);k?sx.lineTo(p[0],p[1]):sx.moveTo(p[0],p[1])});sx.strokeStyle='rgba(83,101,122,0.8)';sx.lineWidth=1.5;sx.stroke();sx.lineWidth=1});
+  if(PW.length){sx.beginPath();PW.forEach((w,k)=>{const p=proj(w,PB[k],Math.min(L(w,PB[k]),4)+0.05);k?sx.lineTo(p[0],p[1]):sx.moveTo(p[0],p[1])});sx.strokeStyle='#11233F';sx.lineWidth=2.5;sx.stroke();sx.lineWidth=1;
+    const s=proj(PW[0],PB[0],Math.min(L(PW[0],PB[0]),4)+0.05);sx.fillStyle='#11233F';sx.beginPath();sx.arc(s[0],s[1],5,0,7);sx.fill();sx.fillText('start',s[0]+7,s[1]-6)}
+  const t=proj(1.2,0.3,L(1.2,0.3));sx.fillStyle='#9A3412';sx.beginPath();sx.arc(t[0],t[1],5,0,7);sx.fill();sx.font='13px system-ui';sx.fillText('true (ω, b)',t[0]+7,t[1]+14);
+  sx.fillStyle='#53657A';const a=proj(2.5,-1.5,0),bq=proj(-2.5,2.5,0);sx.fillText('ω →',a[0]+4,a[1]+14);sx.fillText('b',bq[0]-14,bq[1])}
+let drag=null;sc.onmousedown=e=>drag=[e.clientX,e.clientY,yaw,pitch];window.onmouseup=()=>drag=null;
+window.onmousemove=e=>{if(!drag)return;yaw=drag[2]+(e.clientX-drag[0])*0.01;pitch=Math.max(0.05,Math.min(1.5,drag[3]+(e.clientY-drag[1])*0.01));drawSurf()};
+const mc=document.getElementById('map'),mx=mc.getContext('2d');
+const toPx=(w,b)=>[(w+2.5)/5*420,420-(b+1.5)/4*420];
+function drawMap(){const cw=420/n;for(let j=0;j<n;j++)for(let i=0;i<n;i++){const v=Z[j][i];mx.fillStyle=col(Math.floor(v*4)/4);const [px,py]=toPx(W[i],B[j]);mx.fillRect(px-cw/2,py-cw/2,cw+1,cw+1)}
+  MULTI.forEach(([mw,mb])=>{mx.strokeStyle='rgba(83,101,122,0.8)';mx.lineWidth=1.5;mx.beginPath();mw.forEach((w,k)=>{const p=toPx(w,mb[k]);k?mx.lineTo(...p):mx.moveTo(...p)});mx.stroke()});
+  mx.strokeStyle='#11233F';mx.lineWidth=2;mx.beginPath();PW.forEach((w,k)=>{const p=toPx(w,PB[k]);k?mx.lineTo(...p):mx.moveTo(...p)});mx.stroke();
+  if(PW.length){const p=toPx(PW[0],PB[0]);mx.fillStyle='#11233F';mx.beginPath();mx.arc(p[0],p[1],5,0,7);mx.fill()}
+  const t=toPx(1.2,0.3);mx.fillStyle='#9A3412';mx.beginPath();mx.arc(t[0],t[1],6,0,7);mx.fill();
+  mx.fillStyle='#11233F';mx.font='13px system-ui';mx.fillText('weight ω →',330,412);mx.fillText('bias b ↑',6,16)}
+mc.onclick=e=>{const r=mc.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*420,y=(e.clientY-r.top)/r.height*420;
+  document.getElementById('w0').value=(-2.5+x/420*5).toFixed(2);document.getElementById('b0').value=(-1.5+(420-y)/420*4).toFixed(2);MULTI=[];run()};
+const $=id=>document.getElementById(id);
+$('eta').oninput=()=>$('etav').textContent=(+$('eta').value).toFixed(2);
+function run(){
+  let w=+$('w0').value,b=+$('b0').value;const eta=+$('eta').value,k=+$('nst').value;
+  const pw=[w],pb=[b],pz=[L(w,b)];
+  for(let s=0;s<k;s++){const g=grad(w,b);w-=eta*g[0];b-=eta*g[1];
+    if(!isFinite(w)||Math.abs(w)>50||Math.abs(b)>50)break;pw.push(w);pb.push(b);pz.push(L(w,b))}
+  PW=pw;PB=pb;drawSurf();drawMap();
+  const g0=grad(+$('w0').value,+$('b0').value);
+  $('status').textContent=`start loss ${pz[0].toFixed(3)} | slope at start (dL/dω, dL/db) = (${g0[0].toFixed(3)}, ${g0[1].toFixed(3)}) | end (ω, b) = (${w.toFixed(2)}, ${b.toFixed(2)}) | end loss ${pz[pz.length-1].toFixed(3)} after ${pw.length-1} steps`;
+}
+function walkPath(w,b,eta,k){const pw=[w],pb=[b];for(let s=0;s<k;s++){const g=grad(w,b);w-=eta*g[0];b-=eta*g[1];if(!isFinite(w)||Math.abs(w)>50||Math.abs(b)>50)break;pw.push(w);pb.push(b)}return [pw,pb]}
+$('many').onclick=()=>{const eta=+$('eta').value,k=+$('nst').value;MULTI=[];let best=null,good=0;
+  for(let r=0;r<10;r++){const w0=-2.5+5*Math.random(),b0=-1.5+4*Math.random();const P=walkPath(w0,b0,eta,k);MULTI.push(P);
+    const e=L(P[0][P[0].length-1],P[1][P[1].length-1]);if(e<0.02)good++;if(!best||e<best[0])best=[e,P]}
+  MULTI=MULTI.filter(P=>P!==best[1]);PW=best[1][0];PB=best[1][1];drawSurf();drawMap();
+  $('status').textContent=`10 random starts: ${good} of 10 reach the bottom (loss < 0.02). Best end (ω, b) = (${PW[PW.length-1].toFixed(2)}, ${PB[PB.length-1].toFixed(2)}), loss ${best[0].toFixed(3)} (black). Grey: the other 9. In practice, keep the best one on validation data.`};
+$('run').onclick=()=>{MULTI=[];run()};
+$('rand').onclick=()=>{MULTI=[];$('w0').value=(-2.5+5*Math.random()).toFixed(1);$('b0').value=(-1.5+4*Math.random()).toFixed(1);run()};
+run();
+</script>
+</body>
+</html>
