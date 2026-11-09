@@ -2023,6 +2023,7 @@
   }
   const lineText = (line) => `${line.a} ${line.op} ${line.b} = ${line.value}`;
   function practiceLines(p, inject = true) {
+    if (p.workVersion === "audit-v2") return auditLines(p, inject);
     const rows = [];
     const add = (a, op, b) => {
       const correct = arithmeticValue(a, op, b);
@@ -2068,6 +2069,112 @@
     if (p.op === "÷") return `Check: ${total} × ${p.b} = ${p.a}.`;
     return `Check one group: ${total} − ${p.a * (p.b - 1)} = ${p.a}.`;
   }
+  function auditLines(p, inject = true) {
+    const rows = [];
+    const add = (a, op, b) => {
+      const correct = arithmeticValue(a, op, b),
+        value = inject && rows.length === p.errorIndex ? p.wrongValue : correct;
+      rows.push({ a, op, b, value });
+      return value;
+    };
+    if (p.family === "counting") {
+      const kept = add(p.a, "−", 100),
+        subtotal = add(100, "−", p.b),
+        total = add(kept, "+", subtotal);
+      add(total, "+", p.b);
+    } else if (["+", "−"].includes(p.op)) {
+      let total = p.a;
+      for (const part of p.parts) total = add(total, p.op, part);
+      add(total, p.op === "+" ? "−" : "+", p.b);
+    } else if (p.op === "×") {
+      const tens = add(p.split, "×", p.b),
+        ones = add(p.a - p.split, "×", p.b),
+        total = add(tens, "+", ones),
+        otherGroups = add(p.a, "×", p.b - 1);
+      add(total, "−", otherGroups);
+    } else {
+      const rest = add(p.a, "−", p.split),
+        first = add(p.split, "÷", p.b),
+        second = add(rest, "÷", p.b),
+        total = add(first, "+", second);
+      add(total, "×", p.b);
+    }
+    return rows;
+  }
+  function regroupPlaces(a, op, b) {
+    const places = [];
+    let carry = 0,
+      place = 10;
+    while (a || b) {
+      const raw = op === "+" ? (a % 10) + (b % 10) + carry : (a % 10) - (b % 10) - carry;
+      carry = op === "+" ? Number(raw >= 10) : Number(raw < 0);
+      if (carry) places.push(place);
+      a = Math.floor(a / 10);
+      b = Math.floor(b / 10);
+      place *= 10;
+    }
+    return places;
+  }
+  function auditErrorCandidates(row, p) {
+    const correct = arithmeticValue(row.a, row.op, row.b),
+      cap = ["+", "−"].includes(p.op) ? 10 ** p.maxDigits - 1 : 9999;
+    let candidates = [];
+    if (p.op === "÷" && p.errorIndex === 0) {
+      candidates = [correct - p.b, correct + p.b];
+    } else if (["+", "−"].includes(row.op)) {
+      const places = regroupPlaces(row.a, row.op, row.b);
+      candidates = places.flatMap((place) => [correct - place, correct + place]);
+      // A local fact error stays local; never turn 3 + 2 into 105.
+      if (!candidates.length) candidates = [correct - 1, correct + 1];
+    } else if (row.op === "×") {
+      candidates = [row.a * (row.b - 1), row.a * (row.b + 1)];
+      if (row.a % 10) candidates.push((row.a - 1) * row.b, (row.a + 1) * row.b);
+    } else candidates = [correct - 1, correct + 1];
+    return [...new Set(candidates)].filter((value) => {
+      if (!int(value, 1, cap) || value === correct || String(value).length !== String(correct).length) return false;
+      if (row.op === "+" && value <= Math.max(row.a, row.b)) return false;
+      if (row.op === "−" && value >= row.a) return false;
+      if (row.op === "÷" && !int(value, 1, 9)) return false;
+      if (p.op === "÷" && p.errorIndex === 0 && (value % p.b || !int(value / p.b, 1, 8))) return false;
+      if (p.op === "÷" && p.errorIndex === 3 && !int(value, 1, 9)) return false;
+      return true;
+    });
+  }
+  function makeAuditQuestion(p, common, total, cap) {
+    if (p.workVersion !== "audit-v2" || !int(p.errorIndex, 0, p.op === "÷" ? 3 : 2)) throw Error("Invalid audit version or error position");
+    if (["+", "−"].includes(p.op) && p.family !== "counting") {
+      if (!Array.isArray(p.parts) || p.parts.length !== 3 || !p.parts.every((n) => int(n, 1, p.b)) || p.parts.reduce((a, b) => a + b, 0) !== p.b)
+        throw Error("Invalid place-value parts");
+    } else if (p.op === "×") {
+      if (!int(p.split, 1, p.a - 1)) throw Error("Invalid multiplication split");
+    } else if (p.op === "÷" && (!int(p.split, p.b, p.a - p.b) || p.split % p.b)) throw Error("Invalid division split");
+    const corrected = auditLines(p, false),
+      target = corrected[p.errorIndex];
+    if (p.family === "counting" && p.errorIndex !== 1) throw Error("Audit the hundred subtotal");
+    if (["+", "−"].includes(p.op) && p.maxDigits >= 2 && !regroupPlaces(target.a, target.op, target.b).length)
+      throw Error("The wrong step must require regrouping");
+    if (!auditErrorCandidates(target, p).includes(p.wrongValue)) throw Error("Implausible audit error");
+    const lines = auditLines(p);
+    if (!validLines(lines, cap) || !validLines(corrected, cap)) throw Error("Invalid audit steps");
+    const wrong = lines.map((row, i) => (arithmeticValue(row.a, row.op, row.b) !== row.value ? i : -1)).filter((i) => i >= 0);
+    if (wrong.length !== 1 || wrong[0] !== p.errorIndex) throw Error("Exactly one false audit line is required");
+    const stem = `${p.a} ${p.op} ${p.b}`;
+    return {
+      ...common,
+      prompt: `${stem}\nTap the first wrong line. Fix its last number.`,
+      visual: { kind: "worked_solution", lines },
+      response: {
+        kind: "pair",
+        fields: [
+          { key: "Line", label: "First wrong line", maxDigits: 1 },
+          { key: "Fix", label: "Correct number", maxDigits: 4 },
+        ],
+      },
+      answer: { Line: p.errorIndex + 1, Fix: target.value },
+      hint: "Check each step in order. Watch place value and regrouping. Later lines may carry the first mistake.",
+      explanation: corrected.map((row, i) => `${i + 1}. ${lineText(row)}`).join("\n") + `\nAnswer: ${stem} = ${total}.\n` + practiceCheck(p, total),
+    };
+  }
   function makePracticeQuestion(section, params) {
     const p = { ...params },
       cap = ["+", "−"].includes(p.op) ? 10 ** p.maxDigits - 1 : 9999;
@@ -2099,6 +2206,7 @@
       params: p,
       signature: JSON.stringify([section, p]),
     };
+    if (section === "findfix" && p.workVersion != null) return makeAuditQuestion(p, common, total, cap);
     if (section === "addsub") {
       const method =
         p.family === "counting"
@@ -2159,6 +2267,32 @@
     return { ok: !errors.length, errors };
   }
   function practiceSchedule(section, config) {
+    if (section === "findfix") {
+      const counts = Object.fromEntries(config.ops.map((op) => [op, 0])),
+        bag = shuffle(config.ops),
+        ops = Array.from({ length: 20 }, (_, i) => bag[i % bag.length]),
+        totals = Object.fromEntries(config.ops.map((op) => [op, ops.filter((x) => x === op).length])),
+        errorBags = Object.fromEntries(config.ops.map((op) => [op, shuffle(Array.from({ length: totals[op] }, (_, i) => i % (op === "÷" ? 4 : 3)))]));
+      return ops.map((op) => {
+        const occurrence = counts[op]++,
+          width = config.maxDigits === 1 ? 1 : Math.max(2, config.maxDigits - Number(occurrence % 3 === 0));
+        let family =
+          op === "+" ? (width > 1 ? "carry" : "plain") : op === "−" ? (width > 1 ? "borrow" : "plain") : op === "×" ? "partial" : "division";
+        if (op === "−" && width >= 3) family = ["zerochain", "borrow", "counting"][occurrence % 3];
+        return [
+          section,
+          {
+            op,
+            width,
+            family,
+            maxDigits: config.maxDigits,
+            errorIndex: family === "counting" ? 1 : errorBags[op][occurrence],
+            occurrence,
+            workVersion: "audit-v2",
+          },
+        ];
+      });
+    }
     const counts = Object.fromEntries(config.ops.map((op) => [op, 0]));
     const ops = Array.from({ length: 20 }, (_, i) => config.ops[i % config.ops.length]);
     const totals = Object.fromEntries(config.ops.map((op) => [op, ops.filter((x) => x === op).length]));
@@ -2173,6 +2307,7 @@
     });
   }
   function generatePracticeQuestion(section, opt) {
+    if (section === "findfix" && opt.workVersion === "audit-v2") return generateAuditQuestion(opt);
     for (let attempt = 0; attempt < 256; attempt++) {
       const maxDigits = opt.maxDigits,
         width = opt.width,
@@ -2234,6 +2369,56 @@
       }
     }
     throw Error("Could not generate a bounded practice question");
+  }
+  function auditParts(value) {
+    if (value < 3) throw Error("Three positive parts required");
+    const place = 10 ** (String(value).length - 1),
+      first = value >= 10 && value % place >= 2 ? Math.floor(value / place) * place : rand(1, value - 2),
+      rest = value - first,
+      second = rest >= 10 && rest % 10 ? Math.floor(rest / 10) * 10 : rand(1, rest - 1);
+    return [first, second, rest - second];
+  }
+  function generateAuditQuestion(opt) {
+    const { op, width, maxDigits, family, errorIndex } = opt,
+      cap = 10 ** maxDigits - 1;
+    for (let attempt = 0; attempt < 512; attempt++) {
+      let a, b;
+      if (family === "counting") {
+        a = 100 * rand(width >= 4 ? 10 : 2, width >= 4 ? 99 : 9);
+        b = pick(countingEngine().TAKES);
+      } else if (family === "zerochain") {
+        a = width >= 4 ? rand(1, 9) * 1000 + rand(0, 98) : rand(2, 9) * 100 + rand(0, 9);
+        b = rand(Math.max(3, (a % (width >= 4 ? 1000 : 100)) + 1), 99);
+      } else if (op === "+") {
+        a = rand(width === 1 ? 1 : 10 ** (width - 1), Math.min(10 ** width - 1, cap - 3));
+        const top = Math.min(10 ** width - 1, cap - a);
+        if (top < 3) continue;
+        b = rand(3, top);
+        if (family === "carry" && !hasCarry(a, b)) continue;
+      } else if (op === "−") {
+        a = rand(width === 1 ? 4 : 10 ** (width - 1), 10 ** width - 1);
+        b = rand(3, a - 1);
+        if (family === "borrow" && !borrowing(a, b).borrowed) continue;
+      } else if (op === "×") {
+        a = opt.occurrence % 5 === 4 ? rand(6, 9) : rand(4, 9) * 10 + rand(6, 9);
+        b = rand(6, 9);
+      } else {
+        b = rand(4, 9);
+        a = b * rand(4, 9);
+      }
+      const p = { a, b, op, family, maxDigits, workVersion: "audit-v2", errorIndex };
+      if (["+", "−"].includes(op) && family !== "counting") p.parts = auditParts(b);
+      else if (op === "×") p.split = a >= 10 ? a - (a % 10) : Math.floor(a / 2);
+      else if (op === "÷") p.split = b * rand(1, a / b - 1);
+      const row = auditLines(p, false)[errorIndex];
+      if (["+", "−"].includes(op) && maxDigits >= 2 && !regroupPlaces(row.a, row.op, row.b).length) continue;
+      for (const wrongValue of shuffle(auditErrorCandidates(row, p))) {
+        try {
+          return makePracticeQuestion("findfix", { ...p, wrongValue });
+        } catch {}
+      }
+    }
+    throw Error("Could not generate a challenging audit question");
   }
 
   const countingEngine = () => root.CountingSense || (typeof module !== "undefined" ? require("../../children-math/counting-sense/engine.js") : null);
@@ -2463,7 +2648,8 @@
     const settings = Object.fromEntries(domains.map((s) => [s, selectedPractice(s, options)]));
     const config = JSON.stringify(domains.map((s) => [s, settings[s]]));
     const randomKey = date ? null : options.roundKey ?? Array.from(root.crypto.getRandomValues(new Uint32Array(2)), (n) => n.toString(36)).join("-");
-    const key = `HM6-selected-v1|${date || randomKey}|${config}`;
+    const version = domains.includes("findfix") ? "HM6-selected-v2" : "HM6-selected-v1";
+    const key = `${version}|${date || randomKey}|${config}`;
     const rolling = date ? [] : [...(options.baselineFingerprints || []), ...(options.recentFingerprints || [])].slice(-20);
     const out = [],
       plans = new Map();
@@ -2505,7 +2691,7 @@
       }
       if (!accepted) throw Error("Fresh visible question capacity exhausted");
       const { q, fingerprint } = accepted;
-      q.id = `HM6-selected-v1-${date || randomKey}-${domains.join("-")}-${i}`;
+      q.id = `${version}-${date || randomKey}-${domains.join("-")}-${i}`;
       rolling.push(fingerprint);
       if (rolling.length > 20) rolling.shift();
       if (i >= offset) out.push(q);
@@ -2549,7 +2735,7 @@
       throw Error("Invalid round count or offset");
     const practice = PRACTICE_SECTIONS.includes(section) ? normalizePractice(section, ops, maxDigits) : null;
     const blockSize = practice ? 20 : 10;
-    const streamVersion = practice ? VERSION : "HM6-v5";
+    const streamVersion = section === "findfix" ? "HM6-findfix-v2" : practice ? VERSION : "HM6-v5";
     const configKey = practice ? `|${practice.ops.join("")}|${practice.maxDigits}` : "";
     const date = normalizeSeed(seed),
       out = [],

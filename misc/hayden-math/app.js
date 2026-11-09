@@ -5,7 +5,7 @@
   const toolbar = document.getElementById("toolbar");
   const STORAGE = "haydenMathLab.v1";
   const TOPICS = {
-    mix: "Mix",
+    mix: "Mixed topics",
     arithmetic: "Arithmetic Challenge",
     measurement: "Measurement",
     geometry: "Geometry",
@@ -208,12 +208,13 @@
     const topics = el("div", "topic-grid");
     topics.setAttribute("role", "group");
     topics.setAttribute("aria-label", "Topics");
-    for (const [key, label] of Object.entries(TOPICS)) {
-      const selected = key === "mix" ? sectionFor(prefs.domains) === "mix" : prefs.domains.includes(key);
+    for (const [key, topicLabel] of Object.entries(TOPICS)) {
+      const label = key === "mix" ? "All topics" : topicLabel;
+      const selected = key === "mix" ? prefs.domains.length === E.SELECTABLE_DOMAINS.length : prefs.domains.includes(key);
       const b = button(
         label,
         () => {
-          if (key === "mix") prefs.domains = [...E.DOMAINS];
+          if (key === "mix") prefs.domains = [...E.SELECTABLE_DOMAINS];
           else {
             if (selected && prefs.domains.length === 1) return;
             prefs.domains = E.normalizeDomains(selected ? prefs.domains.filter((s) => s !== key) : [...prefs.domains, key]);
@@ -226,7 +227,11 @@
         selected ? "selected" : ""
       );
       b.setAttribute("aria-label", label);
-      b.setAttribute("aria-pressed", String(selected));
+      if (key === "mix") b.setAttribute("aria-pressed", String(selected));
+      else {
+        b.setAttribute("role", "checkbox");
+        b.setAttribute("aria-checked", String(selected));
+      }
       topics.append(b);
     }
     topicRow.append(topics);

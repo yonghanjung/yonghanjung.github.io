@@ -577,6 +577,7 @@ a {
   white-space: normal;
 }
 
-.topic-grid button[aria-pressed="true"]::before {
+.topic-grid button[aria-pressed="true"]::before,
+.topic-grid button[aria-checked="true"]::before {
   content: "✓ ";
 }
