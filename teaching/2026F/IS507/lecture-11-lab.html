@@ -1,0 +1,736 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Was It Luck? Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; a sticky step bar; each step = one plain sentence, a live picture, and the number it produces. Stacks on phones. */
+:root{
+  --paper:#f4f6f9; --card:#ffffff; --ink:#17213a; --muted:#5b6578; --rule:#dce1e9;
+  --navy:#24407a; --teal:#0d8580; --rust:#c0502b; --grey:#8b94a5;
+  --navy-soft:rgba(36,64,122,.13); --teal-soft:rgba(13,133,128,.24); --rust-soft:rgba(192,80,43,.28); --grey-soft:rgba(139,148,165,.20);
+  --f-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#10141c; --card:#171d28; --ink:#e5e9f0; --muted:#9aa4b5; --rule:#2a3242;
+  --navy:#88a3e6; --teal:#3cc2b8; --rust:#ef8c64; --grey:#7f899b;
+  --navy-soft:rgba(136,163,230,.16); --teal-soft:rgba(60,194,184,.28); --rust-soft:rgba(239,140,100,.30); --grey-soft:rgba(127,137,155,.24);
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#10141c; --card:#171d28; --ink:#e5e9f0; --muted:#9aa4b5; --rule:#2a3242;
+  --navy:#88a3e6; --teal:#3cc2b8; --rust:#ef8c64; --grey:#7f899b;
+  --navy-soft:rgba(136,163,230,.16); --teal-soft:rgba(60,194,184,.28); --rust-soft:rgba(239,140,100,.30); --grey-soft:rgba(127,137,155,.24);
+  color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-behavior:smooth;scroll-padding-top:70px}
+body{background:var(--paper);color:var(--ink);font:14px/1.55 var(--f-body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 64px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--paper)}
+.wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
+header{display:flex;flex-direction:column;gap:10px}
+.eyebrow{font:500 10px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{font:750 clamp(30px,6vw,47px)/1.02 var(--f-display);letter-spacing:-.02em;margin:0;text-wrap:balance}
+h1 em{font-style:normal;color:var(--teal)}
+.lede{max-width:64ch;color:var(--muted);margin:0;font-size:15px}
+nav.steps{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--paper);padding-block:8px;display:flex;gap:6px;overflow-x:auto;border-bottom:1px solid var(--rule)}
+nav.steps a{flex:0 0 auto;font:500 11px/1 var(--f-body);color:var(--ink);text-decoration:none;padding:8px 10px;border:1px solid var(--rule);border-radius:999px;background:var(--card);white-space:nowrap}
+nav.steps a span{font-family:var(--f-mono);color:var(--teal);margin-right:5px}
+nav.steps a:hover{border-color:var(--navy)}
+nav.steps .alpha{margin-left:auto;font:500 11px/1 var(--f-mono);color:var(--rust);padding:8px 4px;white-space:nowrap}
+section.step{background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:22px clamp(16px,3vw,28px);display:flex;flex-direction:column;gap:14px}
+.num{display:flex;align-items:center;gap:10px;font:500 10px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--teal)}
+.num b{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--teal);color:var(--card);font-size:11px;letter-spacing:0}
+.step h2{font:600 clamp(19px,3.4vw,24px)/1.15 var(--f-display);margin:0;text-wrap:balance}
+.step p{margin:0;max-width:68ch}
+.say{border-left:3px solid var(--navy);padding:2px 0 2px 12px;max-width:68ch}
+.formula{font:13px/1.7 var(--f-mono);background:var(--paper);border-radius:6px;padding:10px 12px;overflow-wrap:anywhere}
+.step>*{flex-shrink:0}
+.inline{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.mono{font:12px var(--f-mono)}
+.mono b{color:var(--navy);font-weight:500}
+.grid>canvas{min-width:0}
+.formula .v{color:var(--navy);font-weight:500}
+.grid{display:grid;grid-template-columns:minmax(0,290px) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:760px){.grid{grid-template-columns:minmax(0,1fr)}}
+.controls{display:flex;flex-direction:column;gap:14px;min-width:0}
+.ctl{display:flex;flex-direction:column;gap:5px}
+.ctl label,.ctl .lab{font-size:12px;font-weight:500;display:flex;justify-content:space-between;gap:8px}
+.ctl output{font:500 12px var(--f-mono);color:var(--navy)}
+input[type=range]{width:100%;accent-color:var(--navy)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+button{font:500 12px/1 var(--f-body);color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:9px 12px;cursor:pointer}
+button:hover{border-color:var(--navy)}
+button.on{background:var(--navy);border-color:var(--navy);color:var(--card)}
+button.go{background:var(--teal);border-color:var(--teal);color:var(--card)}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.readout{display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:8px;background:var(--paper)}
+.row{display:flex;justify-content:space-between;gap:10px;font-size:12px;align-items:baseline}
+.row b{font:500 14px var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.verdict{font-size:12px;line-height:1.45}
+.chart{min-width:0;display:flex;flex-direction:column;gap:6px}
+canvas{width:100%;display:block}
+.caption{font-size:11px;color:var(--muted)}
+.hyp{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (max-width:560px){.hyp{grid-template-columns:minmax(0,1fr)}}
+.hyp div{border:1px solid var(--rule);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:4px}
+.hyp .t{font:600 17px var(--f-mono)}
+.hyp .m{font:13px var(--f-mono);color:var(--navy)}
+.hyp .h0 .t{color:var(--grey)} .hyp .h1 .t{color:var(--teal)}
+.out{display:flex;flex-wrap:wrap;gap:8px 18px;font:12px var(--f-mono)}
+.out span b{color:var(--navy);font-weight:500}
+.log{font:11px/1.5 var(--f-mono);display:flex;flex-direction:column;gap:2px;max-height:230px;overflow:auto;padding:10px;border:1px solid var(--rule);border-radius:6px}
+.log .hit{color:var(--rust);font-weight:500}
+.more{font:600 clamp(21px,4vw,28px)/1.1 var(--f-display);margin:20px 0 0}
+.split{display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:760px){.split{grid-template-columns:minmax(0,1fr)}}
+.sheet{border-collapse:collapse;font:12px/1.3 var(--f-mono);font-variant-numeric:tabular-nums;width:100%}
+.sheet th,.sheet td{border:1px solid var(--rule);padding:5px 8px;text-align:center}
+.sheet th{background:var(--paper);font-weight:500;color:var(--muted)}
+.sheet td.one{color:var(--navy);font-weight:500} .sheet .b td.one{color:var(--teal)}
+.sheet tr.mean td{background:var(--paper);font-weight:500}
+.sheet td.dots{color:var(--muted)}
+.calc{display:flex;flex-direction:column;gap:6px;font:13px/1.5 var(--f-mono);min-width:0}
+.calc div{overflow-wrap:anywhere}
+.calc .v{color:var(--navy);font-weight:500}
+.calc .note{font:12px var(--f-body);color:var(--muted);margin-top:6px}
+.calc .final{border-top:1px solid var(--rule);padding-top:8px;font-weight:500}
+.defs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (max-width:640px){.defs{grid-template-columns:minmax(0,1fr)}}
+.def{border:1px solid var(--rule);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.def .t{font:600 15px var(--f-display)}
+.def .m{font:13px/1.5 var(--f-mono);color:var(--navy);overflow-wrap:anywhere}
+.def ul{margin:0;padding-left:18px;font-size:12px;display:flex;flex-direction:column;gap:2px}
+.def.a .t{color:var(--rust)} .def.p .t{color:var(--teal)}
+.uses{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:820px){.uses{grid-template-columns:minmax(0,1fr)}}
+.use{background:var(--paper);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;font-size:12px;min-width:0}
+.use .t{font:600 13px var(--f-body)}
+.use .big{font:500 17px var(--f-mono);color:var(--navy);font-variant-numeric:tabular-nums}
+.use .mono{font:11px/1.5 var(--f-mono);overflow-wrap:anywhere}
+.sub{font:600 16px var(--f-display);margin:6px 0 0}
+.recap{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.recap div{border:1px solid var(--rule);border-radius:8px;padding:10px 12px;font-size:12px;display:flex;flex-direction:column;gap:2px}
+.recap b{font:500 10px var(--f-mono);color:var(--teal);letter-spacing:.06em;text-transform:uppercase}
+.recap span{font-family:var(--f-mono);color:var(--navy)}
+footer{color:var(--muted);font-size:11px;max-width:70ch}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+.key{font:600 15px/1.4 var(--f-display);margin:0;text-align:center}.key span{display:block;font:400 13px var(--f-body);color:var(--muted)}
+.sheet.nolook{max-width:520px;margin:0 auto}
+.flow{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--paper);padding:8px 0;border-bottom:1px solid var(--rule);display:flex;align-items:stretch;gap:3px;overflow-x:auto}
+.flow.static{position:static;border:0;padding:0;flex-wrap:wrap;row-gap:8px}
+.node{flex:1 0 112px;min-width:112px;border:1.5px dashed var(--rule);border-radius:8px;padding:6px 8px;background:var(--card);text-decoration:none;color:var(--muted);display:flex;flex-direction:column;gap:2px;transition:border-color .2s,color .2s}
+.node .n{font:600 11px/1.2 var(--f-body)}
+.node .q{font:400 10px/1.2 var(--f-mono)}
+.node .v{font:500 11px/1.2 var(--f-mono);color:var(--navy);visibility:hidden;white-space:nowrap}
+.node.done{border-style:solid;color:var(--ink)} .node.done .v{visibility:visible}
+.node.cur{border-color:var(--teal);box-shadow:0 0 0 2px var(--teal-soft)}
+.node.al.done .n{color:var(--rust)} .node.pw.done .n{color:var(--teal)}
+.arrow{flex:0 0 auto;align-self:center;color:var(--muted);font:13px var(--f-mono)}
+.warn{color:var(--rust);font-size:12px}
+.def .mis{list-style:none;margin:0;padding:8px 10px;background:var(--paper);border-radius:6px;gap:5px}
+.def .mt{font:600 11px var(--f-body);color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:.05em}
+.def .mis b{color:var(--rust);font-weight:600}
+.def.p .mis b{color:var(--rust)}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">IS 507 · Lecture 11</div>
+  <h1>Was it <em>luck</em>?</h1>
+  <p class="lede">Every hypothesis test follows the same six steps. The diagram at the top fills in as you go: learn it once, and it works for the z-test, the t-test, and the F-test.</p>
+</header>
+
+<nav class="flow" id="flow" aria-label="The six steps of a test">
+  <a class="node" href="#s1" data-s="s1"><span class="n">① Hypotheses</span><span class="q">about θ<sub>A</sub>, θ<sub>B</sub></span><span class="v">H0: θ<sub>B</sub> = θ<sub>A</sub></span></a><span class="arrow">→</span>
+  <a class="node" href="#s2" data-s="s2"><span class="n">② Statistic</span><span class="q">estimate, compare</span><span class="v">D = +1.5</span></a><span class="arrow">→</span>
+  <a class="node h0" href="#s3" data-s="s3"><span class="n">③ H0 distribution</span><span class="q">D if H0 is true</span><span class="v">N(0, 0.69²)</span></a><span class="arrow">→</span>
+  <a class="node h1" href="#s4" data-s="s4"><span class="n">④ H1 distribution</span><span class="q">D if B adds δ</span><span class="v" id="fH1">N(1.5, 0.69²)</span></a><span class="arrow">→</span>
+  <a class="node al" href="#s5" data-s="s5"><span class="n">⑤ α and decision</span><span class="q">P(reject | H0)</span><span class="v" id="fA">α 0.05 → reject</span></a><span class="arrow">→</span>
+  <a class="node pw" href="#s6" data-s="s6"><span class="n">⑥ Power</span><span class="q">P(reject | H1)</span><span class="v" id="fP">0.58</span></a>
+</nav>
+
+<section class="step" id="s0">
+  <div class="num">Start · the data</div>
+  <h2>Page B sells 1.5 points more. Real, or luck?</h2>
+  <canvas id="c1" aria-label="4,000 squares per page, buyers colored"></canvas>
+  <div class="out"><span>A: <b>400 / 4,000</b> = 10.0%</span><span>B: <b>460 / 4,000</b> = 11.5%</span><span>Diff = <b>+1.5</b> points</span></div>
+</section>
+
+<section class="step" id="s1">
+  <div class="num"><b>1</b>Hypotheses</div>
+  <h2>Hypotheses are about the population, not about our sample</h2>
+  <div class="calc">
+    <div>θ<sub>A</sub> = the true buying rate of page A, over <b>all</b> future visitors</div>
+    <div>θ<sub>B</sub> = the same for page B</div>
+    <div class="note">These are population parameters. We never see them; we only see 4,000 visitors per page.</div>
+  </div>
+  <div class="hyp">
+    <div class="h0"><span class="t">H0: θ<sub>B</sub> = θ<sub>A</sub></span><span>B is no different</span></div>
+    <div class="h1"><span class="t">H1: θ<sub>B</sub> ≠ θ<sub>A</sub></span><span>B is different</span></div>
+  </div>
+  <p class="warn">✗ Not “H0: 10.0% = 11.5%”. Those are sample numbers, and we already know they differ.</p>
+</section>
+
+<section class="step" id="s2">
+  <div class="num"><b>2</b>Statistic</div>
+  <h2>Estimate each parameter, then compare</h2>
+  <div class="split">
+    <div class="chart">
+      <table class="sheet" id="sheet" aria-label="First rows of the data"></table>
+      <div class="caption">1 = bought, 0 = did not. 4,000 rows per page.</div>
+    </div>
+    <div class="calc">
+      <div>θ̂<sub>A</sub> = mean of column A = 400 / 4000 = <span class="v">0.100</span></div>
+      <div>θ̂<sub>B</sub> = mean of column B = 460 / 4000 = <span class="v">0.115</span></div>
+      <div class="final">D = θ̂<sub>B</sub> − θ̂<sub>A</sub> = <span class="v">0.015</span> = +1.5 points</div>
+      <div class="note">D is our statistic: one number, computed from the sample, that estimates θ<sub>B</sub> − θ<sub>A</sub>. A new sample would give a different D.</div>
+    </div>
+  </div>
+</section>
+
+<section class="step" id="s3">
+  <div class="num"><b>3</b>H0 distribution</div>
+  <h2>If H0 is true, how does D move from sample to sample?</h2>
+  <p>Even when nothing changed, D is not 0. Draw one day of 4,000 + 4,000 visitors with the same rate for both pages:</p>
+  <div class="inline"><button id="oneDay" class="go">Draw one H0 day</button><span class="mono">A <b id="dA">–</b> · B <b id="dB">–</b> · D <b id="dD">–</b></span></div>
+  <canvas id="c2" height="130" aria-label="D of H0 days so far"></canvas>
+  <div class="calc">
+    <div class="note">The CLT gives the whole shape. Under H0 both pages share one rate; pool them:</div>
+    <div>p̂ = 860 / 8000 = <span class="v">0.1075</span></div>
+    <div>SE<sub>0</sub> = √( p̂(1−p̂)(1/4000 + 1/4000) ) = <span class="v">0.69</span> points</div>
+    <div class="final">Under H0: D ~ N(0, 0.69²), so z = D / SE<sub>0</sub> ~ N(0, 1)</div>
+  </div>
+  <div class="grid">
+    <div class="controls">
+      <div class="chips"><button id="add10">+10 days</button><button id="add1000" class="go">+1,000 days</button><button id="reset4">Reset</button></div>
+      <div class="readout" aria-live="polite">
+        <div class="row"><span>H0 days</span><b id="nDays">0</b></div>
+        <div class="row"><span>SD of D</span><b id="sdDays">–</b></div>
+        <div class="row"><span>CLT says</span><b>0.69</b></div>
+      </div>
+      <div class="verdict">The bars (simulation) follow the curve (CLT).</div>
+    </div>
+    <canvas id="c4" height="260" aria-label="Histogram of H0 days with the normal bell"></canvas>
+  </div>
+  <div class="formula">Our sample: z = D / SE<sub>0</sub> = <span id="zForm">1.5 / 0.69 = <span class="v">2.17</span></span></div>
+  <canvas id="c5" height="240" aria-label="Our D on the H0 bell, in points and in z"></canvas>
+</section>
+
+<section class="step" id="s4">
+  <div class="num"><b>4</b>H1 distribution</div>
+  <h2>If B truly adds δ points, how does D move?</h2>
+  <p>H1 is not one world but many: one for each true gain δ. Pick one. Its bell has the same width, shifted to δ.</p>
+  <div class="formula">Under H1 with gain δ: D ~ N(δ, SE²)</div>
+  <div class="grid">
+    <div class="controls">
+      <div class="ctl"><label for="gain">δ, the true gain <output id="gainOut">1.5 pts</output></label><input id="gain" type="range" min="0" max="30" step="1" value="15"></div>
+      <div class="chips"><button id="matchD">Set δ = our D</button></div>
+      <span class="caption">In a real plan δ is chosen before the data: the smallest gain that matters. Here δ = 1.5.</span>
+    </div>
+    <canvas id="c8" height="240" aria-label="H0 bell and H1 bell"></canvas>
+  </div>
+</section>
+
+<section class="step" id="s5">
+  <div class="num"><b>5</b>α and decision</div>
+  <h2>α: how often we accept a false alarm</h2>
+  <div class="def a">
+    <span class="t">Definition</span>
+    <span class="m">α = P( reject H0 | H0 true )</span>
+    <span>In words: if B is really no better, how often our rule still says “B is better”. The false alarm rate of the rule.</span>
+    <span>We fix it <b>before</b> the data. α = 0.05: about 5 false alarms in 100 tests of a useless page.</span>
+    <span class="mt">Common misreadings</span><ul class="mis">
+      <li><b>✗ “α is the chance that H0 is true.”</b> α assumes H0 is true; it never asks whether it is.</li>
+      <li><b>✗ “We rejected, so it is a false alarm with chance 5%.”</b> That is P(H0 true | reject). It depends on how many ideas really work: in ⑥(c) it is 44%.</li>
+      <li><b>✗ “α is the p-value.”</b> α is fixed before the data; the p-value is computed from the data. We compare the two.</li>
+    </ul>
+  </div>
+  <div class="formula">α sets the cutoff on the H0 bell (rust). Decide: reject H0 if |z| ≥ cutoff, i.e. if p ≤ α.</div>
+  <div class="grid">
+    <div class="controls">
+      <div class="ctl"><label for="alpha">α <output id="alphaOut">0.05</output></label><input id="alpha" type="range" min="1" max="10" step="1" value="5"></div>
+      <div class="chips"><button data-a="1">0.01</button><button data-a="5">0.05</button><button data-a="10">0.10</button></div>
+      <div class="ctl"><span class="lab">Our D (try other samples)</span></div>
+      <div class="chips" id="obsChips"><button data-v="0.5">+0.5</button><button data-v="1.0">+1.0</button><button data-v="1.5" class="on">+1.5 (ours)</button><button data-v="2.0">+2.0</button><span class="mono" hidden>D <output id="obsOut">+1.5</output></span></div>
+      <div class="readout" aria-live="polite">
+        <div class="row"><span>z</span><b id="zOut">2.17</b></div>
+        <div class="row"><span><span class="sw" style="background:var(--rust)"></span>cutoff (α <span id="aTxt">0.05</span>)</span><b id="zcOut">±1.96</b></div>
+        <div class="row"><span><span class="sw" style="background:var(--teal)"></span>p-value</span><b id="pOut">0.030</b></div>
+        <div class="row"><span>share of ③ days this far out</span><b id="pSim">–</b></div>
+      </div>
+      <div class="verdict" id="verdict6"></div>
+    </div>
+    <canvas id="c6" height="260" aria-label="H0 bell in z with the cutoff and the p-value tails"></canvas>
+  </div>
+</section>
+
+<section class="step" id="s6">
+  <div class="num"><b>6</b>Power</div>
+  <h2>Power: how often we catch a real gain</h2>
+  <div class="def p">
+    <span class="t">Definition</span>
+    <span class="m">power(δ) = P( reject H0 | θ<sub>B</sub> − θ<sub>A</sub> = δ )</span>
+    <span>In words: if B really adds δ points, how often our rule says “B is better”. The catch rate. Miss: β = 1 − power.</span>
+    <span>Built from ④ and ⑤: the share of the H1 bell beyond the cutoff that α set on the H0 bell. Computed <b>before</b> the data, from δ, n, and α.</span>
+    <span class="mt">Common misreadings</span><ul class="mis">
+      <li><b>✗ “Power is the chance that H1 is true.”</b> Power assumes the gain is δ; it never asks whether it is.</li>
+      <li><b>✗ “Power says how strongly our data support H1.”</b> Power never looks at our data: it is 0.58 whether we see D = +2.0 or D = +0.2 (table below).</li>
+      <li><b>✗ “A test has one power.”</b> Power changes with δ, with the visitors n, and with α. Move the sliders.</li>
+      <li><b>✗ “Not significant, so there is no gain.”</b> At δ = 1.0 with 4,000 per page, power is 0.30: a real gain is missed 7 times in 10.</li>
+    </ul>
+  </div>
+  <div class="grid">
+    <div class="controls">
+      <div class="ctl"><label for="gain2">δ, the true gain <output id="gain2Out">1.5 pts</output></label><input id="gain2" type="range" min="0" max="30" step="1" value="15"></div>
+      <div class="ctl"><label for="nIdx">Visitors per page <output id="nOut">4,000</output></label><input id="nIdx" type="range" min="0" max="4" step="1" value="2"></div>
+      <div class="ctl"><label for="alpha2">α <output id="alpha2Out">0.05</output></label><input id="alpha2" type="range" min="1" max="10" step="1" value="5"></div>
+      <div class="readout" aria-live="polite">
+        <div class="row"><span>cutoff (points)</span><b id="cutOut">±1.36</b></div>
+        <div class="row"><span><span class="sw" style="background:var(--rust)"></span>α</span><b id="aOut">0.05</b></div>
+        <div class="row"><span><span class="sw" style="background:var(--teal)"></span>power</span><b id="powOut">0.58</b></div>
+        <div class="row"><span><span class="sw" style="background:var(--grey)"></span>miss β</span><b id="missOut">0.42</b></div>
+      </div>
+      <span id="powForm" hidden></span>
+      <div class="verdict" id="verdict7"></div>
+    </div>
+    <canvas id="c7" height="270" aria-label="H0 bell, H1 bell, cutoff, alpha and power"></canvas>
+  </div>
+  <h3 class="sub">Power does not look at our data</h3>
+  <table class="sheet nolook">
+    <tr><th>If the test had seen</th><th>p-value</th><th>power at δ = 1.5</th></tr>
+    <tr><td>D = +2.0</td><td>0.004</td><td class="one">0.58</td></tr>
+    <tr class="b"><td>D = +1.5 (ours)</td><td>0.030</td><td class="one">0.58</td></tr>
+    <tr><td>D = +0.2</td><td>0.77</td><td class="one">0.58</td></tr>
+  </table>
+  <p class="key">The p-value moves with the data. Power does not.</p>
+  <h3 class="sub">What power is for</h3>
+  <div class="uses">
+    <div class="use"><span class="t">(a) Planning: how many visitors?</span>
+      <span>To catch δ with power 0.80:</span>
+      <span class="big" id="uN">6,700</span>
+      <span class="mono" id="uNf">n per page ≈ 2p(1−p)(z<sub>1−α/2</sub> + z<sub>0.80</sub>)² / δ²</span></div>
+    <div class="use"><span class="t">(b) Reading "not significant"</span>
+      <span id="uB"></span></div>
+    <div class="use"><span class="t">(c) Many studies: how many "hits" are real?</span>
+      <span id="uC"></span>
+      <span class="big" id="uCbig">44%</span>
+      <span>of the "significant" results are false alarms.</span></div>
+  </div>
+</section>
+
+<section class="step" aria-label="Recap">
+  <div class="num">Recap · the whole flow</div>
+  <div class="flow static" id="flowRecap"></div>
+  <p class="key">③ and ⑤ give the decision. ④ and ⑤ give the power. <span>The same six steps, for every test below.</span></p>
+</section>
+
+<h2 class="more">Same six steps, other tests</h2>
+
+<section class="step" id="tdist">
+  <div class="num">t-test · changes ③, the H0 distribution</div>
+  <h2>Small sample: the bell gets fatter tails</h2>
+  <div class="grid">
+    <div class="controls">
+      <div class="ctl"><label for="df">df <output id="dfOut">37</output></label><input id="df" type="range" min="1" max="61" step="1" value="37"></div>
+      <div class="chips"><button data-df="2">2</button><button data-df="5">5</button><button data-df="37">37 (ours)</button><button data-df="61">∞</button></div>
+      <div class="readout" aria-live="polite">
+        <div class="row"><span><span class="sw" style="background:var(--navy)"></span>t cutoff</span><b id="tcut">2.03</b></div>
+        <div class="row"><span><span class="sw" style="background:var(--grey)"></span>z cutoff</span><b>1.96</b></div>
+        <div class="row" hidden><span>tail</span><b id="tTail"></b></div>
+      </div>
+      <div class="verdict" id="verdictT"></div>
+    </div>
+    <canvas id="ct" height="260" aria-label="t distribution against the normal curve"></canvas>
+  </div>
+</section>
+
+<section class="step" id="fsignal">
+  <div class="num">F-test · changes ② and ③: a new statistic, a new H0 distribution</div>
+  <h2>F = signal ÷ noise</h2>
+  <div class="grid">
+    <div class="controls">
+      <div class="ctl"><label for="gap">Gap between means <output id="gapOut">×1.0</output></label><input id="gap" type="range" min="0" max="20" step="1" value="10"></div>
+      <div class="ctl"><label for="spread">Spread of users <output id="spreadOut">12.6 s</output></label><input id="spread" type="range" min="3" max="25" step="0.001" value="12.583"></div>
+      <div class="chips"><button data-p="close">close, noisy</button><button data-p="noisy">apart, noisy</button><button data-p="quiet">apart, quiet</button><button data-p="ours" class="on">ours</button></div>
+      <div class="readout" aria-live="polite">
+        <div class="row"><span><span class="sw" style="background:var(--teal)"></span>signal</span><b id="msb">748</b></div>
+        <div class="row"><span><span class="sw" style="background:var(--grey)"></span>noise</span><b id="msw">158</b></div>
+        <div class="row"><span>F</span><b id="Fout">4.72</b></div>
+        <div class="row"><span>p-value</span><b id="Fp">0.013</b></div>
+      </div>
+      <div class="verdict" id="verdictF"></div>
+    </div>
+    <canvas id="cf" height="290" aria-label="Dot plot of three pages with their means"></canvas>
+  </div>
+</section>
+
+<section class="step" id="phack">
+  <div class="num">p-hacking · breaks ⑤: α is no longer 0.05</div>
+  <h2>Try until it works</h2>
+  <p>The button does nothing. Keep testing new metrics anyway.</p>
+  <div class="grid">
+    <div class="controls">
+      <div class="chips"><button id="tryOne" class="go">Next metric</button><button id="tryUntil">Until p &lt; 0.05</button><button id="reset5">Reset</button></div>
+      <div class="readout" aria-live="polite">
+        <div class="row"><span>Tries</span><b id="kTried">0</b></div>
+        <div class="row"><span>P(≥1 false alarm)</span><b id="kChance">0%</b></div>
+      </div>
+      <div class="verdict" id="verdict5"></div>
+      <div class="log" id="log5" aria-label="Test log"></div>
+    </div>
+    <canvas id="cp" height="280" aria-label="Chance of a false alarm against number of tries"></canvas>
+  </div>
+</section>
+
+<section class="step" id="peek">
+  <div class="num">Peeking · breaks ⑤: α is no longer 0.05</div>
+  <h2>Peek every day, stop when lucky</h2>
+  <p>A/A tests: B is the same page as A, so H0 is true. 20 days, 200 new visitors per page per day.</p>
+  <div class="grid">
+    <div class="controls">
+      <div class="ctl"><span class="lab">Look at the p-value</span></div>
+      <div class="chips" id="lookChips"><button data-l="1">once, at the end</button><button data-l="2">2 times</button><button data-l="5">5 times</button><button data-l="10">10 times</button><button data-l="20" class="on">every day</button></div>
+      <div class="chips"><button id="peekRun" class="go">Run 1,000 tests</button><button id="peekReset">Reset</button></div>
+      <div class="readout" aria-live="polite">
+        <div class="row"><span>A/A tests run</span><b id="peekN">0</b></div>
+        <div class="row"><span><span class="sw" style="background:var(--rust)"></span>false alarm rate</span><b id="peekRate">–</b></div>
+      </div>
+      <div class="verdict" id="verdictPeek"></div>
+      <span class="caption">Dashed line: α = 0.05. Notebook, 10,000 tests: 0.05, 0.08, 0.14, 0.19, 0.25 for 1, 2, 5, 10, 20 looks.</span>
+    </div>
+    <canvas id="ck" height="280" aria-label="False alarm rate against number of looks"></canvas>
+  </div>
+</section>
+
+<footer>IS 507 Lecture 11 companion. Numbers match the slides; simulated days run in your browser.</footer>
+</div>
+
+
+<script>
+(function(){
+"use strict";
+// ---------- math ----------
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+function erf(x){const s=x<0?-1:1;x=Math.abs(x);const t=1/(1+0.3275911*x);const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);return s*y;}
+const Phi=z=>0.5*(1+erf(z/Math.SQRT2));
+const phi=z=>Math.exp(-z*z/2)/Math.sqrt(2*Math.PI);
+function invPhi(p){const a=[-39.6968302866538,220.946098424521,-275.928510446969,138.357751867269,-30.6647980661472,2.50662827745924],
+  b=[-54.4760987982241,161.585836858041,-155.698979859887,66.8013118877197,-13.2806815528857],
+  c=[-0.00778489400243029,-0.322396458041136,-2.40075827716184,-2.54973253934373,4.37466414146497,2.93816398269878],
+  d=[0.00778469570904146,0.32246712907004,2.445134137143,3.75440866190742];const pl=0.02425;let q,r;
+  if(p<pl){q=Math.sqrt(-2*Math.log(p));return(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);}
+  if(p>1-pl){q=Math.sqrt(-2*Math.log(1-p));return-(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);}
+  q=p-0.5;r=q*q;return(((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q/(((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);}
+function lgamma(x){const g=7,c=[0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,-176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
+  if(x<0.5)return Math.log(Math.PI/Math.sin(Math.PI*x))-lgamma(1-x);x-=1;let a=c[0];const t=x+g+0.5;for(let i=1;i<9;i++)a+=c[i]/(x+i);return 0.5*Math.log(2*Math.PI)+(x+0.5)*Math.log(t)-t+Math.log(a);}
+function betacf(a,b,x){const MAXIT=300,EPS=3e-14,FPMIN=1e-300;let qab=a+b,qap=a+1,qam=a-1,c=1,d=1-qab*x/qap;if(Math.abs(d)<FPMIN)d=FPMIN;d=1/d;let h=d;
+  for(let m=1;m<=MAXIT;m++){const m2=2*m;let aa=m*(b-m)*x/((qam+m2)*(a+m2));d=1+aa*d;if(Math.abs(d)<FPMIN)d=FPMIN;c=1+aa/c;if(Math.abs(c)<FPMIN)c=FPMIN;d=1/d;h*=d*c;
+  aa=-(a+m)*(qab+m)*x/((a+m2)*(qap+m2));d=1+aa*d;if(Math.abs(d)<FPMIN)d=FPMIN;c=1+aa/c;if(Math.abs(c)<FPMIN)c=FPMIN;d=1/d;const del=d*c;h*=del;if(Math.abs(del-1)<EPS)break;}return h;}
+function ibeta(x,a,b){if(x<=0)return 0;if(x>=1)return 1;const bt=Math.exp(lgamma(a+b)-lgamma(a)-lgamma(b)+a*Math.log(x)+b*Math.log(1-x));
+  return x<(a+1)/(a+b+2)?bt*betacf(a,b,x)/a:1-bt*betacf(b,a,1-x)/b;}
+function tcdf(t,v){const x=v/(v+t*t);const tail=0.5*ibeta(x,v/2,0.5);return t>0?1-tail:tail;}
+function tpdf(t,v){return Math.exp(lgamma((v+1)/2)-lgamma(v/2)-0.5*Math.log(v*Math.PI)-(v+1)/2*Math.log(1+t*t/v));}
+function tinv(p,v){let lo=0,hi=100;for(let i=0;i<80;i++){const m=(lo+hi)/2;if(tcdf(m,v)<p)lo=m;else hi=m;}return(lo+hi)/2;}
+function fsurv(F,d1,d2){if(F<=0)return 1;const x=d1*F/(d1*F+d2);return 1-ibeta(x,d1/2,d2/2);}
+const fmt=(x,d)=>x.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmtP=p=>p<0.001?'< 0.001':fmt(p,3);
+const sgn=(x,d)=>(x>0?'+':x<0?'−':'')+fmt(Math.abs(x),d);
+const $=id=>document.getElementById(id);
+
+// ---------- canvas helpers ----------
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function setup(cv,hh){const dpr=window.devicePixelRatio||1;const w=cv.clientWidth;if(!cv.dataset.baseH)cv.dataset.baseH=cv.getAttribute('height')||'200';const h=hh||+cv.dataset.baseH;cv.style.height=h+'px';
+  cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);const ctx=cv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+  ctx.font='11px "IBM Plex Mono", ui-monospace, monospace';ctx.textBaseline='middle';return{ctx,w,h};}
+function axisX(ctx,X,y0,x0,x1,ticks,fmtT,col){ctx.strokeStyle=col;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y0);ctx.stroke();
+  ctx.fillStyle=col;ctx.textAlign='center';ticks.forEach(t=>{const x=X(t);ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y0+4);ctx.stroke();ctx.fillText(fmtT(t),x,y0+14);});}
+function curvePath(ctx,f,X,Y,a,b,n){ctx.beginPath();for(let i=0;i<=n;i++){const v=a+(b-a)*i/n;const x=X(v),y=Y(f(v));i?ctx.lineTo(x,y):ctx.moveTo(x,y);}}
+function fillUnder(ctx,f,X,Y,a,b,base,col){if(b<=a)return;ctx.beginPath();ctx.moveTo(X(a),base);const n=80;for(let i=0;i<=n;i++){const v=a+(b-a)*i/n;ctx.lineTo(X(v),Y(f(v)));}ctx.lineTo(X(b),base);ctx.closePath();ctx.fillStyle=col;ctx.fill();}
+function vdash(ctx,x,y0,y1,col){ctx.save();ctx.setLineDash([5,4]);ctx.strokeStyle=col;ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.restore();}
+
+// ---------- shared state ----------
+const N=4000,P0=0.1075,SE0=Math.sqrt(2*P0*(1-P0)/N)*100;
+let alpha=0.05,obs=1.5;
+const zc=()=>invPhi(1-alpha/2);
+let rngDay=mulberry32(507);
+function simDay(){let a=0,b=0;for(let i=0;i<N;i++){if(rngDay()<P0)a++;if(rngDay()<P0)b++;}return{a,b,k:b-a};} // k = Diff in visitors; 1 visitor = 0.025 points
+
+// ================= STEP 1: data =================
+const BUY=(()=>{function pick(m,seed){const r=mulberry32(seed);const idx=[...Array(N).keys()];for(let i=N-1;i>0;i--){const j=Math.floor(r()*(i+1));[idx[i],idx[j]]=[idx[j],idx[i]];}const s=new Uint8Array(N);for(let i=0;i<m;i++)s[idx[i]]=1;return s;}
+  return[pick(400,11),pick(460,12)];})();
+function draw1(){
+  const cv=$('c1');const w=cv.clientWidth;const narrow=w<520;const cols=narrow?50:100,rows=N/cols;const L=narrow?0:64;const cell=(w-L)/cols;
+  const lab=narrow?22:0;const panelH=rows*cell;const gap=14;const H=lab*2+panelH*2+gap;
+  const{ctx}=setup(cv,Math.ceil(H));const grey=css('--grey-soft'),navy=css('--navy'),teal=css('--teal'),ink=css('--ink'),muted=css('--muted');
+  [[0,'Page A','400 / 4,000',navy],[1,'Page B','460 / 4,000',teal]].forEach(([g,name,cnt,col])=>{
+    const y0=g*(panelH+gap+lab)+lab;
+    ctx.font='600 11px "IBM Plex Sans", system-ui, sans-serif';ctx.fillStyle=col;ctx.textAlign='left';
+    if(narrow){ctx.fillText(name+'  ·  '+cnt+' bought',0,y0-11);}else{ctx.fillText(name,0,y0+panelH/2-8);ctx.font='11px "IBM Plex Mono", ui-monospace, monospace';ctx.fillStyle=muted;ctx.fillText(cnt,0,y0+panelH/2+9);}
+    const s=BUY[g];for(let i=0;i<N;i++){const r=Math.floor(i/cols),c=i%cols;ctx.fillStyle=s[i]?col:grey;const p=cell>3?0.6:0.25;ctx.fillRect(L+c*cell+p/2,y0+r*cell+p/2,cell-p,cell-p);}
+  });
+}
+
+function fillSheet(){const K=6;let h='<tr><th>#</th><th>Page A</th><th>Page B</th></tr>';
+  for(let i=0;i<K;i++){const a=BUY[0][i],b=BUY[1][i];h+=`<tr><td>${i+1}</td><td class="${a?'one':''}">${a}</td><td class="${b?'one':''}" style="${b?'color:var(--teal)':''}">${b}</td></tr>`;}
+  h+='<tr><td class="dots">⋮</td><td class="dots">⋮</td><td class="dots">⋮</td></tr><tr><td>4000</td><td>'+BUY[0][N-1]+'</td><td>'+BUY[1][N-1]+'</td></tr>';
+  h+='<tr class="mean"><td>mean</td><td>0.100</td><td>0.115</td></tr>';$('sheet').innerHTML=h;}
+// ================= STEP 2: hypotheses + luck-only days =================
+let quick=[];
+function draw2(){
+  const cv=$('c2');const{ctx,w,h}=setup(cv);const muted=css('--muted'),rust=css('--rust'),grey=css('--grey'),rule=css('--rule');
+  const lo=-3,hi=3,L=14,R=w-14,B=h-30;const X=v=>L+(v-lo)/(hi-lo)*(R-L);
+  ctx.strokeStyle=rule;ctx.beginPath();ctx.moveTo(X(0),12);ctx.lineTo(X(0),B);ctx.stroke();
+  // stack dots by bin
+  const cnt={};quick.forEach(d=>{const bi=Math.round(d/0.15);cnt[bi]=(cnt[bi]||0)+1;});
+  const maxC=Math.max(1,...Object.values(cnt));const stepY=Math.min(10,(B-18)/maxC);const rad=Math.max(1.5,Math.min(4.2,stepY*0.45,(X(0.15)-X(0))*0.45));
+  const bins={};quick.forEach((d,i)=>{const bi=Math.round(d/0.15);bins[bi]=(bins[bi]||0)+1;const y=B-4-rad-(bins[bi]-1)*stepY;ctx.fillStyle=i===quick.length-1?css('--navy'):grey;ctx.beginPath();ctx.arc(X(bi*0.15),y,rad,0,Math.PI*2);ctx.fill();});
+  vdash(ctx,X(1.5),10,B,rust);ctx.fillStyle=rust;ctx.textAlign='left';ctx.fillText('ours +1.5',X(1.5)+5,14);
+  axisX(ctx,X,B,L,R,[-3,-2,-1,0,1,2,3],t=>sgn(t,0),muted);ctx.fillStyle=muted;ctx.textAlign='right';ctx.fillText('D (points)',R,h-6);
+}
+$('oneDay').onclick=()=>{const d=simDay();const D=d.k/40;quick.push(D);if(quick.length>60)quick.shift();
+  $('dA').textContent=fmt(d.a,0);$('dB').textContent=fmt(d.b,0);$('dD').textContent=sgn(D,2);draw2();};
+
+// ================= STEP 3: alpha =================
+function setAlpha(a){alpha=a;$('alpha').value=Math.round(a*100);$('alpha2').value=Math.round(a*100);
+  $('alphaOut').textContent=fmt(a,2);$('alpha2Out').textContent=fmt(a,2);
+  document.querySelectorAll('[data-a]').forEach(b=>b.classList.toggle('on',+b.dataset.a===Math.round(a*100)));drawFrom3();}
+$('alpha').addEventListener('input',e=>setAlpha(e.target.value/100));
+$('alpha2').addEventListener('input',e=>setAlpha(e.target.value/100));
+document.querySelectorAll('[data-a]').forEach(b=>b.addEventListener('click',()=>setAlpha(b.dataset.a/100)));
+
+// ================= STEP 4: H0 distribution =================
+let days=[];
+function addDays(k){for(let i=0;i<k&&days.length<30000;i++)days.push(simDay().k);draw4();draw6();}
+function draw4(){
+  const cv=$('c4');const{ctx,w,h}=setup(cv);const ink=css('--ink'),muted=css('--muted'),grey=css('--grey'),rule=css('--rule');
+  const BW=4;const lo=-132,hi=132;const nb=(hi-lo)/BW;const cnt=new Array(nb).fill(0);
+  days.forEach(k=>{const j=Math.floor((k-lo)/BW);if(j>=0&&j<nb)cnt[j]++;});
+  const L=14,R=w-14,T=14,B=h-30;const X=k=>L+(k-lo)/(hi-lo)*(R-L);
+  const nD=Math.max(days.length,1);const peakExp=nD*0.1*phi(0)/SE0;let mx=peakExp*1.1;for(let j=0;j<nb;j++)mx=Math.max(mx,cnt[j]);const Y=c=>B-c/mx*(B-T);
+  ctx.strokeStyle=rule;ctx.lineWidth=1;for(let g=1;g<=3;g++){const y=B-(B-T)*g/3;ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(R,y);ctx.stroke();}
+  const bell=v=>phi(v/SE0)/SE0*nD*0.1; const XV=v=>X(v*40);
+  for(let j=0;j<nb;j++){if(!cnt[j])continue;const x0=X(lo+j*BW)+0.5,x1=X(lo+(j+1)*BW)-0.5;ctx.fillStyle=grey;ctx.fillRect(x0,Y(cnt[j]),x1-x0,B-Y(cnt[j]));}
+  ctx.strokeStyle=ink;ctx.lineWidth=1.8;curvePath(ctx,bell,XV,Y,-3.3,3.3,160);ctx.stroke();
+  axisX(ctx,X,B,L,R,[-120,-80,-40,0,40,80,120],k=>sgn(k/40,0),muted);ctx.fillStyle=muted;ctx.textAlign='right';ctx.fillText('D (points)',R,h-6);
+  $('nDays').textContent=fmt(days.length,0);
+  if(days.length>1){const m=days.reduce((a,b)=>a+b,0)/days.length;const sd=Math.sqrt(days.reduce((a,b)=>a+(b-m)**2,0)/(days.length-1))/40;$('sdDays').textContent=fmt(sd,2);}else{$('sdDays').textContent='–';}
+}
+$('add10').onclick=()=>addDays(10);$('add1000').onclick=()=>addDays(1000);$('reset4').onclick=()=>{days=[];draw4();draw6();};
+
+// ================= STEP 5: statistic =================
+function draw5(){
+  const z=obs/SE0;$('obsOut').textContent=sgn(obs,1);
+  $('zForm').innerHTML=`${fmt(obs,1)} / 0.69 = <span class="v">${fmt(z,2)}</span>`;
+  const cv=$('c5');const{ctx,w,h}=setup(cv);const muted=css('--muted'),teal=css('--teal'),ink=css('--ink'),grey=css('--grey');
+  const lo=-4.2,hi=4.2,L=50,R=w-14,T=30,B=h-58;const X=v=>L+(v-lo)/(hi-lo)*(R-L);const Y=d=>B-d/0.42*(B-T);
+  ctx.fillStyle=css('--navy-soft');ctx.beginPath();ctx.moveTo(X(0),B);for(let i=0;i<=60;i++){const v=z*i/60;ctx.lineTo(X(v),Y(phi(v)));}ctx.lineTo(X(z),B);ctx.closePath();ctx.fill();
+  ctx.strokeStyle=grey;ctx.lineWidth=2;curvePath(ctx,phi,X,Y,lo,hi,200);ctx.stroke();
+  ctx.strokeStyle=teal;ctx.lineWidth=2.4;ctx.beginPath();ctx.moveTo(X(z),B);ctx.lineTo(X(z),Y(phi(z))-16);ctx.stroke();
+  ctx.fillStyle=teal;ctx.beginPath();ctx.arc(X(z),Y(phi(z)),5,0,Math.PI*2);ctx.fill();
+  ctx.font='600 11px "IBM Plex Sans", system-ui, sans-serif';ctx.fillStyle=ink;ctx.textAlign='center';
+  ctx.fillText('our D = '+sgn(obs,1)+'  →  z = '+fmt(z,2),Math.min(Math.max(X(z),L+90),R-90),Y(phi(z))-26);
+  ctx.fillStyle=grey;ctx.fillText('H0 bell',X(0),T-14);
+  ctx.font='11px "IBM Plex Mono", ui-monospace, monospace';
+  axisX(ctx,X,B,L,R,[-4,-3,-2,-1,0,1,2,3,4],t=>sgn(t,0),muted);
+  const B2=B+30;axisX(ctx,X,B2,L,R,[-4,-2,0,2,4],t=>t===0?'0':sgn(t*0.69,2),muted);
+  ctx.fillStyle=muted;ctx.textAlign='left';ctx.fillText('z',4,B+14);ctx.fillText('pts',4,B2+14);
+}
+document.querySelectorAll('#obsChips button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('#obsChips button').forEach(x=>x.classList.remove('on'));b.classList.add('on');obs=+b.dataset.v;draw5();draw6();draw7();}));
+
+// ================= STEP 6: decide =================
+function draw6(){
+  const z=obs/SE0,c=zc(),p=2*(1-Phi(Math.abs(z)));
+  $('zOut').textContent=fmt(z,2);$('aTxt').textContent=fmt(alpha,2);$('zcOut').textContent='±'+fmt(c,2);$('pOut').textContent=fmtP(p);
+  const obsK=Math.round(obs*40);if(days.length){const nf=days.filter(k=>Math.abs(k)>=obsK).length;$('pSim').textContent=fmt(nf/days.length,3);}else $('pSim').textContent='run ③ first';
+  const rej=p<=alpha;
+  $('verdict6').innerHTML=rej?`p = ${fmtP(p)} ≤ ${fmt(alpha,2)}: <b>reject H0</b>. Not luck.`:
+    `p = ${fmtP(p)} > ${fmt(alpha,2)}: <b>keep H0</b>. Luck can explain it.`;
+  $('fA').textContent='α '+fmt(alpha,2)+' → '+(rej?'reject':'keep H0');syncRecap();
+  const cv=$('c6');const{ctx,w,h}=setup(cv);const muted=css('--muted'),ink=css('--ink'),teal=css('--teal'),rust=css('--rust'),grey=css('--grey');
+  const lo=-4.2,hi=4.2,L=14,R=w-14,T=26,B=h-30;const X=v=>L+(v-lo)/(hi-lo)*(R-L);const Y=d=>B-d/0.42*(B-T);
+  fillUnder(ctx,phi,X,Y,c,hi,B,css('--rust-soft'));fillUnder(ctx,phi,X,Y,lo,-c,B,css('--rust-soft'));
+  fillUnder(ctx,phi,X,Y,Math.abs(z),hi,B,css('--teal-soft'));fillUnder(ctx,phi,X,Y,lo,-Math.abs(z),B,css('--teal-soft'));
+  ctx.strokeStyle=grey;ctx.lineWidth=2;curvePath(ctx,phi,X,Y,lo,hi,200);ctx.stroke();
+  ctx.strokeStyle=teal;ctx.lineWidth=2.4;if(Math.abs(z)<hi){curvePath(ctx,phi,X,Y,Math.abs(z),hi,60);ctx.stroke();curvePath(ctx,phi,X,Y,lo,-Math.abs(z),60);ctx.stroke();}
+  vdash(ctx,X(c),T-10,B,rust);vdash(ctx,X(-c),T-10,B,rust);
+  ctx.fillStyle=rust;ctx.textAlign='center';ctx.fillText('±'+fmt(c,2),X(c),T-16);
+  ctx.strokeStyle=ink;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(X(z),B);ctx.lineTo(X(z),Y(phi(z))-18);ctx.stroke();
+  ctx.font='600 11px "IBM Plex Sans", system-ui, sans-serif';ctx.fillStyle=ink;ctx.textAlign='center';ctx.fillText('our z '+fmt(z,2),Math.min(X(z),R-40),Y(phi(z))-26);
+  ctx.font='11px "IBM Plex Mono", ui-monospace, monospace';ctx.fillStyle=teal;ctx.fillText('p/2',Math.min(X((Math.abs(z)+hi)/2),R-14),B-14);ctx.fillText('p/2',Math.max(X((-Math.abs(z)+lo)/2),L+14),B-14);
+  axisX(ctx,X,B,L,R,[-4,-3,-2,-1,0,1,2,3,4],t=>sgn(t,0),muted);ctx.fillStyle=muted;ctx.textAlign='right';ctx.fillText('z under H0',R,h-6);
+}
+
+// ================= STEP 7: power =================
+const NS=[1000,2000,4000,8000,16000];
+function draw7(){
+  const gain=$('gain').value/10,n=NS[+$('nIdx').value];$('gainOut').textContent=fmt(gain,1)+' pts';$('nOut').textContent=fmt(n,0);
+  const se=Math.sqrt(2*P0*(1-P0)/n)*100;const c=zc()*se;const pow=(1-Phi((c-gain)/se))+Phi((-c-gain)/se);
+  $('cutOut').textContent='±'+fmt(c,2);$('aOut').textContent=fmt(alpha,2);$('powOut').textContent=fmt(pow,2);$('missOut').textContent=fmt(1-pow,2);$('powForm').textContent=fmt(pow,2);
+  $('gain2Out').textContent=fmt(gain,1)+' pts';$('fP').textContent=fmt(pow,2)+' at δ '+fmt(gain,1);$('fH1').textContent='N('+fmt(gain,1)+', 0.69²)';syncRecap();draw8(gain);
+  if(gain>0){const zz=zc()+invPhi(0.8);const need=Math.ceil(2*P0*(1-P0)*zz*zz/((gain/100)**2)/100)*100;$('uN').textContent=fmt(need,0)+' / page';}else $('uN').textContent='∞ (δ = 0)';
+  $('uB').innerHTML=pow<0.8?`With power ${fmt(pow,2)}, a real δ = ${fmt(gain,1)} is <b>missed ${Math.round((1-pow)*100)} times in 100</b>. "Not significant" then says little: the effect may be there.`:
+    `With power ${fmt(pow,2)}, a real δ = ${fmt(gain,1)} is missed only ${Math.round((1-pow)*100)} times in 100. "Not significant" is then some evidence that the gain is smaller than ${fmt(gain,1)}.`;
+  const hit=100*pow,fa=900*alpha;$('uC').innerHTML=`1,000 ideas, 100 truly work (δ = ${fmt(gain,1)}). Hits: 100 × ${fmt(pow,2)} = <b>${fmt(hit,0)}</b>. False alarms: 900 × ${fmt(alpha,2)} = <b>${fmt(fa,0)}</b>.`;
+  $('uCbig').textContent=Math.round(100*fa/(hit+fa))+'%';
+  $('verdict7').innerHTML=gain===0?'δ = 0: power = α.':
+    `If the truth is δ = ${fmt(gain,1)}, we catch it <b>${Math.round(pow*100)} times in 100</b>.`;
+  const cv=$('c7');const{ctx,w,h}=setup(cv);const muted=css('--muted'),ink=css('--ink'),teal=css('--teal'),rust=css('--rust'),grey=css('--grey');
+  const lo=-4.5,hi=6;const L=14,R=w-14,T=30,B=h-30;const X=v=>L+(v-lo)/(hi-lo)*(R-L);
+  const f0=v=>phi(v/se)/se,f1=v=>phi((v-gain)/se)/se;const peak=phi(0)/se;const Y=d=>B-d/peak*(B-T)*0.95;
+  fillUnder(ctx,f1,X,Y,Math.max(lo,-c),Math.min(hi,c),B,css('--grey-soft'));
+  fillUnder(ctx,f1,X,Y,c,hi,B,css('--teal-soft'));fillUnder(ctx,f1,X,Y,lo,-c,B,css('--teal-soft'));
+  fillUnder(ctx,f0,X,Y,c,hi,B,css('--rust-soft'));fillUnder(ctx,f0,X,Y,lo,-c,B,css('--rust-soft'));
+  ctx.lineWidth=2;ctx.strokeStyle=grey;curvePath(ctx,f0,X,Y,lo,hi,240);ctx.stroke();
+  ctx.strokeStyle=teal;ctx.lineWidth=3;curvePath(ctx,f1,X,Y,lo,hi,240);ctx.stroke();ctx.lineWidth=2;
+  ctx.strokeStyle=rust;if(c<hi){curvePath(ctx,f0,X,Y,c,hi,60);ctx.stroke();}if(-c>lo){curvePath(ctx,f0,X,Y,lo,-c,60);ctx.stroke();}
+  vdash(ctx,X(c),T-16,B,ink);if(-c>lo)vdash(ctx,X(-c),T-16,B,ink);
+  ctx.fillStyle=ink;ctx.textAlign='right';ctx.fillText('cutoff '+fmt(c,2),X(c)-6,T-22);
+  ctx.fillStyle=rust;ctx.textAlign='left';ctx.fillText('α',X(c)+6,B-10);if(gain>=0.8){ctx.fillStyle=teal;ctx.textAlign='center';ctx.fillText('power',X(gain+0.35*se),(B+Y(f1(gain)))/2+8);}
+  ctx.font='600 11px "IBM Plex Sans", system-ui, sans-serif';
+  ctx.fillStyle=grey;ctx.textAlign='right';ctx.fillText('H0',X(0)-6,T-6);
+  if(gain>=0.4){ctx.fillStyle=teal;ctx.textAlign='left';ctx.fillText('H1',Math.min(X(gain)+8,R-30),T-6);}
+  ctx.font='11px "IBM Plex Mono", ui-monospace, monospace';
+  axisX(ctx,X,B,L,R,[-4,-2,0,2,4,6],t=>sgn(t,0),muted);ctx.fillStyle=muted;ctx.textAlign='right';ctx.fillText('D (points)',R,h-6);
+}
+function setGain(v){$('gain').value=v;$('gain2').value=v;draw7();}
+$('matchD').onclick=()=>setGain(Math.round(obs*10));
+$('gain').addEventListener('input',e=>setGain(e.target.value));$('gain2').addEventListener('input',e=>setGain(e.target.value));
+$('nIdx').addEventListener('input',draw7);
+// ---- step 4: H0 and H1 bells (no cutoff yet) ----
+function draw8(gain){
+  const cv=$('c8');const{ctx,w,h}=setup(cv);const muted=css('--muted'),teal=css('--teal'),grey=css('--grey'),rust=css('--rust');
+  const se=SE0,lo=-4.5,hi=6,L=14,R=w-14,T=26,B=h-30;const X=v=>L+(v-lo)/(hi-lo)*(R-L);
+  const f0=v=>phi(v/se)/se,f1=v=>phi((v-gain)/se)/se;const Y=d=>B-d/(phi(0)/se)*(B-T)*0.95;
+  fillUnder(ctx,f1,X,Y,lo,hi,B,css('--teal-soft'));
+  ctx.lineWidth=2;ctx.strokeStyle=grey;curvePath(ctx,f0,X,Y,lo,hi,240);ctx.stroke();
+  ctx.strokeStyle=teal;ctx.lineWidth=3;curvePath(ctx,f1,X,Y,lo,hi,240);ctx.stroke();
+  ctx.font='600 11px "IBM Plex Sans", system-ui, sans-serif';ctx.fillStyle=grey;ctx.textAlign='right';ctx.fillText('H0: N(0, 0.69²)',X(0)-10,T-8);
+  ctx.fillStyle=teal;ctx.textAlign='left';ctx.fillText('H1: N('+fmt(gain,1)+', 0.69²)',Math.min(X(gain)+10,R-110),T-8);
+  ctx.font='11px "IBM Plex Mono", ui-monospace, monospace';
+  ctx.save();ctx.setLineDash([2,3]);ctx.strokeStyle=rust;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(X(obs),T+10);ctx.lineTo(X(obs),B);ctx.stroke();ctx.restore();
+  ctx.fillStyle=rust;ctx.textAlign='left';ctx.fillText('our D '+sgn(obs,1),Math.min(X(obs)+6,R-80),B-12);
+  axisX(ctx,X,B,L,R,[-4,-2,0,2,4,6],t=>sgn(t,0),muted);ctx.fillStyle=muted;ctx.textAlign='right';ctx.fillText('D (points)',R,h-6);
+}
+function drawFrom3(){draw4();draw6();draw7();}
+
+// ================= EXTRA: t =================
+function drawT(){
+  const raw=+$('df').value;const inf=raw>=61;const v=inf?1e6:raw;$('dfOut').textContent=inf?'∞':raw;
+  const tc=inf?1.96:tinv(0.975,v);$('tcut').textContent=fmt(tc,2);const tail=inf?0.05:2*(1-tcdf(1.96,v));$('tTail').textContent=fmt(tail,3);
+  $('verdictT').innerHTML=inf?'df → ∞: t = normal.':`More data → closer to 1.96.`;
+  const cv=$('ct');const{ctx,w,h}=setup(cv);const muted=css('--muted'),navy=css('--navy'),rust=css('--rust'),grey=css('--grey');
+  const lo=-5,hi=5,L=14,R=w-14,T=16,B=h-30;const X=x=>L+(x-lo)/(hi-lo)*(R-L);const Y=d=>B-d/0.42*(B-T);const ft=x=>inf?phi(x):tpdf(x,v);
+  fillUnder(ctx,ft,X,Y,tc,hi,B,css('--rust-soft'));fillUnder(ctx,ft,X,Y,lo,-tc,B,css('--rust-soft'));
+  ctx.save();ctx.setLineDash([6,5]);ctx.strokeStyle=grey;ctx.lineWidth=2;curvePath(ctx,phi,X,Y,lo,hi,200);ctx.stroke();ctx.restore();
+  ctx.strokeStyle=navy;ctx.lineWidth=2.2;curvePath(ctx,ft,X,Y,lo,hi,200);ctx.stroke();
+  vdash(ctx,X(tc),T,B,rust);vdash(ctx,X(-tc),T,B,rust);ctx.fillStyle=rust;ctx.textAlign='left';if(tc<4.6)ctx.fillText('±'+fmt(tc,2),X(tc)+5,T+6);
+  axisX(ctx,X,B,L,R,[-4,-3,-2,-1,0,1,2,3,4],t=>sgn(t,0),muted);ctx.fillStyle=muted;ctx.textAlign='right';ctx.fillText('t',R,h-6);
+}
+$('df').addEventListener('input',drawT);
+document.querySelectorAll('[data-df]').forEach(b=>b.addEventListener('click',()=>{$('df').value=b.dataset.df;drawT();}));
+
+// ================= EXTRA: F =================
+const GRAND=66.87,DEV=[71.35-GRAND,59.90-GRAND,69.35-GRAND],NG=20;
+const Z4=(()=>{const r=mulberry32(1142);const out=[];for(let g=0;g<3;g++){let z=[];for(let i=0;i<NG;i++){const u=Math.max(r(),1e-9),u2=r();z.push(Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*u2));}
+  const m=z.reduce((a,b)=>a+b,0)/NG;z=z.map(x=>x-m);const s=Math.sqrt(z.reduce((a,b)=>a+b*b,0)/(NG-1));out.push(z.map(x=>x/s));}return out;})();
+const JIT=(()=>{const r=mulberry32(77);return Z4.map(g=>g.map(()=>r()*2-1));})();
+const PRESET={close:[2,18],noisy:[12,18],quiet:[12,5],ours:[10,12.583]};
+function drawF(){
+  const g=$('gap').value/10,s=+$('spread').value;$('gapOut').textContent='×'+fmt(g,1);$('spreadOut').textContent=fmt(s,1)+' s';
+  const means=DEV.map(d=>GRAND+g*d);const msb=NG*DEV.reduce((a,d)=>a+(g*d)**2,0)/2;const msw=s*s;const F=msb/msw;const p=fsurv(F,2,57);
+  $('msb').textContent=fmt(msb,0);$('msw').textContent=fmt(msw,0);$('Fout').textContent=fmt(F,2);$('Fp').textContent=fmtP(p);
+  $('verdictF').innerHTML=p<=0.05?`<b>Reject</b>: at least one page differs.`:`<b>Keep H0</b>: luck can explain it.`;
+  const cv=$('cf');const{ctx,w,h}=setup(cv);const muted=css('--muted'),cols=[css('--grey'),css('--navy'),css('--teal')],rule=css('--rule');
+  const lo=10,hi=125,L=34,R=w-12,T=12,B=h-74;const X=v=>L+(Math.min(hi,Math.max(lo,v))-lo)/(hi-lo)*(R-L);const rowH=(B-T)/3;
+  vdash(ctx,X(GRAND),T,B,muted);
+  ['A','B','C'].forEach((name,gi)=>{const yc=T+rowH*(gi+0.5);
+    ctx.strokeStyle=rule;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(L,yc);ctx.lineTo(R,yc);ctx.stroke();
+    ctx.fillStyle=cols[gi];ctx.globalAlpha=.75;Z4[gi].forEach((z,i)=>{ctx.beginPath();ctx.arc(X(means[gi]+s*z),yc+JIT[gi][i]*rowH*0.28,4,0,Math.PI*2);ctx.fill();});ctx.globalAlpha=1;
+    ctx.strokeStyle=cols[gi];ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(X(means[gi]),yc-rowH*0.42);ctx.lineTo(X(means[gi]),yc+rowH*0.42);ctx.stroke();
+    ctx.font='600 11px "IBM Plex Sans", system-ui, sans-serif';ctx.fillStyle=cols[gi];ctx.textAlign='left';ctx.fillText(name,4,yc);ctx.font='11px "IBM Plex Mono", ui-monospace, monospace';});
+  axisX(ctx,X,B,L,R,[20,40,60,80,100,120],t=>t+'s',muted);
+  const by=B+40,bh=14,maxv=Math.max(msb,msw)*1.05,BX=v=>L+v/maxv*(R-L-60);
+  ctx.fillStyle=cols[2];ctx.fillRect(L,by-bh-2,BX(msb)-L,bh);ctx.fillStyle=cols[0];ctx.fillRect(L,by+2,BX(msw)-L,bh);
+  ctx.fillStyle=muted;ctx.textAlign='left';ctx.fillText('signal',BX(msb)+6,by-bh/2-2);ctx.fillText('noise',BX(msw)+6,by+bh/2+2);
+}
+['gap','spread'].forEach(id=>$(id).addEventListener('input',()=>{document.querySelectorAll('[data-p]').forEach(x=>x.classList.remove('on'));drawF();}));
+document.querySelectorAll('[data-p]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-p]').forEach(x=>x.classList.remove('on'));b.classList.add('on');const[gg,ss]=PRESET[b.dataset.p];$('gap').value=gg;$('spread').value=ss;drawF();}));
+
+// ================= EXTRA: p-hacking =================
+const METRICS=['Sign-up rate','Clicks on the button','Time on page','Pages per visit','Sign-ups, mobile only','Sign-ups, desktop only','Sign-ups, new visitors','Sign-ups, returning visitors','Sign-ups on Mondays','Sign-ups on Tuesdays','Scroll depth','Cart adds','Cart adds, under age 25','Cart adds, age 25 to 40','Return within 7 days','Newsletter opens','Sign-ups, Chrome users','Sign-ups, Safari users','Sign-ups after 6 pm','Sign-ups before noon'];
+let rng5=mulberry32(Date.now()%100000),tries=[];
+function tryOne(){if(tries.length>=METRICS.length)return false;const p=rng5();tries.push(p);return p<0.05;}
+function drawP(){
+  const k=tries.length;$('kTried').textContent=k;$('kChance').textContent=Math.round((1-Math.pow(0.95,k))*100)+'%';
+  const log=$('log5');log.innerHTML=tries.map((p,i)=>`<div class="${p<0.05?'hit':''}">${i+1}. ${METRICS[i]}: p = ${fmt(p,3)}${p<0.05?'  ← "it works!"':''}</div>`).join('');log.scrollTop=log.scrollHeight;
+  const hit=tries.findIndex(p=>p<0.05);const v=$('verdict5');
+  if(!k)v.textContent='';
+  else if(hit>=0)v.innerHTML=`Try ${hit+1}: p = ${fmt(tries[hit],3)}. A "discovery" from pure luck.`;
+  else if(k>=METRICS.length)v.textContent='No hit in 20 tries (36% chance). Reset.';
+  else v.textContent='';
+  const cv=$('cp');const{ctx,w,h}=setup(cv);const muted=css('--muted'),ink=css('--ink'),rust=css('--rust'),navy=css('--navy'),rule=css('--rule');
+  const L=40,R=w-14,T=14,B=h-30;const X=x=>L+(x-1)/(20-1)*(R-L);const Y=y=>B-y*(B-T);
+  ctx.strokeStyle=rule;ctx.lineWidth=1;ctx.fillStyle=muted;ctx.textAlign='right';[0,.25,.5,.75,1].forEach(y=>{ctx.beginPath();ctx.moveTo(L,Y(y));ctx.lineTo(R,Y(y));ctx.stroke();ctx.fillText(Math.round(y*100)+'%',L-6,Y(y));});
+  ctx.save();ctx.setLineDash([4,4]);ctx.strokeStyle=muted;ctx.beginPath();ctx.moveTo(L,Y(0.05));ctx.lineTo(R,Y(0.05));ctx.stroke();ctx.restore();
+  ctx.fillStyle=muted;ctx.textAlign='right';ctx.fillText('5% for one test',R,Y(0.05)-10);
+  ctx.strokeStyle=navy;ctx.lineWidth=2.2;ctx.beginPath();for(let x=1;x<=20.001;x+=0.1){const y=1-Math.pow(0.95,x);x===1?ctx.moveTo(X(x),Y(y)):ctx.lineTo(X(x),Y(y));}ctx.stroke();
+  [1,5,10,20].forEach(x=>{const y=1-Math.pow(0.95,x);ctx.fillStyle=navy;ctx.beginPath();ctx.arc(X(x),Y(y),3.5,0,Math.PI*2);ctx.fill();ctx.fillStyle=ink;ctx.textAlign=x===20?'right':'left';ctx.fillText(Math.round(y*100)+'%',X(x)+(x===20?-8:8),Y(y)-10);});
+  if(k){const y=1-Math.pow(0.95,k);ctx.fillStyle=rust;ctx.beginPath();ctx.arc(X(k),Y(y),7,0,Math.PI*2);ctx.fill();}
+  axisX(ctx,X,B,L,R,[1,5,10,15,20],t=>t,muted);ctx.fillStyle=muted;ctx.textAlign='right';ctx.fillText('number of tries k',R,h-6);
+}
+$('tryOne').onclick=()=>{tryOne();drawP();};
+$('tryUntil').onclick=()=>{if(tries.some(p=>p<0.05))tries=[];while(tries.length<METRICS.length){if(tryOne())break;}drawP();};
+$('reset5').onclick=()=>{tries=[];drawP();};
+
+// ---------- boot ----------
+
+const LOOKS=[1,2,5,10,20],DAYS=20,PER=200,BASE=0.10;
+let rngK=mulberry32(1111),peekHits=LOOKS.map(()=>0),peekN=0,looks=20;
+function binom(n,p,r){let k=0;for(let i=0;i<n;i++)if(r()<p)k++;return k;}
+function peekRun(m){for(let t=0;t<m;t++){let a=0,b=0;const ps=[];for(let d=1;d<=DAYS;d++){a+=binom(PER,BASE,rngK);b+=binom(PER,BASE,rngK);const n=PER*d,pp=(a+b)/(2*n),se=Math.sqrt(pp*(1-pp)*2/n);ps.push(se>0?2*(1-Phi(Math.abs(b-a)/n/se)):1);}
+  LOOKS.forEach((L,i)=>{let hit=false;for(let j=1;j<=L;j++){const d=Math.round(j*DAYS/L)-1;if(ps[d]<=0.05){hit=true;break;}}if(hit)peekHits[i]++;});peekN++;}}
+function drawK(){
+  const i=LOOKS.indexOf(looks);$('peekN').textContent=fmt(peekN,0);$('peekRate').textContent=peekN?fmt(peekHits[i]/peekN,2):'–';
+  document.querySelectorAll('#lookChips button').forEach(b=>b.classList.toggle('on',+b.dataset.l===looks));
+  $('verdictPeek').innerHTML=!peekN?'':looks===1?'Look once: about 5 in 100, as α promises.':`Look ${looks} times: about ${Math.round(100*peekHits[i]/peekN)} in 100. More looks, more false alarms.`;
+  const cv=$('ck');const{ctx,w,h}=setup(cv);const muted=css('--muted'),ink=css('--ink'),rust=css('--rust'),grey=css('--grey'),rule=css('--rule');
+  const L=40,R=w-14,T=18,B=h-34;const Y=y=>B-y/0.3*(B-T);const bw=(R-L)/LOOKS.length;
+  ctx.strokeStyle=rule;ctx.lineWidth=1;ctx.fillStyle=muted;ctx.textAlign='right';[0,.1,.2,.3].forEach(y=>{ctx.beginPath();ctx.moveTo(L,Y(y));ctx.lineTo(R,Y(y));ctx.stroke();ctx.fillText(fmt(y,1),L-6,Y(y));});
+  ctx.save();ctx.setLineDash([4,4]);ctx.strokeStyle=muted;ctx.beginPath();ctx.moveTo(L,Y(0.05));ctx.lineTo(R,Y(0.05));ctx.stroke();ctx.restore();
+    LOOKS.forEach((Lk,j)=>{const x=L+j*bw+bw*0.2,ww=bw*0.6;const r=peekN?peekHits[j]/peekN:0;ctx.fillStyle=Lk===looks?rust:grey;ctx.fillRect(x,Y(r),ww,B-Y(r));
+    ctx.fillStyle=ink;ctx.textAlign='center';if(peekN)ctx.fillText(fmt(r,2),x+ww/2,Y(r)-9);ctx.fillStyle=muted;ctx.fillText(Lk,x+ww/2,B+12);});
+  ctx.fillStyle=muted;ctx.textAlign='right';ctx.fillText('number of looks in 20 days',R,h-6);
+}
+document.querySelectorAll('#lookChips button').forEach(b=>b.addEventListener('click',()=>{looks=+b.dataset.l;drawK();}));
+$('peekRun').onclick=()=>{peekRun(1000);drawK();};
+$('peekReset').onclick=()=>{rngK=mulberry32(1111);peekHits=LOOKS.map(()=>0);peekN=0;drawK();};
+// ---- flow diagram: fills in as the reader reaches each step ----
+const FS=['s1','s2','s3','s4','s5','s6'];let reached=0,lastCur=null;
+function syncRecap(){const r=$('flowRecap');if(!r)return;r.innerHTML=$('flow').innerHTML;r.querySelectorAll('.node').forEach(n=>{n.classList.add('done');n.classList.remove('cur');});}
+function updFlow(){const mid=innerHeight*0.45;let cur=-1;FS.forEach((id,i)=>{if($(id).getBoundingClientRect().top<mid)cur=i;});reached=Math.max(reached,cur+1);
+  document.querySelectorAll('#flow .node').forEach((n,i)=>{n.classList.toggle('done',i<reached);n.classList.toggle('cur',i===cur);});
+  const c=document.querySelector('#flow .node.cur');if(c&&c!==lastCur){lastCur=c;const f=$('flow');const l=c.offsetLeft;if(l<f.scrollLeft||l+c.offsetWidth>f.scrollLeft+f.clientWidth)f.scrollLeft=Math.max(0,l-20);}}
+addEventListener('scroll',updFlow,{passive:true});setInterval(updFlow,500);
+function drawAll(){fillSheet();draw1();draw2();draw4();draw5();draw6();draw7();drawT();drawF();drawP();drawK();}
+for(let i=0;i<5;i++){quick.push(simDay().k/40);}
+for(let i=0;i<1000;i++)days.push(simDay().k);
+setAlpha(0.05);drawAll();updFlow();syncRecap();
+let rt;window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(drawAll,80);});
+try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',drawAll);}catch(e){}
+new MutationObserver(drawAll).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(drawAll);
+})();
+</script>
+</body>
+</html>
