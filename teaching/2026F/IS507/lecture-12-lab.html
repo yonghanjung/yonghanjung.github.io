@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Causal Inference I Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* IS 507 Lecture 12 lab. Sibling of the Lecture 11 lab: same tokens, same card layout.
+   Roles: teal = drug (A=1), grey = no drug (A=0), navy = structure / truth, rust = bias and warnings only. */
+:root{
+  --paper:#f4f6f9; --card:#ffffff; --ink:#17213a; --muted:#5b6578; --rule:#dce1e9;
+  --navy:#24407a; --teal:#0d8580; --rust:#c0502b; --grey:#8b94a5;
+  --navy-soft:rgba(36,64,122,.13); --teal-soft:rgba(13,133,128,.24); --rust-soft:rgba(192,80,43,.28); --grey-soft:rgba(139,148,165,.20);
+  --dm-tr:#ffffff; --dm-un:#c5ccd8; --dm-hatch:#24407a; --dm-line:#24407a;
+  --f-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#10141c; --card:#171d28; --ink:#e5e9f0; --muted:#9aa4b5; --rule:#2a3242;
+  --navy:#88a3e6; --teal:#3cc2b8; --rust:#ef8c64; --grey:#7f899b;
+  --navy-soft:rgba(136,163,230,.16); --teal-soft:rgba(60,194,184,.28); --rust-soft:rgba(239,140,100,.30); --grey-soft:rgba(127,137,155,.24);
+  --dm-tr:#e9edf3; --dm-un:#6b7588; --dm-hatch:#17213a; --dm-line:#88a3e6;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#10141c; --card:#171d28; --ink:#e5e9f0; --muted:#9aa4b5; --rule:#2a3242;
+  --navy:#88a3e6; --teal:#3cc2b8; --rust:#ef8c64; --grey:#7f899b;
+  --navy-soft:rgba(136,163,230,.16); --teal-soft:rgba(60,194,184,.28); --rust-soft:rgba(239,140,100,.30); --grey-soft:rgba(127,137,155,.24);
+  --dm-tr:#e9edf3; --dm-un:#6b7588; --dm-hatch:#17213a; --dm-line:#88a3e6;
+  color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-behavior:smooth;scroll-padding-top:64px}
+body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.55 var(--f-body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 64px}
+.wrap{max-width:1000px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
+header{display:flex;flex-direction:column;gap:10px}
+.eyebrow{font:500 10px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{font:750 clamp(30px,6vw,47px)/1.02 var(--f-display);letter-spacing:-.02em;margin:0;text-wrap:balance}
+h1 em{font-style:normal;color:var(--teal)}
+.lede{max-width:64ch;color:var(--muted);margin:0;font-size:15px}
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;color:var(--muted)}
+nav.steps{position:sticky;top:0;z-index:5;background:var(--paper);padding-block:8px;display:flex;gap:6px;overflow-x:auto;border-bottom:1px solid var(--rule)}
+nav.steps a{flex:0 0 auto;font:500 11px/1 var(--f-body);color:var(--ink);text-decoration:none;padding:8px 10px;border:1px solid var(--rule);border-radius:999px;background:var(--card);white-space:nowrap}
+nav.steps a span{font-family:var(--f-mono);color:var(--teal);margin-right:5px}
+nav.steps a:hover{border-color:var(--navy)}
+section.step{background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:22px clamp(14px,3vw,28px);display:flex;flex-direction:column;gap:14px;min-width:0}
+.num{display:flex;align-items:center;gap:10px;font:500 10px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--teal)}
+.num b{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--teal);color:var(--card);font-size:11px;letter-spacing:0}
+.step h2{font:600 clamp(19px,3.4vw,24px)/1.15 var(--f-display);margin:0;text-wrap:balance}
+.step p{margin:0}
+.grid{display:grid;grid-template-columns:minmax(0,270px) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:760px){.grid{grid-template-columns:minmax(0,1fr)}}
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:700px){.two,.three{grid-template-columns:minmax(0,1fr)}}
+.controls{display:flex;flex-direction:column;gap:14px;min-width:0}
+.ctl{display:flex;flex-direction:column;gap:5px}
+.ctl label,.ctl .lab{font-size:12px;font-weight:500;display:flex;justify-content:space-between;gap:8px}
+.ctl output{font:500 12px var(--f-mono);color:var(--navy)}
+input[type=range]{width:100%;accent-color:var(--navy)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+button{font:500 12px/1 var(--f-body);color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:9px 12px;cursor:pointer}
+button:hover{border-color:var(--navy)}
+button.on{background:var(--navy);border-color:var(--navy);color:var(--card)}
+button.go{background:var(--teal);border-color:var(--teal);color:var(--card)}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.readout{display:flex;flex-direction:column;gap:7px;padding:12px;border-radius:8px;background:var(--paper)}
+.row{display:flex;justify-content:space-between;gap:10px;font-size:12px;align-items:baseline}
+.row b{font:500 14px var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.row.dim{opacity:.45}
+.row.total{border-top:1px solid var(--rule);padding-top:7px}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.chart{min-width:0;display:flex;flex-direction:column;gap:6px}
+canvas{width:100%;display:block}
+.caption{font-size:11px;color:var(--muted)}
+.key{font:600 clamp(18px,3vw,22px)/1.25 var(--f-display);margin:0;text-align:center;color:var(--navy)}
+.key.warn{color:var(--rust)}
+.mono{font:12px/1.5 var(--f-mono)}
+.eq{font:12px/1.6 var(--f-mono);background:var(--paper);border-radius:6px;padding:8px 10px;overflow-wrap:anywhere}
+.eq .t{color:var(--teal)} .eq .n{color:var(--navy)}
+.card{border:1px solid var(--rule);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.card .t{font:600 14px var(--f-display)}
+.card .q{font:12px/1.5 var(--f-mono);color:var(--navy);overflow-wrap:anywhere}
+.card .s{font-size:11px;color:var(--muted)}
+svg{display:block;width:100%;height:auto;max-width:100%}
+#gSB{max-width:400px;margin:0 auto}
+svg.dmtop{max-width:240px;margin:0 auto}
+#gDMc,#gDMa{max-width:320px;margin:0 auto}
+.dmleg{justify-content:center}
+.sw.dm-tr{background:var(--dm-tr);border:1px solid var(--dm-line)} .sw.dm-un{background:var(--dm-un);border:1px solid var(--dm-line)}
+.sw.dm-ha{border:1px solid var(--dm-line);background:repeating-linear-gradient(45deg,var(--dm-hatch) 0 1px,var(--dm-tr) 1px 4px)}
+svg text{font-family:var(--f-mono)}
+.badge{display:inline-block;font:600 12px/1 var(--f-body);padding:7px 10px;border-radius:6px}
+.badge.ok{background:var(--teal-soft);color:var(--teal)} .badge.bad{background:var(--rust-soft);color:var(--rust)}
+.sheet{border-collapse:collapse;font:12px/1.3 var(--f-mono);font-variant-numeric:tabular-nums;width:100%}
+.sheet th,.sheet td{border:1px solid var(--rule);padding:6px 8px;text-align:center}
+.sheet th{background:var(--paper);font-weight:500;color:var(--muted)}
+.sheet td.hit{background:var(--teal-soft)}
+.sheet .b{color:var(--rust)} .sheet .g{color:var(--teal)}
+footer{color:var(--muted);font-size:11px;max-width:70ch}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">IS 507 · Lecture 12 · Yonghan Jung</div>
+  <h1>Causal Inference - I</h1>
+  <p class="lede">A simulated hospital: does Remdesivir save lives?</p>
+  <div class="legend"><span><i class="sw" style="background:var(--teal)"></i>drug (A = 1)</span><span><i class="sw" style="background:var(--grey)"></i>no drug (A = 0)</span><span><i class="sw" style="background:var(--navy)"></i>truth / structure</span><span><i class="sw" style="background:var(--rust)"></i>bias</span></div>
+  <div class="eq">X = wealthy (1) or not (0) · A = got Remdesivir · Y = died within 28 days<br>
+  P(X=1) = 0.5 · P(A=1 | X) = <span class="n">0.8</span> wealthy, <span class="n">0.2</span> not wealthy · P(Y=1 | A, X) = 0.23 − 0.18·X + <span class="t">0.02·A</span></div>
+</header>
+
+<nav class="steps" aria-label="Sections">
+  <a href="#simpson"><span>1</span>Simpson</a><a href="#suzy"><span>2</span>Suzy &amp; Billy</a><a href="#assoc"><span>3</span>Association</a>
+  <a href="#abtest"><span>4</span>A/B test</a><a href="#twoscm"><span>5</span>Same data</a><a href="#crct"><span>6</span>Conditional RCT</a>
+  <a href="#ignore"><span>7</span>Ignorability</a><a href="#estimators"><span>8</span>Estimators</a><a href="#dr"><span>9</span>Double robust</a><a href="#errors"><span>10</span>Errors multiply</a>
+</nav>
+
+<!-- ============================== 1 SIMPSON ============================== -->
+<section class="step" id="simpson">
+  <div class="num"><b>1</b>Simpson</div>
+  <h2>Drug patients die less. Does the drug help?</h2>
+  <div class="grid">
+    <div class="controls">
+      <div class="ctl"><label for="s1pr">P(drug | wealthy) <output id="s1prO"></output></label><input type="range" id="s1pr" min="5" max="95" step="5" value="80"></div>
+      <div class="ctl"><label for="s1pl">P(drug | not wealthy) <output id="s1plO"></output></label><input type="range" id="s1pl" min="5" max="95" step="5" value="20"></div>
+      <div class="ctl"><label for="s1ef">true drug effect on death <output id="s1efO"></output></label><input type="range" id="s1ef" min="-5" max="10" step="1" value="2"></div>
+      <div class="readout">
+        <div class="row"><span>all patients</span><b id="s1all"></b></div>
+        <div class="row"><span>wealthy</span><b id="s1loy"></b></div>
+        <div class="row"><span>not wealthy</span><b id="s1risk"></b></div>
+      </div>
+      <button id="s1reset">reset 0.8 / 0.2 / +0.02</button>
+    </div>
+    <div class="chart">
+      <canvas id="c1" height="250" aria-label="death rate by drug, pooled and by group"></canvas>
+      <canvas id="c1b" height="96" aria-label="share of wealthy patients in each arm"></canvas>
+      <div class="caption">Death rate (top) and share wealthy per arm (bottom).</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== 2 SUZY & BILLY ============================== -->
+<section class="step" id="suzy">
+  <div class="num"><b>2</b>Suzy &amp; Billy</div>
+  <h2>But-for fails. Hold BH fixed.</h2>
+  <div class="grid">
+    <div class="controls">
+      <div class="ctl"><span class="lab">Suzy throws (ST)</span><div class="chips" id="sbST"><button data-v="1" class="on">T</button><button data-v="0">F</button></div></div>
+      <div class="ctl"><span class="lab">Billy throws (BT)</span><div class="chips" id="sbBT"><button data-v="1" class="on">T</button><button data-v="0">F</button></div></div>
+      <button id="sbHold">hold BH = F</button>
+      <div class="readout">
+        <div class="row"><span>but-for: change ST, BS changes?</span><b id="sbBF"></b></div>
+        <div class="row"><span>holding BH = F: change ST, BS changes?</span><b id="sbCP"></b></div>
+      </div>
+    </div>
+    <div class="chart">
+      <svg id="gSB" viewBox="0 0 340 204" role="img" aria-label="Suzy and Billy causal graph"></svg>
+      <div class="eq" id="sbEq"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== 3 ASSOCIATION VS CAUSATION ============================== -->
+<section class="step" id="assoc">
+  <div class="num"><b>3</b>Association vs causation</div>
+  <h2>Who gets the drug decides what we compare</h2>
+  <div class="grid">
+    <div class="controls">
+      <div class="ctl"><label for="dmp1">P(drug | wealthy) <output id="dmp1O"></output></label><input type="range" id="dmp1" min="5" max="95" step="5" value="80"></div>
+      <div class="ctl"><label for="dmp0">P(drug | not wealthy) <output id="dmp0O"></output></label><input type="range" id="dmp0" min="5" max="95" step="5" value="20"></div>
+      <div class="chips"><button id="dmCoin">coin (0.5 / 0.5)</button><button id="dmPay">who can pay (0.8 / 0.2)</button></div>
+      <div><span class="badge" id="dmBadge"></span></div>
+    </div>
+    <div class="chart">
+      <svg id="gDMtop" class="dmtop" viewBox="0 0 200 150" role="img" aria-label="all patients diamond"></svg>
+      <div class="legend dmleg"><span><i class="sw dm-tr"></i>treated</span><span><i class="sw dm-un"></i>untreated</span><span><i class="sw dm-ha"></i>wealthy (top half)</span></div>
+    </div>
+  </div>
+  <div class="two">
+    <div class="card"><div class="t" style="color:var(--teal)">causation</div>
+      <svg id="gDMc" viewBox="0 0 260 176" role="img" aria-label="everyone treated versus everyone untreated"></svg>
+      <div class="readout"><div class="row"><span>E[Y(1)] − E[Y(0)]</span><b id="dmC" style="color:var(--navy)"></b></div></div></div>
+    <div class="card"><div class="t" style="color:var(--rust)">association</div>
+      <svg id="gDMa" viewBox="0 0 260 176" role="img" aria-label="treated piece versus untreated piece"></svg>
+      <div class="readout"><div class="row"><span>E[Y | A=1] − E[Y | A=0]</span><b id="dmA"></b></div></div></div>
+  </div>
+</section>
+
+<!-- ============================== 4 A/B TEST ============================== -->
+<section class="step" id="abtest">
+  <div class="num"><b>4</b>A/B test</div>
+  <h2>A coin flip balances the arms</h2>
+  <div class="chips" id="s3mode">
+    <button data-d="t" class="on">Targeted (who can pay)</button>
+    <button data-d="r">Randomized (coin flip)</button>
+    <button id="s3new">new sample (2,000)</button>
+    <button id="s3rep" class="go">Repeat 500 times</button>
+  </div>
+  <div class="two">
+    <div class="chart"><canvas id="c3a" height="200" aria-label="share wealthy and death rate per arm"></canvas>
+      <div class="caption" id="s3cap"></div></div>
+    <div class="chart"><canvas id="c3b" height="200" aria-label="histogram of estimated differences"></canvas>
+      <div class="caption">Estimates over 500 samples. Navy = truth +0.02.</div></div>
+  </div>
+</section>
+
+<!-- ============================== 5 TWO SCMs ============================== -->
+<section class="step" id="twoscm">
+  <div class="num"><b>5</b>Same data</div>
+  <h2>Two models. Same data. Opposite answers.</h2>
+  <div class="chips">
+    <button id="s5do">do(A = 1)</button>
+    <button id="s5cur">lift the curtain</button>
+    <button id="s5new">resample</button>
+  </div>
+  <div class="two">
+    <div class="card"><div class="t">SCM 1 · drug does nothing</div>
+      <div class="q">U ~ Bern(0.5) · A = U · Y = 2·U + ε</div>
+      <canvas id="c5o1" height="140"></canvas><div class="caption">observed Y, by A</div>
+      <div data-do hidden><canvas id="c5d1" height="140"></canvas><div class="caption" id="s5m1"></div></div></div>
+    <div class="card"><div class="t">SCM 2 · drug adds 2</div>
+      <div class="q">A ~ Bern(0.5) · Y = 2·A + ε</div>
+      <canvas id="c5o2" height="140"></canvas><div class="caption">observed Y, by A</div>
+      <div data-do hidden><canvas id="c5d2" height="140"></canvas><div class="caption" id="s5m2"></div></div></div>
+  </div>
+  <p class="key" id="s5key">Same data.</p>
+  <p class="caption" id="s5truth" style="text-align:center">Which one made your data? <span id="s5ans">?</span></p>
+</section>
+
+<!-- ============================== 6 CONDITIONAL RCT ============================== -->
+<section class="step" id="crct">
+  <div class="num"><b>6</b>Conditional RCT</div>
+  <h2>A different coin for each age</h2>
+  <div class="eq">X = old (≥ 60) or young · P(old) = 0.5 · P(Y=1 | A, old) = 0.30 + <span class="t">0.02·A</span> · P(Y=1 | A, young) = 0.08 + <span class="t">0.02·A</span></div>
+  <div class="grid">
+    <div class="controls">
+      <div class="ctl"><label for="crPo">P(drug | old) <output id="crPoO"></output></label><input type="range" id="crPo" min="5" max="95" step="5" value="80"></div>
+      <div class="ctl"><label for="crPy">P(drug | young) <output id="crPyO"></output></label><input type="range" id="crPy" min="5" max="95" step="5" value="20"></div>
+      <div class="readout">
+        <div class="row"><span>naive E[Y|A=1] − E[Y|A=0]</span><b id="crNaive" style="color:var(--rust)"></b></div>
+        <div class="row"><span>adjusted Σₓ (E[Y|A=1,x] − E[Y|A=0,x]) P(x)</span><b id="crAdj" style="color:var(--teal)"></b></div>
+        <div class="row total"><span>truth</span><b style="color:var(--navy)">+0.020</b></div>
+      </div>
+    </div>
+    <div class="two">
+      <div class="card"><div class="t" id="crTo"></div><canvas id="crCo" height="170" aria-label="death rate by drug among the old"></canvas></div>
+      <div class="card"><div class="t" id="crTy"></div><canvas id="crCy" height="170" aria-label="death rate by drug among the young"></canvas></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== 7 IGNORABILITY ============================== -->
+<section class="step" id="ignore">
+  <div class="num"><b>7</b>Ignorability</div>
+  <h2>Adjusting for X fails if U is hidden</h2>
+  <div class="grid">
+    <div class="controls">
+      <svg viewBox="0 0 240 150" role="img" aria-label="graph with hidden U">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--navy)"/></marker>
+          <marker id="ahr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--rust)"/></marker>
+        </defs>
+        <line x1="104" y1="30" x2="54" y2="104" stroke="var(--navy)" stroke-width="2" marker-end="url(#ah)"/>
+        <line x1="136" y1="30" x2="186" y2="104" stroke="var(--navy)" stroke-width="2" marker-end="url(#ah)"/>
+        <line x1="58" y1="122" x2="180" y2="122" stroke="var(--teal)" stroke-width="2.5" marker-end="url(#ah)"/>
+        <path id="g7u1" d="M120,142 Q70,150 46,140" fill="none" stroke="var(--rust)" stroke-width="2" stroke-dasharray="4 3" marker-end="url(#ahr)"/>
+        <path id="g7u2" d="M120,142 Q170,150 194,140" fill="none" stroke="var(--rust)" stroke-width="2" stroke-dasharray="4 3" marker-end="url(#ahr)"/>
+        <circle cx="120" cy="16" r="15" fill="var(--paper)" stroke="var(--navy)" stroke-width="2"/><text x="120" y="21" text-anchor="middle" font-size="13" fill="var(--ink)">X</text>
+        <circle cx="40" cy="122" r="15" fill="var(--paper)" stroke="var(--teal)" stroke-width="2"/><text x="40" y="127" text-anchor="middle" font-size="13" fill="var(--ink)">A</text>
+        <circle cx="200" cy="122" r="15" fill="var(--paper)" stroke="var(--navy)" stroke-width="2"/><text x="200" y="127" text-anchor="middle" font-size="13" fill="var(--ink)">Y</text>
+        <circle id="g7u" cx="120" cy="138" r="11" fill="var(--paper)" stroke="var(--rust)" stroke-width="1.5" stroke-dasharray="3 2"/><text x="120" y="142" text-anchor="middle" font-size="10" fill="var(--rust)">U</text>
+      </svg>
+      <div class="ctl"><label for="s7s">hidden confounder strength <output id="s7sO"></output></label><input type="range" id="s7s" min="0" max="100" step="5" value="0"></div>
+      <div class="readout">
+        <div class="row"><span>adjusted for X</span><b id="s7est"></b></div>
+        <div class="row"><span>truth</span><b style="color:var(--navy)">+0.020</b></div>
+        <div class="row total"><span>bias</span><b id="s7bias"></b></div>
+      </div>
+    </div>
+    <div class="chart">
+      <canvas id="c7a" height="200" aria-label="adjusted estimate versus hidden strength"></canvas>
+      <canvas id="c7b" height="180" aria-label="would-die-with-drug rate of treated vs non-treated patients, within each group"></canvas>
+      <div class="caption">Bottom: Y(1) rate, treated vs untreated, within X. Equal bars = Y(a) ⫫ A | X.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== 8 ESTIMATORS ============================== -->
+<section class="step" id="estimators">
+  <div class="num"><b>8</b>Estimators</div>
+  <h2>IPW · Outcome regression · AIPW</h2>
+  <div class="eq">X ~ N(0,1) health score · P(A=1|x) = sigmoid(−x + 0.5(x² − 1)) · Y = 10 + 4x + 3x² + <span class="t">5·A</span> + N(0, 4²) · true ATE = <span class="n">5</span></div>
+  <div class="grid">
+    <div class="controls">
+      <div class="ctl"><span class="lab">view</span><div class="chips" id="s9view"><button data-v="ipw" class="on">IPW weights</button><button data-v="or">regression lines</button></div></div>
+      <div class="ctl"><span class="lab">propensity model</span><div class="chips" id="s9pm"><button data-k="1">x</button><button data-k="2" class="on">x, x²</button></div></div>
+      <div class="ctl"><span class="lab">outcome model</span><div class="chips" id="s9om"><button data-k="1">x</button><button data-k="2" class="on">x, x²</button></div></div>
+      <div class="ctl"><label for="s9n">patients n <output id="s9nO"></output></label><input type="range" id="s9n" min="200" max="5000" step="100" value="1000"></div>
+      <button id="s9new">resample</button>
+    </div>
+    <div class="chart">
+      <canvas id="c9a" height="300" aria-label="scatter of health score and recovery score"></canvas>
+      <canvas id="c9b" height="150" aria-label="four estimates and the truth"></canvas>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== 9 DOUBLE ROBUST ============================== -->
+<section class="step" id="dr">
+  <div class="num"><b>9</b>Double robustness</div>
+  <h2>AIPW: right if either model is right</h2>
+  <div class="grid">
+    <div class="controls">
+      <div class="ctl"><span class="lab">propensity model</span><div class="chips" id="s10pm"><button data-k="2" class="on">right (x, x²)</button><button data-k="1">wrong (x)</button></div></div>
+      <div class="ctl"><span class="lab">outcome model</span><div class="chips" id="s10om"><button data-k="2" class="on">right (x, x²)</button><button data-k="1">wrong (x)</button></div></div>
+      <button id="s10run" class="go">Run 300 times (n = 1,000)</button>
+      <button id="s10all">Run all four</button>
+      <table class="sheet" id="s10tab" aria-label="average bias in four scenarios"></table>
+      <div class="caption">Average bias (estimate − 5). Rust = |bias| &gt; 0.3.</div>
+    </div>
+    <div class="chart"><canvas id="c10" height="260" aria-label="300 estimates per estimator"></canvas>
+      <div class="caption" id="s10cap"></div></div>
+  </div>
+</section>
+
+<!-- ============================== 10 ERRORS MULTIPLY ============================== -->
+<section class="step" id="errors">
+  <div class="num"><b>10</b>Errors multiply</div>
+  <h2>Two rough models, one sharp estimate</h2>
+  <div class="grid">
+    <div class="controls">
+      <div class="ctl"><label for="emD">error size δ (both models) <output id="emDO"></output></label><input type="range" id="emD" min="0" max="0.6" step="0.01" value="0.3"></div>
+      <div class="readout">
+        <div class="row"><span>IPW bias</span><b id="emIPW" style="color:var(--rust)"></b></div>
+        <div class="row"><span>OR bias</span><b id="emOR" style="color:var(--navy)"></b></div>
+        <div class="row total"><span>AIPW bias</span><b id="emAIPW" style="color:var(--teal)"></b></div>
+      </div>
+      <div class="eq">bias(AIPW) ≈ error(ê) × error(μ̂)</div>
+    </div>
+    <div class="chart"><canvas id="cEM" height="260" aria-label="absolute bias versus error size for three estimators"></canvas>
+      <div class="caption">|bias| vs δ, exact over x ~ N(0,1).</div></div>
+  </div>
+</section>
+
+<footer>Simulated data, inspired by the Remdesivir case. No real patients.</footer>
+</div>
+<script>
+(function(){
+"use strict";
+// ---------------- math ----------------
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+function gaussFrom(r){let spare=null;return function(){if(spare!==null){const s=spare;spare=null;return s;}let u=0,v=0;while(u===0)u=r();v=r();const m=Math.sqrt(-2*Math.log(u));spare=m*Math.sin(2*Math.PI*v);return m*Math.cos(2*Math.PI*v);};}
+const sigmoid=z=>1/(1+Math.exp(-z));
+const fmt=(x,d)=>x.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const sgn=(x,d)=>{const r=+x.toFixed(d);return(r>0?'+':r<0?'−':'')+fmt(Math.abs(r),d);};
+const $=id=>document.getElementById(id);
+const mean=a=>a.reduce((s,v)=>s+v,0)/a.length;
+function solve(M,b){const n=b.length;const A=M.map((r,i)=>[...r,b[i]]);
+  for(let c=0;c<n;c++){let p=c;for(let r=c+1;r<n;r++)if(Math.abs(A[r][c])>Math.abs(A[p][c]))p=r;[A[c],A[p]]=[A[p],A[c]];
+    const d=A[c][c]||1e-12;for(let r=0;r<n;r++){if(r===c)continue;const f=A[r][c]/d;for(let k=c;k<=n;k++)A[r][k]-=f*A[c][k];}}
+  return A.map((r,i)=>r[n]/(r[i]||1e-12));}
+const feats=(x,k)=>k===2?[1,x,x*x]:[1,x];
+function ols(xs,ys,k){const p=k+1;const M=Array.from({length:p},()=>Array(p).fill(0)),b=Array(p).fill(0);
+  for(let i=0;i<xs.length;i++){const f=feats(xs[i],k);for(let a=0;a<p;a++){b[a]+=f[a]*ys[i];for(let c=0;c<p;c++)M[a][c]+=f[a]*f[c];}}
+  const beta=solve(M,b);return x=>{const f=feats(x,k);let s=0;for(let a=0;a<p;a++)s+=beta[a]*f[a];return s;};}
+function logit(xs,as,k){const p=k+1;let beta=Array(p).fill(0);
+  for(let it=0;it<30;it++){const M=Array.from({length:p},()=>Array(p).fill(0)),g=Array(p).fill(0);
+    for(let i=0;i<xs.length;i++){const f=feats(xs[i],k);let z=0;for(let a=0;a<p;a++)z+=beta[a]*f[a];const m=sigmoid(z),w=Math.max(m*(1-m),1e-9);
+      for(let a=0;a<p;a++){g[a]+=f[a]*(as[i]-m);for(let c=0;c<p;c++)M[a][c]+=w*f[a]*f[c];}}
+    const step=solve(M,g);let mx=0;for(let a=0;a<p;a++){beta[a]+=step[a];mx=Math.max(mx,Math.abs(step[a]));}if(mx<1e-8)break;}
+  return x=>{const f=feats(x,k);let z=0;for(let a=0;a<p;a++)z+=beta[a]*f[a];return Math.min(0.999,Math.max(0.001,sigmoid(z)));};}
+
+// ---------------- canvas helpers ----------------
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function setup(cv,hh){const dpr=window.devicePixelRatio||1;const w=cv.clientWidth||300;if(!cv.dataset.baseH)cv.dataset.baseH=cv.getAttribute('height')||'200';const h=hh||+cv.dataset.baseH;cv.style.height=h+'px';
+  cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);const ctx=cv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+  ctx.font='11px "IBM Plex Mono", ui-monospace, monospace';ctx.textBaseline='middle';return{ctx,w,h};}
+const FONT_B='600 11px "IBM Plex Sans", system-ui, sans-serif',FONT_M='11px "IBM Plex Mono", ui-monospace, monospace';
+function rrect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function vline(ctx,x,y0,y1,col,dash){ctx.save();if(dash)ctx.setLineDash(dash);ctx.strokeStyle=col;ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.restore();}
+function hline(ctx,y,x0,x1,col,dash){ctx.save();if(dash)ctx.setLineDash(dash);ctx.strokeStyle=col;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x1,y);ctx.stroke();ctx.restore();}
+// grouped bars on [0, ymax]. groups: [{label, bars:[{v,col,txt}], note, noteCol}]
+function groupedBars(cv,groups,ymax,opts={}){const{ctx,w,h}=setup(cv);const muted=css('--muted'),ink=css('--ink'),rule=css('--rule');
+  const hasSub=groups.some(g=>g.bars.some(b=>b.sub));const T=22,B=h-(opts.noNote?24:42)-(hasSub?14:0),L=6,R=w-6;const gw=(R-L)/groups.length;
+  hline(ctx,B,L,R,rule);
+  groups.forEach((g,gi)=>{const gm=g.ymax||ymax,Y=v=>B-Math.min(v,gm)/gm*(B-T);const nb=g.bars.length;const inner=gw*0.72,bw=Math.min(54,inner/nb);const x0=L+gi*gw+(gw-bw*nb)/2;
+    g.bars.forEach((b,bi)=>{const x=x0+bi*bw+2,ww=bw-4;ctx.globalAlpha=b.alpha??1;ctx.fillStyle=b.col;rrect(ctx,x,Y(Math.max(0,b.v)),ww,Math.max(0.5,B-Y(Math.max(0,b.v))),2);ctx.fill();ctx.globalAlpha=1;
+      if(b.outline){ctx.strokeStyle=b.outline;ctx.lineWidth=2;rrect(ctx,x,Y(Math.max(0,b.v)),ww,Math.max(0.5,B-Y(Math.max(0,b.v))),2);ctx.stroke();}
+      ctx.fillStyle=ink;ctx.font=FONT_M;ctx.textAlign='center';ctx.fillText(b.txt??fmt(b.v,2),x+ww/2,Y(Math.max(0,b.v))-9);
+      if(b.sub){ctx.fillStyle=muted;ctx.font='10px "IBM Plex Mono", monospace';ctx.fillText(b.sub,x+ww/2,B+11);}});
+    ctx.fillStyle=ink;ctx.font=FONT_B;ctx.textAlign='center';ctx.fillText(g.label,L+gi*gw+gw/2,B+(g.bars.some(b=>b.sub)?25:12));
+    if(g.note&&!opts.noNote){ctx.fillStyle=g.noteCol||muted;ctx.font='500 12px "IBM Plex Mono", monospace';ctx.fillText(g.note,L+gi*gw+gw/2,h-8);}
+  });return{ctx,w,h};}
+const redraws=[];let rt=null;window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>redraws.forEach(f=>f()),120);});
+window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>redraws.forEach(f=>f()));
+function chips(id,attr,cb){const box=$(id);box.querySelectorAll('button[data-'+attr+']').forEach(b=>b.addEventListener('click',()=>{box.querySelectorAll('button[data-'+attr+']').forEach(x=>x.classList.toggle('on',x===b));cb(b.dataset[attr]);}));}
+// ---------------- running example ----------------
+// X = wealthy, A = Remdesivir, Y = died within 28 days (bad). True effect +0.02 (slightly harmful).
+const PX=0.5,PA={1:0.8,0:0.2},py=(a,x,eff=0.02)=>0.23-0.18*x+eff*a;
+// ================= 1 SIMPSON =================
+function simpson(){const pr=+$('s1pr').value/100,pl=+$('s1pl').value/100,ef=+$('s1ef').value/100;
+  $('s1prO').textContent=fmt(pr,2);$('s1plO').textContent=fmt(pl,2);$('s1efO').textContent=sgn(ef,2);
+  const r=(a,x)=>py(a,x,ef); // pr = P(drug | wealthy), pl = P(drug | not wealthy)
+  const pa1=PX*pr+(1-PX)*pl;const sl1=PX*pr/pa1,sl0=PX*(1-pr)/(1-pa1); // share wealthy in each arm
+  const all1=sl1*r(1,1)+(1-sl1)*r(1,0),all0=sl0*r(0,1)+(1-sl0)*r(0,0);
+  const teal=css('--teal'),grey=css('--grey'),rust=css('--rust');
+  const flip=d=>Math.sign(+d.toFixed(2))!==Math.sign(+ef.toFixed(2)); // rust when the pooled sign disagrees with the true effect
+  const note=d=>({note:'diff '+sgn(d,2),noteCol:flip(d)?rust:teal});
+  groupedBars($('c1'),[
+    {label:'All patients',bars:[{v:all1,col:teal},{v:all0,col:grey}],...note(all1-all0)},
+    {label:'Wealthy',bars:[{v:r(1,1),col:teal},{v:r(0,1),col:grey}],...note(ef)},
+    {label:'Not wealthy',bars:[{v:r(1,0),col:teal},{v:r(0,0),col:grey}],...note(ef)}],0.4);
+  $('s1all').textContent=sgn(all1-all0,2);$('s1all').style.color=flip(all1-all0)?rust:teal;
+  $('s1loy').textContent=sgn(ef,2);$('s1risk').textContent=sgn(ef,2);$('s1loy').style.color=$('s1risk').style.color=teal;
+  // composition
+  const{ctx,w,h}=setup($('c1b'));const navy=css('--navy'),soft=css('--grey-soft'),ink=css('--ink');const L=86,R=w-8;
+  [[0,'drug',sl1,teal],[1,'no drug',sl0,grey]].forEach(([i,lab,s,col])=>{const y=14+i*40;ctx.fillStyle=col;ctx.font=FONT_B;ctx.textAlign='left';ctx.fillText(lab,0,y+11);
+    ctx.fillStyle=navy;rrect(ctx,L,y,(R-L)*s,22,2);ctx.fill();ctx.fillStyle=soft;rrect(ctx,L+(R-L)*s,y,(R-L)*(1-s),22,2);ctx.fill();
+    ctx.font=FONT_M;ctx.fillStyle='#fff';ctx.textAlign='left';const tw=Math.round(s*100)+'% wealthy',tn=Math.round((1-s)*100)+'% not wealthy';if(ctx.measureText(tw).width+12<(R-L)*s)ctx.fillText(tw,L+6,y+11);ctx.fillStyle=ink;ctx.textAlign='right';if(ctx.measureText(tn).width+12<(R-L)*(1-s))ctx.fillText(tn,R-6,y+11);});}
+['s1pr','s1pl','s1ef'].forEach(id=>$(id).addEventListener('input',simpson));
+$('s1reset').onclick=()=>{$('s1pr').value=80;$('s1pl').value=20;$('s1ef').value=2;simpson();};
+redraws.push(simpson);
+
+// ================= 2 SUZY & BILLY =================
+// SH := ST · BH := BT and not SH · BS := SH or BH. "hold BH = F" overrides BH's equation.
+let sbST=1,sbBT=1,sbHold=false;
+function sbEval(st,bt,hold){const sh=st,bh=hold?0:(bt&&!sh?1:0),bs=sh||bh?1:0;return{ST:st,BT:bt,SH:sh,BH:bh,BS:bs};}
+const SBN={ST:[40,40],SH:[160,40],BT:[40,160],BH:[160,160],BS:[290,100]};
+function suzy(){const v=sbEval(sbST,sbBT,sbHold),R=20;const tf=b=>b?'T':'F';
+  const edge=(a,b,col,faded,mk)=>{const[x1,y1]=SBN[a],[x2,y2]=SBN[b];const dx=x2-x1,dy=y2-y1,L=Math.hypot(dx,dy);
+    return`<line x1="${x1+dx/L*R}" y1="${y1+dy/L*R}" x2="${x2-dx/L*(R+2)}" y2="${y2-dy/L*(R+2)}" stroke="${col}" stroke-width="2" ${faded?'stroke-dasharray="4 4" opacity="0.3"':''} marker-end="url(#${mk})"/>`;};
+  let s='<defs><marker id="ahsb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--navy)"/></marker><marker id="ahsbr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--rust)"/></marker></defs>';
+  s+=edge('ST','SH','var(--navy)',0,'ahsb')+edge('BT','BH','var(--navy)',sbHold,'ahsb')+edge('SH','BH','var(--rust)',sbHold,'ahsbr')+edge('SH','BS','var(--navy)',0,'ahsb')+edge('BH','BS','var(--navy)',0,'ahsb');
+  Object.entries(SBN).forEach(([k,[x,y]])=>{const on=v[k],held=sbHold&&k==='BH',bs=k==='BS';
+    const fill=bs?(on?'var(--navy)':'var(--paper)'):(on?'var(--navy-soft)':'var(--paper)');
+    s+=held?`<rect x="${x-R}" y="${y-R}" width="${2*R}" height="${2*R}" rx="5" fill="${fill}" stroke="var(--navy)" stroke-width="2.5"/>`
+           :`<circle cx="${x}" cy="${y}" r="${R}" fill="${fill}" stroke="var(--navy)" stroke-width="2"/>`;
+    s+=`<text x="${x}" y="${y+4}" text-anchor="middle" font-size="12" fill="${bs&&on?'var(--card)':'var(--ink)'}">${k}</text>`;
+    const vy=k==='BS'?y+36:(y<100?y-28:y+36);
+    s+=`<text x="${x}" y="${vy}" text-anchor="middle" font-size="12" font-weight="600" fill="${on?'var(--navy)':'var(--muted)'}">${tf(on)}${held?' (held)':''}</text>`;});
+  $('gSB').innerHTML=s;
+  $('sbEq').innerHTML='SH := ST<br>'+(sbHold?'BH := <span class="n">F</span> (held)':'BH := BT and not SH')+'<br>BS := SH or BH';
+  const bf=sbEval(sbST,sbBT,false).BS!==sbEval(1-sbST,sbBT,false).BS,cp=sbEval(sbST,sbBT,true).BS!==sbEval(1-sbST,sbBT,true).BS;
+  [['sbBF',bf],['sbCP',cp]].forEach(([id,y])=>{$(id).textContent=y?'YES':'NO';$(id).style.color=y?css('--teal'):css('--rust');});
+  $('sbHold').classList.toggle('on',sbHold);}
+chips('sbST','v',x=>{sbST=+x;suzy();});chips('sbBT','v',x=>{sbBT=+x;suzy();});$('sbHold').onclick=()=>{sbHold=!sbHold;suzy();};
+
+// ================= 3 ASSOCIATION VS CAUSATION =================
+// Diamond: top half = wealthy (hatched), bottom half = not wealthy. Treated piece (left of a vertical cut) has AREA share p.
+const dmCut=p=>p<=0.5?Math.sqrt(2*p)-1:1-Math.sqrt(2*(1-p)); // cut position in units of r, from the center
+let dmN=0;
+function dmPiece(cx,cy,r,a,b,side,h){const A=a*r,B=b*r,pts=side==='tr'?[[-r,0]]:[[r,0]];
+  if(side==='tr'?A>0:A<0)pts.push([0,-r]);pts.push([A,-(r-Math.abs(A))],[A,0],[B,0],[B,r-Math.abs(B)]);if(side==='tr'?B>0:B<0)pts.push([0,r]);
+  const P=pts.map(([x,y])=>(cx+x).toFixed(2)+','+(cy+y).toFixed(2)).join(' ');const id='dmc'+(dmN++);
+  return`<clipPath id="${id}"><polygon points="${P}"/></clipPath><g clip-path="url(#${id})"><rect x="${cx-r}" y="${cy-r}" width="${2*r}" height="${2*r}" fill="var(${side==='tr'?'--dm-tr':'--dm-un'})"/><rect x="${cx-r}" y="${cy-r}" width="${2*r}" height="${r}" fill="url(#${h})"/></g><polygon points="${P}" fill="none" stroke="var(--dm-line)" stroke-width="1.6" stroke-linejoin="round"/>`;}
+const DMDEFS=h=>'<defs><pattern id="'+h+'" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="5" stroke="var(--dm-hatch)" stroke-width="1.1"/></pattern></defs>';
+function dmLabel(x,y1,lab,v,w,col){return`<text x="${x}" y="${y1}" text-anchor="middle" font-size="12" fill="var(--ink)">${lab}</text><text x="${x}" y="${y1+18}" text-anchor="middle" font-size="14" font-weight="600" fill="var(--ink)">${fmt(v,3)}</text><text x="${x}" y="${y1+35}" text-anchor="middle" font-size="11" fill="${col}">${Math.round(w*100)}% wealthy</text>`;}
+function assoc(){const p1=+$('dmp1').value/100,p0=+$('dmp0').value/100;dmN=0;$('dmp1O').textContent=fmt(p1,2);$('dmp0O').textContent=fmt(p0,2);
+  const a=dmCut(p1),b=dmCut(p0);
+  $('gDMtop').innerHTML=DMDEFS('dmhT')+'<text x="100" y="11" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">all patients</text>'+dmPiece(100,82,62,a,b,'tr','dmhT')+dmPiece(100,82,62,a,b,'un','dmhT');
+  const ey1=PX*py(1,1)+(1-PX)*py(1,0),ey0=PX*py(0,1)+(1-PX)*py(0,0);
+  const w1=PX*p1/(PX*p1+(1-PX)*p0),w0=PX*(1-p1)/(PX*(1-p1)+(1-PX)*(1-p0));
+  const m1=w1*py(1,1)+(1-w1)*py(1,0),m0=w0*py(0,1)+(1-w0)*py(0,0);
+  const r=46,cy=56,vs='<text x="130" y="'+(cy+4)+'" text-anchor="middle" font-size="12" fill="var(--muted)">vs.</text>';
+  $('gDMc').innerHTML=DMDEFS('dmhC')+dmPiece(62,cy,r,1,1,'tr','dmhC')+dmPiece(198,cy,r,-1,-1,'un','dmhC')+vs+dmLabel(62,124,'E[Y(1)]',ey1,0.5,'var(--navy)')+dmLabel(198,124,'E[Y(0)]',ey0,0.5,'var(--navy)');
+  const eq=p1===p0,wc=eq?'var(--navy)':'var(--rust)';
+  $('gDMa').innerHTML=DMDEFS('dmhA')+dmPiece(62,cy,r,a,b,'tr','dmhA')+dmPiece(198,cy,r,a,b,'un','dmhA')+vs+dmLabel(62,124,'E[Y | A=1]',m1,w1,wc)+dmLabel(198,124,'E[Y | A=0]',m0,w0,wc);
+  $('dmC').textContent=sgn(ey1-ey0,3);$('dmA').textContent=sgn(m1-m0,3);$('dmA').style.color=Math.abs(m1-m0-(ey1-ey0))>1e-9?css('--rust'):css('--navy');
+  const bd=$('dmBadge');bd.className='badge '+(eq?'ok':'bad');bd.textContent=eq?'association = causation':'association ≠ causation';}
+['dmp1','dmp0'].forEach(id=>$(id).addEventListener('input',assoc));
+$('dmCoin').onclick=()=>{$('dmp1').value=50;$('dmp0').value=50;assoc();};$('dmPay').onclick=()=>{$('dmp1').value=80;$('dmp0').value=20;assoc();};
+// ================= 3 A/B TEST =================
+let s3d='t',s3seed=300,s3cur=null,s3rep=null;
+function s3sample(design,r,n){let n1=0,n0=0,y1=0,y0=0,l1=0,l0=0;for(let i=0;i<n;i++){const x=r()<PX?1:0;const a=design==='r'?(r()<0.5?1:0):(r()<PA[x]?1:0);const y=r()<py(a,x)?1:0;
+  if(a){n1++;y1+=y;l1+=x;}else{n0++;y0+=y;l0+=x;}}return{r1:y1/n1,r0:y0/n0,s1:l1/n1,s0:l0/n0,d:y1/n1-y0/n0};}
+function abtest(){const teal=css('--teal'),grey=css('--grey'),navy=css('--navy'),rust=css('--rust');if(!s3cur)s3cur=s3sample(s3d,mulberry32(s3seed),2000);
+  const c=s3cur;groupedBars($('c3a'),[
+    {label:'share wealthy',bars:[{v:c.s1,col:teal},{v:c.s0,col:grey}],note:'',ymax:1},
+    {label:'death rate',bars:[{v:c.r1,col:teal},{v:c.r0,col:grey}],note:'diff '+sgn(c.d,3),noteCol:Math.abs(c.d-0.02)>0.04?rust:navy,ymax:0.4}],1);
+  $('s3cap').textContent=s3d==='t'?'Targeted: drug arm mostly wealthy.':'Randomized: both arms ≈ 50% wealthy.';
+  const{ctx,w,h}=setup($('c3b'));const muted=css('--muted'),rule=css('--rule'),ink=css('--ink');const lo=-0.16,hi=0.08,L=10,R=w-10,B=h-28,T=14,X=v=>L+(v-lo)/(hi-lo)*(R-L);
+  hline(ctx,B,L,R,rule);ctx.fillStyle=muted;ctx.textAlign='center';[-0.15,-0.10,-0.05,0,0.05].forEach(t=>ctx.fillText(sgn(t,2),X(t),B+12));
+  if(s3rep){const nb=48,bw=(hi-lo)/nb;const cnt=d=>{const c=Array(nb).fill(0);s3rep[d].forEach(v=>{const i=Math.floor((v-lo)/bw);if(i>=0&&i<nb)c[i]++;});return c;};
+    const ct=cnt('t'),cr=cnt('r'),mx=Math.max(...ct,...cr);
+    [[ct,rust,'targeted'],[cr,teal,'randomized']].forEach(([c,col,lab])=>{ctx.fillStyle=col;ctx.globalAlpha=0.75;c.forEach((k,i)=>{if(!k)return;const x=X(lo+i*bw),hh=k/mx*(B-T-14);ctx.fillRect(x+0.5,B-hh,X(lo+bw)-X(lo)-1,hh);});ctx.globalAlpha=1;});
+    const mt=mean(s3rep.t),mr=mean(s3rep.r);ctx.font=FONT_B;ctx.fillStyle=rust;ctx.textAlign='center';ctx.fillText('targeted '+sgn(mt,2),X(mt),T);ctx.fillStyle=teal;ctx.fillText('randomized '+sgn(mr,2),Math.min(R-50,X(mr)+30),T+14);}
+  else{ctx.fillStyle=muted;ctx.textAlign='center';ctx.font=FONT_B;ctx.fillText('press “Repeat 500 times”',w/2,h/2-10);}
+  vline(ctx,X(0.02),T+20,B,navy,[5,4]);ctx.font=FONT_M;ctx.textAlign='right';{const tw=ctx.measureText('truth +0.02').width;ctx.fillStyle=css('--card');ctx.globalAlpha=0.85;ctx.fillRect(X(0.02)-6-tw,T+34-8,tw+4,16);ctx.globalAlpha=1;}ctx.fillStyle=navy;ctx.fillText('truth +0.02',X(0.02)-4,T+34);
+}
+chips('s3mode','d',d=>{s3d=d;s3cur=null;abtest();});
+$('s3new').onclick=()=>{s3seed++;s3cur=null;abtest();};
+$('s3rep').onclick=()=>{const r=mulberry32(3030);s3rep={t:[],r:[]};for(let k=0;k<500;k++){s3rep.t.push(s3sample('t',r,2000).d);s3rep.r.push(s3sample('r',r,2000).d);}abtest();};
+redraws.push(abtest);
+// ================= 5 TWO SCMs =================
+let s5seed=55,s5do=false,s5cur=false,s5data=null,s5truth=1;
+function s5gen(){const r=mulberry32(s5seed),g=gaussFrom(r),n=3000;const o1=[],o2=[],d1=[],d2=[];
+  for(let i=0;i<n;i++){const u=r()<0.5?1:0;o1.push({a:u,y:2*u+0.5*g()});d1.push(2*(r()<0.5?1:0)+0.5*g());
+    const a=r()<0.5?1:0;o2.push({a,y:2*a+0.5*g()});d2.push(2+0.5*g());}
+  s5data={o1,o2,d1,d2};s5truth=r()<0.5?1:2;}
+function hist5(cv,pts,doVals){const{ctx,w,h}=setup(cv);const teal=css('--teal'),grey=css('--grey'),navy=css('--navy'),muted=css('--muted'),rule=css('--rule');
+  const lo=-1.5,hi=3.75,nb=42,bw=(hi-lo)/nb,L=6,R=w-6,B=h-18,T=8,X=v=>L+(v-lo)/(hi-lo)*(R-L);
+  hline(ctx,B,L,R,rule);ctx.fillStyle=muted;ctx.textAlign='center';[-1,0,1,2,3].forEach(t=>ctx.fillText(t,X(t),B+10));
+  if(doVals){const c=Array(nb).fill(0);doVals.forEach(v=>{const i=Math.floor((v-lo)/bw);if(i>=0&&i<nb)c[i]++;});const mx=600;
+    c.forEach((k,i)=>{const hh=Math.min(1,k/mx)*(B-T);ctx.fillStyle=teal;ctx.fillRect(X(lo+i*bw)+0.5,B-hh,X(lo+bw)-X(lo)-1,hh);});
+    const m=mean(doVals);vline(ctx,X(m),T,B,navy,[4,3]);ctx.fillStyle=navy;ctx.font=FONT_B;ctx.textAlign='left';ctx.fillText('mean '+fmt(m,2),Math.min(X(m)+4,R-70),T+6);return;}
+  const c0=Array(nb).fill(0),c1=Array(nb).fill(0);pts.forEach(p=>{const i=Math.floor((p.y-lo)/bw);if(i>=0&&i<nb)(p.a?c1:c0)[i]++;});const mx=600;
+  for(let i=0;i<nb;i++){const x=X(lo+i*bw)+0.5,ww=X(lo+bw)-X(lo)-1;const h0=Math.min(1,c0[i]/mx)*(B-T),h1=Math.min(1,c1[i]/mx)*(B-T);ctx.fillStyle=grey;ctx.fillRect(x,B-h0,ww,h0);ctx.fillStyle=teal;ctx.fillRect(x,B-h0-h1,ww,h1);}
+  ctx.font=FONT_B;ctx.textAlign='center';ctx.fillStyle=grey;ctx.fillText('A = 0',X(0),T+4);ctx.fillStyle=teal;ctx.fillText('A = 1',X(2),T+4);}
+function twoscm(){const d=s5data;hist5($('c5o1'),d.o1);hist5($('c5o2'),d.o2);
+  document.querySelectorAll('#twoscm [data-do]').forEach(e=>e.hidden=!s5do);
+  if(s5do){hist5($('c5d1'),null,d.d1);hist5($('c5d2'),null,d.d2);$('s5m1').textContent='do(A=1): E[Y] = '+fmt(mean(d.d1),2)+' (two bumps)';$('s5m2').textContent='do(A=1): E[Y] = '+fmt(mean(d.d2),2);}
+  $('s5key').textContent=s5do?'Same data. Different answers.':'Same data.';$('s5key').classList.toggle('warn',s5do);
+  $('s5ans').textContent=s5cur?'SCM '+s5truth+'. The data alone could not tell.':'?';$('s5do').classList.toggle('on',s5do);$('s5cur').classList.toggle('on',s5cur);}
+$('s5do').onclick=()=>{s5do=!s5do;twoscm();};$('s5cur').onclick=()=>{s5cur=!s5cur;twoscm();};$('s5new').onclick=()=>{s5seed++;s5cur=false;s5gen();twoscm();};
+s5gen();redraws.push(twoscm);
+
+// ================= 6 CONDITIONAL RCT =================
+// X = old (>= 60), P(old) = 0.5. Coin per age. P(Y=1|A,old) = 0.30 + 0.02A, P(Y=1|A,young) = 0.08 + 0.02A. Exact, no sampling.
+const crY=(a,old)=>(old?0.30:0.08)+0.02*a;
+function crct(){const po=+$('crPo').value/100,pyg=+$('crPy').value/100;$('crPoO').textContent=fmt(po,2);$('crPyO').textContent=fmt(pyg,2);
+  const teal=css('--teal'),grey=css('--grey');
+  [[1,po,'crCo','crTo','old · coin '],[0,pyg,'crCy','crTy','young · coin ']].forEach(([o,p,cv,t,lab])=>{$(t).textContent=lab+fmt(p,2);
+    groupedBars($(cv),[{label:'',bars:[{v:crY(1,o),txt:fmt(crY(1,o),2),col:teal,sub:'drug'},{v:crY(0,o),txt:fmt(crY(0,o),2),col:grey,sub:'no drug'}],note:'diff '+sgn(crY(1,o)-crY(0,o),2),noteCol:teal}],0.4);});
+  const w1=0.5*po/(0.5*po+0.5*pyg),w0=0.5*(1-po)/(0.5*(1-po)+0.5*(1-pyg)); // P(old | A=a)
+  const naive=w1*crY(1,1)+(1-w1)*crY(1,0)-(w0*crY(0,1)+(1-w0)*crY(0,0));
+  const adj=0.5*(crY(1,1)-crY(0,1))+0.5*(crY(1,0)-crY(0,0));
+  $('crNaive').textContent=sgn(naive,3);$('crNaive').style.color=Math.abs(naive-0.02)>1e-9?css('--rust'):css('--teal');$('crAdj').textContent=sgn(adj,3);}
+['crPo','crPy'].forEach(id=>$(id).addEventListener('input',crct));
+// ================= 7 IGNORABILITY =================
+// hidden U ~ Bern(0.5), strength s: P(A=1|x,u) = PA[x] + 0.18 s (2u−1);  P(Y=1|a,x,u) = py(a,x) + 0.04 s (2u−1).
+// Death rates stay in [0.01, 0.29]. True ATE stays 0.02; at s = 1 the X-adjusted estimate is about 0.065.
+function ign(s){let est=0;const bal=[];for(const x of [1,0]){const pa=u=>PA[x]+0.18*s*(2*u-1);const yy=(a,u)=>py(a,x)+0.04*s*(2*u-1);
+    const pu1a1=0.5*pa(1)/(0.5*pa(1)+0.5*pa(0)),pu1a0=0.5*(1-pa(1))/(0.5*(1-pa(1))+0.5*(1-pa(0)));
+    const m1=pu1a1*yy(1,1)+(1-pu1a1)*yy(1,0),m0=pu1a0*yy(0,1)+(1-pu1a0)*yy(0,0);est+=0.5*(m1-m0);
+    bal.push({x,a1:m1,a0:pu1a0*yy(1,1)+(1-pu1a0)*yy(1,0)});}return{est,bal};}
+function ignore(){const s=+$('s7s').value/100;$('s7sO').textContent=fmt(s,2);const{est,bal}=ign(s);const rust=css('--rust'),teal=css('--teal'),grey=css('--grey'),navy=css('--navy'),muted=css('--muted'),rule=css('--rule'),ink=css('--ink');
+  $('s7est').textContent=sgn(est,3);$('s7bias').textContent=sgn(est-0.02,3);$('s7bias').style.color=Math.abs(est-0.02)>0.002?rust:teal;
+  ['g7u1','g7u2'].forEach(id=>$(id).setAttribute('opacity',s===0?0.15:0.3+0.7*s));$('g7u').setAttribute('opacity',s===0?0.3:1);
+  const{ctx,w,h}=setup($('c7a'));const L=46,R=w-18,T=12,B=h-28,X=v=>L+v*(R-L),lo=0,hi=0.08,Y=v=>B-(v-lo)/(hi-lo)*(B-T);
+  ctx.fillStyle=muted;ctx.textAlign='right';[0,0.02,0.04,0.06,0.08].forEach(t=>{hline(ctx,Y(t),L,R,rule);ctx.fillText(fmt(t,2),L-6,Y(t));});
+  ctx.textAlign='center';[0,0.25,0.5,0.75,1].forEach(t=>ctx.fillText(fmt(t,2),X(t),B+12));ctx.textAlign='right';ctx.fillText('hidden strength',R,h-4);
+  hline(ctx,Y(0.02),L,R,navy,[5,4]);ctx.fillStyle=navy;ctx.textAlign='left';ctx.fillText('truth +0.02',L+12,Y(0.02)+10);
+  ctx.strokeStyle=rust;ctx.lineWidth=2;ctx.beginPath();for(let i=0;i<=50;i++){const ss=i/50,e=ign(ss).est;i?ctx.lineTo(X(ss),Y(e)):ctx.moveTo(X(ss),Y(e));}ctx.stroke();
+  ctx.fillStyle=Math.abs(est-0.02)>0.002?rust:teal;ctx.beginPath();ctx.arc(X(s),Y(est),5.5,0,7);ctx.fill();
+  groupedBars($('c7b'),bal.map(b=>({label:b.x?'wealthy':'not wealthy',bars:[{v:b.a1,col:teal,sub:'A=1'},{v:b.a0,col:grey,sub:'A=0'}],note:'gap '+sgn(b.a1-b.a0,3),noteCol:Math.abs(b.a1-b.a0)>0.002?rust:teal})),0.4);}
+$('s7s').addEventListener('input',ignore);redraws.push(ignore);
+// ================= 9 ESTIMATORS =================
+const eTrue=x=>sigmoid(-x+0.5*(x*x-1)),muTrue=(x,a)=>10+4*x+3*x*x+5*a;
+function genE(r,g,n){const X=[],A=[],Y=[];for(let i=0;i<n;i++){const x=g();const a=r()<eTrue(x)?1:0;X.push(x);A.push(a);Y.push(muTrue(x,a)+4*g());}return{X,A,Y};}
+function fitAll(d,km,kp){const x1=[],y1=[],x0=[],y0=[];d.X.forEach((x,i)=>{if(d.A[i]){x1.push(x);y1.push(d.Y[i]);}else{x0.push(x);y0.push(d.Y[i]);}});
+  const m1=ols(x1,y1,km),m0=ols(x0,y0,km),e=logit(d.X,d.A,kp);let or=0,s1=0,w1=0,s0=0,w0=0,aipw=0;const n=d.X.length;
+  for(let i=0;i<n;i++){const x=d.X[i],a=d.A[i],y=d.Y[i],ei=e(x),u1=m1(x),u0=m0(x);or+=u1-u0;
+    if(a){s1+=y/ei;w1+=1/ei;}else{s0+=y/(1-ei);w0+=1/(1-ei);}aipw+=u1-u0+a*(y-u1)/ei-(1-a)*(y-u0)/(1-ei);}
+  const naive=mean(y1)-mean(y0);return{m1,m0,e,or:or/n,ipw:s1/w1-s0/w0,aipw:aipw/n,naive};}
+let s9seed=909,s9v='ipw',s9km=2,s9kp=2,s9d=null;
+function s9gen(){const r=mulberry32(s9seed);s9d=genE(r,gaussFrom(r),+$('s9n').value);}
+function estimators(){$('s9nO').textContent=fmt(+$('s9n').value,0);const d=s9d,f=fitAll(d,s9km,s9kp);const teal=css('--teal'),grey=css('--grey'),navy=css('--navy'),rust=css('--rust'),muted=css('--muted'),rule=css('--rule'),ink=css('--ink');
+  {const{ctx,w,h}=setup($('c9a'));const L=36,R=w-8,T=8,B=h-24,xlo=-3,xhi=3,ylo=-5,yhi=55;const X=v=>L+(v-xlo)/(xhi-xlo)*(R-L),Y=v=>B-(v-ylo)/(yhi-ylo)*(B-T);
+    ctx.fillStyle=muted;ctx.textAlign='right';[0,10,20,30,40,50].forEach(t=>{hline(ctx,Y(t),L,R,rule);ctx.fillText(t,L-5,Y(t));});ctx.textAlign='center';[-3,-2,-1,0,1,2,3].forEach(t=>ctx.fillText(t,X(t),B+11));
+    ctx.textAlign='right';ctx.fillText('health score x',R,h-3);ctx.save();ctx.beginPath();ctx.rect(L,T,R-L,B-T);ctx.clip();
+    const n=d.X.length,base=n>2500?1.4:2;
+    for(let i=0;i<n;i++){const x=d.X[i],a=d.A[i];let rad=base;if(s9v==='ipw'){const ei=f.e(x),wt=a?1/ei:1/(1-ei);rad=Math.min(14,base*Math.sqrt(wt));}
+      ctx.globalAlpha=s9v==='ipw'?0.35:0.5;ctx.fillStyle=a?teal:grey;ctx.beginPath();ctx.arc(X(x),Y(d.Y[i]),rad,0,7);ctx.fill();}
+    ctx.globalAlpha=1;
+    if(s9v==='or'){[[f.m1,teal],[f.m0,grey]].forEach(([m,col])=>{ctx.strokeStyle=col;ctx.lineWidth=3;ctx.beginPath();for(let k=0;k<=80;k++){const x=xlo+(xhi-xlo)*k/80;k?ctx.lineTo(X(x),Y(m(x))):ctx.moveTo(X(x),Y(m(x)));}ctx.stroke();});
+      ctx.setLineDash([4,4]);ctx.strokeStyle=navy;ctx.lineWidth=1.2;[1,0].forEach(a=>{ctx.beginPath();for(let k=0;k<=80;k++){const x=xlo+(xhi-xlo)*k/80;k?ctx.lineTo(X(x),Y(muTrue(x,a))):ctx.moveTo(X(x),Y(muTrue(x,a)));}ctx.stroke();});ctx.setLineDash([]);}
+    ctx.restore();ctx.font=FONT_B;ctx.textAlign='left';ctx.fillStyle=muted;ctx.fillText(s9v==='or'?'solid = fit · dashed = truth':'dot size ∝ √weight',L+6,T+8);}
+  {const rows=[['naive',f.naive,rust],['IPW',f.ipw,navy],['OR',f.or,navy],['AIPW',f.aipw,teal]];const{ctx,w,h}=setup($('c9b'));const L=54,R=w-60,T=10,B=h-20;
+    const vals=rows.map(r=>r[1]).concat([5]);let lo=Math.min(...vals)-0.5,hi=Math.max(...vals)+0.5;lo=Math.min(lo,3);hi=Math.max(hi,7);const X=v=>L+(v-lo)/(hi-lo)*(R-L);const dy=(B-T)/rows.length;
+    ctx.fillStyle=muted;ctx.textAlign='center';const step=(hi-lo)>8?2:1;for(let t=Math.ceil(lo);t<=hi;t+=step)ctx.fillText(t,X(t),B+10);
+    vline(ctx,X(5),T,B,navy,[5,4]);
+    rows.forEach(([lab,v,col],i)=>{const y=T+dy*i+dy/2;hline(ctx,y,L,R,rule);ctx.fillStyle=ink;ctx.font=FONT_B;ctx.textAlign='right';ctx.fillText(lab,L-8,y);
+      ctx.fillStyle=col;ctx.beginPath();ctx.arc(X(v),y,6,0,7);ctx.fill();ctx.font=FONT_M;ctx.textAlign='left';ctx.fillStyle=Math.abs(v-5)>0.5?rust:ink;ctx.fillText(fmt(v,2),R+8,y);});}}
+chips('s9view','v',v=>{s9v=v;estimators();});chips('s9om','k',k=>{s9km=+k;estimators();});chips('s9pm','k',k=>{s9kp=+k;estimators();});
+$('s9n').addEventListener('input',()=>{s9gen();estimators();});$('s9new').onclick=()=>{s9seed++;s9gen();estimators();};
+s9gen();redraws.push(estimators);
+
+// ================= 10 DOUBLE ROBUSTNESS =================
+let s10km=2,s10kp=2;const RES10={};let s10last=null;
+function run10(km,kp){const key=km+''+kp;const r=mulberry32(1000+km*10+kp),g=gaussFrom(r);const out={or:[],ipw:[],aipw:[]};
+  for(let k=0;k<300;k++){const d=genE(r,g,1000),f=fitAll(d,km,kp);out.or.push(f.or);out.ipw.push(f.ipw);out.aipw.push(f.aipw);}RES10[key]=out;return out;}
+function table10(){const rust=css('--rust');const lab={2:'right',1:'wrong'};let h='<tr><th>propensity</th><th>outcome</th><th>IPW</th><th>OR</th><th>AIPW</th></tr>';
+  for(const kp of [2,1])for(const km of [2,1]){const R=RES10[km+''+kp];const cell=v=>{if(!R)return'<td>·</td>';const b=mean(R[v])-5;return`<td class="${Math.abs(b)>0.3?'b':'g'}">${sgn(b,2)}</td>`;};
+    const cur=km===s10km&&kp===s10kp;h+=`<tr${cur?' style="outline:2px solid var(--teal)"':''}><td>${lab[kp]}</td><td>${lab[km]}</td>${cell('ipw')}${cell('or')}${cell('aipw')}</tr>`;}
+  $('s10tab').innerHTML=h;}
+function dr(){table10();const R=RES10[s10km+''+s10kp];const{ctx,w,h}=setup($('c10'));const navy=css('--navy'),teal=css('--teal'),rust=css('--rust'),muted=css('--muted'),rule=css('--rule'),ink=css('--ink');
+  const L=54,Rr=w-10,T=10,B=h-22,lo=2,hi=8,X=v=>L+(Math.min(hi,Math.max(lo,v))-lo)/(hi-lo)*(Rr-L);
+  ctx.fillStyle=muted;ctx.textAlign='center';for(let t=lo;t<=hi;t++)ctx.fillText(t,X(t),B+11);
+  const rows=[['IPW','ipw'],['OR','or'],['AIPW','aipw']];const dy=(B-T)/3;
+  rows.forEach(([lab,k],i)=>{const y=T+dy*i+dy/2;hline(ctx,y,L,Rr,rule);ctx.fillStyle=ink;ctx.font=FONT_B;ctx.textAlign='right';ctx.fillText(lab,L-8,y);
+    if(!R)return;const r=mulberry32(7+i);const m=mean(R[k]),bad=Math.abs(m-5)>0.3;ctx.fillStyle=bad?rust:(k==='aipw'?teal:navy);ctx.globalAlpha=0.35;
+    R[k].forEach(v=>{ctx.beginPath();ctx.arc(X(v),y+(r()-0.5)*dy*0.6,2.2,0,7);ctx.fill();});ctx.globalAlpha=1;
+    ctx.strokeStyle=bad?rust:ink;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(X(m),y-dy*0.38);ctx.lineTo(X(m),y+dy*0.38);ctx.stroke();});
+  vline(ctx,X(5),T,B,navy,[5,4]);
+  if(!R){ctx.fillStyle=muted;ctx.font=FONT_B;ctx.textAlign='center';ctx.fillText('press “Run 300 times”',(L+Rr)/2,T+dy*1.5-14);}
+  $('s10cap').textContent='Each dot = one dataset (n = 1,000). Bar = average. Navy line = truth 5.';}
+chips('s10om','k',k=>{s10km=+k;dr();});chips('s10pm','k',k=>{s10kp=+k;dr();});
+$('s10run').onclick=()=>{run10(s10km,s10kp);dr();};
+$('s10all').onclick=()=>{for(const km of [2,1])for(const kp of [2,1])if(!RES10[km+''+kp])run10(km,kp);dr();};
+redraws.push(dr);
+
+// ================= 10 ERRORS MULTIPLY =================
+// Perturbed fits around the TRUE functions: mu1_hat = mu(1,x) + 4δ(x²−1) + 4δ (mu0 exact), e_hat = sigmoid(logit e(x) + 2δx).
+// Population bias by integration over x ~ N(0,1) on [−5, 5] (trapezoid, 4,000 steps). E[A|x] = e(x), E[Y|A=a,x] = mu(a,x).
+function emBias(d){let or=0,ipw=0,ai=0,W=0;const N=4000;
+  for(let i=0;i<=N;i++){const x=-5+10*i/N,w=Math.exp(-x*x/2)*(i===0||i===N?0.5:1);const z=-x+0.5*(x*x-1),e=sigmoid(z),eh=sigmoid(z+2*d*x);
+    const m1=muTrue(x,1),m0=muTrue(x,0),m1h=m1+4*d*(x*x-1)+4*d;
+    or+=w*(m1h-m0);ipw+=w*(e*m1/eh-(1-e)*m0/(1-eh));ai+=w*(m1h-m0+e*(m1-m1h)/eh);W+=w;}
+  return{or:or/W-5,ipw:ipw/W-5,aipw:ai/W-5};}
+const EMG=Array.from({length:61},(_,i)=>({d:i/100,...emBias(i/100)}));
+function errors(){const d=+$('emD').value;$('emDO').textContent=fmt(d,2);const b=emBias(d);
+  $('emIPW').textContent=sgn(b.ipw,2);$('emOR').textContent=sgn(b.or,2);$('emAIPW').textContent=sgn(b.aipw,2);
+  const navy=css('--navy'),teal=css('--teal'),rust=css('--rust'),muted=css('--muted'),rule=css('--rule');
+  const{ctx,w,h}=setup($('cEM'));const L=34,R=w-46,T=10,B=h-28,ymax=16,X=v=>L+v/0.6*(R-L),Y=v=>B-Math.min(v,ymax)/ymax*(B-T);
+  ctx.fillStyle=muted;ctx.textAlign='right';[0,4,8,12,16].forEach(t=>{hline(ctx,Y(t),L,R,rule);ctx.fillText(t,L-6,Y(t));});
+  ctx.textAlign='center';((R-L)<360?[0,0.2,0.4,0.6]:[0,0.1,0.2,0.3,0.4,0.5,0.6]).forEach(t=>ctx.fillText(fmt(t,1),X(t),B+12));ctx.textAlign='left';ctx.fillText('δ',R+14,B+12);
+  vline(ctx,X(d),T,B,rule,[3,3]);
+  [['ipw',rust,'IPW'],['or',navy,'OR'],['aipw',teal,'AIPW']].forEach(([k,col,lab])=>{ctx.strokeStyle=col;ctx.lineWidth=2.4;ctx.beginPath();
+    EMG.forEach((g,i)=>{const yy=Y(Math.abs(g[k]));i?ctx.lineTo(X(g.d),yy):ctx.moveTo(X(g.d),yy);});ctx.stroke();
+    ctx.fillStyle=col;ctx.beginPath();ctx.arc(X(d),Y(Math.abs(b[k])),5,0,7);ctx.fill();
+    const last=EMG[EMG.length-1];ctx.font=FONT_B;ctx.textAlign='left';ctx.fillText(lab,R+6,Y(Math.abs(last[k]))+(k==='aipw'?2:0));ctx.font=FONT_M;});}
+$('emD').addEventListener('input',errors);
+
+// ---------------- init ----------------
+function all(){simpson();suzy();assoc();abtest();twoscm();crct();ignore();estimators();dr();errors();}
+redraws.push(suzy,assoc,crct,errors);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>redraws.forEach(f=>f()));
+all();
+})();
+</script>
+</body>
+</html>

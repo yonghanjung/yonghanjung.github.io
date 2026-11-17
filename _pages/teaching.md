@@ -24,6 +24,7 @@ Interactive demos:
 - [Lecture 10: Stack ReLU layers one at a time, interactive demo](/teaching/2026F/IS507/lecture-10-layers-demo.html)
 - [Lecture 10: Fold more, and the region becomes a circle, interactive demo](/teaching/2026F/IS507/lecture-10-fold-demo.html)
 - [Lecture 11: Was it luck? The six steps of a hypothesis test, interactive lab](/teaching/2026F/IS507/lecture-11-lab.html)
+- [Lecture 12: Causal Inference I, from Simpson's paradox to double machine learning, interactive lab](/teaching/2026F/IS507/lecture-12-lab.html)
 
 ## IS 455: Database Design & Prototyping
 
