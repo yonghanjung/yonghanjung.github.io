@@ -28,7 +28,7 @@ latest_posts:
   limit: 3 # leave blank to include all the blog posts
 ---
 
-I am Yonghan Jung, an assistant professor in the School of Information Sciences at UIUC and the leader of the **Causal Data Science Lab**. I am also a faculty affiliate at the [National Center for Supercomputing Applications (NCSA)](https://www.ncsa.illinois.edu/) and [Illinois Informatics](https://informatics.ischool.illinois.edu/).
+I am Yonghan Jung, an assistant professor in the School of Information Sciences at UIUC and the leader of the **Causal Science Lab**. I am also a faculty affiliate at the [National Center for Supercomputing Applications (NCSA)](https://www.ncsa.illinois.edu/) and [Illinois Informatics](https://informatics.ischool.illinois.edu/).
 
 Our lab studies **Pragmatic Causal Inference**: methods that make causal questions as usable as prediction workflows while keeping assumptions, uncertainty, and validity explicit. A data scientist often wants to know what would happen if an action changed. Answering that question requires more than prediction; it requires a causal workflow that can reason about assumptions, identify what is learnable, estimate it reliably, and support decisions.
 
@@ -38,12 +38,12 @@ Our lab studies **Pragmatic Causal Inference**: methods that make causal questio
       <img src="{{ '/assets/img/cdsl-lab-logo.png' | relative_url }}" alt="">
     </div>
     <div class="lab-github-card__content">
-      <h2 id="lab-github-title" class="lab-github-card__title">Causal Data Science Lab</h2>
+      <h2 id="lab-github-title" class="lab-github-card__title">Causal Science Lab</h2>
       <p class="lab-github-card__description">Causal inference, machine learning, and data science at UIUC.</p>
       <a
         class="lab-github-card__link"
         href="https://github.com/CausalDataScience"
-        aria-label="Visit the Causal Data Science Lab GitHub organization"
+        aria-label="Visit the Causal Science Lab GitHub organization"
       >
         Visit Lab GitHub <span aria-hidden="true">→</span>
       </a>

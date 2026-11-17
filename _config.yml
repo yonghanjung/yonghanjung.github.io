@@ -2,14 +2,14 @@
 # Site settings
 # -----------------------------------------------------------------------------
 
-title: Causal Data Science Lab @UIUC # the website title (if blank, full name will be used instead)
+title: Causal Science Lab @UIUC # the website title (if blank, full name will be used instead)
 first_name: Yonghan
 middle_name:
 last_name: Jung
 contact_note: >
   For research inquiries, please email yonghan@illinois.edu.
 description: > # the ">" symbol means to ignore newlines until "footer_text:"
-  Causal Data Science Lab at UIUC, led by Yonghan Jung. We study pragmatic causal inference, partial identification, amortized causal inference, and decision-facing causal systems.
+  Causal Science Lab at UIUC, led by Yonghan Jung. We study pragmatic causal inference, partial identification, amortized causal inference, and decision-facing causal systems.
 footer_text: >
   Powered by <a href="https://jekyllrb.com/" target="_blank">Jekyll</a> with <a href="https://github.com/alshedivat/al-folio">al-folio</a> theme.
   Hosted by <a href="https://pages.github.com/" target="_blank">GitHub Pages</a>.
