@@ -1,12 +1,12 @@
 ---
 layout: page
-title: children-math
-permalink: /children-math/
+title: children-contents
+permalink: /children-contents/
 nav: true
 nav_order: 7
 ---
 
-<div class="misc-intro">I enjoy teaching my child math in different ways.</div>
+<div class="misc-intro">Interactive math, sports, and music activities I build for my child.</div>
 
 <style>
 .misc-intro { max-width: 42rem; color: var(--global-text-color, #253c43); font-size: 1.12rem; line-height: 1.65; margin: 0.25rem 0 1.75rem; }
@@ -14,15 +14,18 @@ nav_order: 7
 .misc-project { position: relative; min-width: 0; display: flex; flex-direction: column; padding: 1.5rem; border: 1px solid var(--global-divider-color, #dce4e3); border-radius: 18px; background: var(--global-card-bg-color, #fff); color: var(--global-text-color, #253c43); box-shadow: 0 4px 20px rgba(22, 58, 59, 0.035); }
 .misc-project::before { content: ""; height: 4px; width: 40px; background: #168278; border-radius: 4px; margin-bottom: 1.1rem; }
 .misc-project--workshop::before { background: #4572a4; }
+.misc-project--sports::before { background: #d96b27; }
 .misc-project--music::before { background: #b7793b; }
 .misc-category { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--global-text-color-light, #667779); margin-bottom: 0.5rem; }
 .misc-project h2 { font-size: 1.45rem; font-weight: 600; line-height: 1.3; letter-spacing: -0.02em; margin: 0 0 0.65rem; overflow-wrap: anywhere; }
 .misc-project p { font-size: 0.95rem; line-height: 1.55; margin: 0 0 1.25rem; color: var(--global-text-color-light, #667779); }
 .misc-play { margin-top: auto; display: inline-flex; justify-content: center; align-items: center; align-self: flex-start; min-height: 44px; padding: 0.5rem 1.2rem; border-radius: 10px; background: #176b66; color: #fff !important; font-size: 0.95rem; font-weight: 600; text-decoration: none !important; }
 .misc-project--workshop .misc-play { background: #375d86; }
+.misc-project--sports .misc-play { background: #c2571a; }
 .misc-game-links { display:flex; flex-wrap:wrap; gap:0.6rem; margin-top:auto; }
 .misc-game-links .misc-play { margin-top:0; }
 .misc-play:hover { filter: brightness(1.12); }
+.misc-project--sports { grid-column: 1 / -1; }
 .misc-project--music { grid-column: 1 / -1; }
 .misc-song-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.6rem; }
 .misc-song-link { display: flex; align-items: center; justify-content: space-between; gap: 0.65rem; min-width: 0; min-height: 48px; border: 1px solid var(--global-divider-color, #dce4e3); border-radius: 10px; padding: 0.65rem 0.85rem; color: var(--global-text-color, #253c43) !important; font-size: 0.9rem; font-weight: 500; line-height: 1.45; text-decoration: none !important; }
@@ -31,11 +34,17 @@ nav_order: 7
 .misc-song-link:hover { border-color: #b7793b; }
 .misc-play:focus-visible, .misc-song-link:focus-visible { outline: 2px solid #168278; outline-offset: 4px; }
 @media (max-width: 767px) { .misc-project { padding: 1.15rem; } .misc-project h2 { font-size: 1.2rem; } .misc-song-links { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 480px) { .misc-intro { font-size: 1rem; margin-bottom: 1.25rem; } .misc-portfolio { gap: 0.75rem; } .misc-project { padding: 1rem; border-radius: 14px; } .misc-project h2 { font-size: 1.08rem; } .misc-project p { font-size: 0.85rem; } .misc-play { width: 100%; padding: 0.5rem; } .misc-project--music h2 { font-size: 1.3rem; } .misc-song-links { grid-template-columns: 1fr; } }
+@media (max-width: 480px) { .misc-intro { font-size: 1rem; margin-bottom: 1.25rem; } .misc-portfolio { gap: 0.75rem; } .misc-project { padding: 1rem; border-radius: 14px; } .misc-project h2 { font-size: 1.08rem; } .misc-project p { font-size: 0.85rem; } .misc-play { width: 100%; padding: 0.5rem; } .misc-project--sports h2, .misc-project--music h2 { font-size: 1.3rem; } .misc-song-links { grid-template-columns: 1fr; } }
 @media (max-width: 339px) { .misc-portfolio { grid-template-columns: 1fr; } }
 </style>
 
-<section class="misc-portfolio" aria-label="Games and music">
+<section class="misc-portfolio" aria-label="Games, sports, and music">
+  <article class="misc-project misc-project--sports">
+    <div class="misc-category">Sports &middot; Game</div>
+    <h2>Basketball Spacing &amp; 5v5</h2>
+    <p>First-person and 3D court coach for spacing, cuts, defense, and 5v5 play.</p>
+    <a class="misc-play" href="{{ '/children-basketball/' | relative_url }}" aria-label="Play Basketball Spacing and 5v5">Play</a>
+  </article>
   <article class="misc-project misc-project--workshop">
     <div class="misc-category">Game</div>
     <h2>Daily</h2>

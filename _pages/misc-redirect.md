@@ -1,9 +1,9 @@
 ---
 layout: page
-title: children-math
+title: children-contents
 permalink: /misc/
 nav: false
-redirect: /children-math/
+redirect: /children-contents/
 ---
 
-<a href="{{ '/children-math/' | relative_url }}">Continue to children-math</a>
+<a href="{{ '/children-contents/' | relative_url }}">Continue to children-contents</a>
