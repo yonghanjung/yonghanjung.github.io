@@ -1,0 +1,1509 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Which Tool, When</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="IS 507 toolkit: which data science tool to use in which situation, with install lines, scripts, hardware needs, Mac support, and evidence.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,600;1,400&display=swap">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+/* Standalone base for the homepage copy: the same small reset the Artifact viewer adds. */
+:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+<style>
+/* Layout: a parts catalog. A situation map up top (task x data type), a sticky filter bar,
+   then spec-sheet cards grouped by situation, foundation model first in every group. */
+:root {
+  --paper: #F5F7FA;
+  --surface: #FFFFFF;
+  --ink: #11233F;
+  --muted: #53657A;
+  --rule: #D6DEE8;
+  --navy: #173B7A;
+  --teal: #0E7490;
+  --teal-fill: #E6F4F7;
+  --code-bg: #EEF2F7;
+  --ok: #1D6E40;   --ok-fill: #E5F3EA;
+  --warn: #8A5A00; --warn-fill: #FBF1DC;
+  --bad: #9A3412;  --bad-fill: #FCEDE4;
+  --cloud: #4B4F8C; --cloud-fill: #ECEDF7;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0C1420; --surface: #121D2E; --ink: #E3E9F2; --muted: #9AA9BC; --rule: #25344A;
+    --navy: #93B2EE; --teal: #5CC3DB; --teal-fill: #10303A; --code-bg: #0E1828;
+    --ok: #6FD09A; --ok-fill: #12301F; --warn: #E6B95A; --warn-fill: #33270F;
+    --bad: #F29468; --bad-fill: #3A1D12; --cloud: #AEB2F0; --cloud-fill: #1F2142;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0C1420; --surface: #121D2E; --ink: #E3E9F2; --muted: #9AA9BC; --rule: #25344A;
+  --navy: #93B2EE; --teal: #5CC3DB; --teal-fill: #10303A; --code-bg: #0E1828;
+  --ok: #6FD09A; --ok-fill: #12301F; --warn: #E6B95A; --warn-fill: #33270F;
+  --bad: #F29468; --bad-fill: #3A1D12; --cloud: #AEB2F0; --cloud-fill: #1F2142;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 64px); }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  background: var(--paper); color: var(--ink); font-family: var(--font-body);
+  font-size: 15px; line-height: 1.55;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+.wrap {
+  max-width: 1120px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+a { color: var(--teal); }
+a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+code, pre, .mono { font-family: var(--font-mono); }
+h1, h2, h3, h4 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+
+/* Header */
+.top { background: var(--surface); border-bottom: 1px solid var(--rule); }
+.top .wrap { padding-block: 40px 28px; display: grid; gap: 20px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+h1 { font-size: clamp(34px, 6vw, 56px); line-height: 1.02; font-weight: 700; letter-spacing: -.01em; color: var(--navy); }
+.lede { max-width: 66ch; font-size: 17px; margin: 0; }
+.bench { display: flex; flex-wrap: wrap; gap: 8px 22px; font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); border-top: 1px dashed var(--rule); padding-top: 14px; }
+.bench b { color: var(--ink); font-weight: 600; }
+
+/* Section frame */
+section.block { padding-block: 34px 6px; }
+.block > .wrap > h2 { font-size: 26px; font-weight: 700; color: var(--navy); }
+.block > .wrap > .sub { color: var(--muted); max-width: 70ch; margin: 6px 0 18px; }
+
+/* Rules list */
+.rules { display: grid; grid-template-columns: 1fr; gap: 12px; padding: 0; margin: 0; list-style: none; counter-reset: r; }
+@media (min-width: 900px) { .rules { grid-template-columns: repeat(5, 1fr); } }
+.rules li { counter-increment: r; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 14px 14px 46px; position: relative; min-width: 0; }
+.rules li::before { content: counter(r); position: absolute; left: 14px; top: 12px; font-family: var(--font-display); font-weight: 700; font-size: 22px; color: var(--teal); }
+.rules b { display: block; font-family: var(--font-display); font-size: 16px; }
+
+/* Legend */
+.legend { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 16px; font-size: 13.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+
+/* Pills */
+.pill { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .02em; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.mac-ok { color: var(--ok); background: var(--ok-fill); }
+.mac-limit { color: var(--warn); background: var(--warn-fill); }
+.mac-no { color: var(--bad); background: var(--bad-fill); }
+.mac-cloud { color: var(--cloud); background: var(--cloud-fill); }
+.fm { font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--surface); background: var(--teal); padding: 2px 7px; border-radius: 3px; white-space: nowrap; }
+
+/* Situation map */
+.map-scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); }
+table.map { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 13.5px; }
+.map th, .map td { border-bottom: 1px solid var(--rule); border-right: 1px solid var(--rule); padding: 10px 12px; vertical-align: top; text-align: left; }
+.map tr > *:last-child { border-right: 0; }
+.map tbody tr:last-child > * { border-bottom: 0; }
+.map thead th { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 500; background: var(--code-bg); }
+.map tbody th { font-family: var(--font-display); font-size: 15px; color: var(--navy); white-space: nowrap; width: 120px; }
+.map tbody th small { display: block; font-family: var(--font-body); font-size: 12px; color: var(--muted); font-weight: 400; white-space: normal; }
+.map td a { display: block; text-decoration: none; color: var(--ink); padding: 2px 0; }
+.map td a:hover { color: var(--teal); text-decoration: underline; }
+.map td a.isfm { font-weight: 600; color: var(--teal); }
+.map td a.isfm::before { content: "FM "; font-family: var(--font-mono); font-size: 10px; letter-spacing: .06em; color: var(--teal); }
+.map td .na { color: var(--muted); }
+
+/* Sticky filter bar */
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-block: 1px solid var(--rule); margin-top: 28px; }
+.bar .wrap { padding-block: 10px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.bar nav { display: flex; gap: 6px; overflow-x: auto; flex: 1 1 420px; min-width: 0; scrollbar-width: thin; }
+.bar nav a { font-family: var(--font-mono); font-size: 12px; text-decoration: none; color: var(--ink); border: 1px solid var(--rule); border-radius: 4px; padding: 4px 9px; white-space: nowrap; }
+.bar nav a:hover { border-color: var(--teal); color: var(--teal); }
+.bar .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.bar input[type="search"] { font: inherit; font-size: 14px; padding: 6px 10px; border: 1px solid var(--rule); border-radius: 4px; background: var(--paper); color: var(--ink); width: 200px; max-width: 100%; }
+.bar label.tog { font-size: 13px; display: inline-flex; gap: 6px; align-items: center; color: var(--muted); cursor: pointer; }
+.count { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+@media (max-width: 600px) {
+  html { scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 112px); }
+  .bar .controls { flex: 1 1 100%; flex-wrap: nowrap; gap: 10px; }
+  .bar input[type="search"] { flex: 1 1 auto; width: auto; min-width: 0; }
+  .count { display: none; }
+}
+
+/* Task sections and situations */
+.task { padding-block: 30px 10px; border-bottom: 1px solid var(--rule); }
+.task-head { display: grid; gap: 4px; margin-bottom: 18px; }
+.task-head .eyebrow { color: var(--teal); }
+.task-head h2 { font-size: 30px; color: var(--navy); }
+.task-head p { margin: 0; color: var(--muted); max-width: 72ch; }
+.sit { margin-block: 22px 30px; }
+.sit-head { display: grid; gap: 4px; border-left: 3px solid var(--navy); padding-left: 12px; margin-bottom: 14px; }
+.sit-head h3 { font-size: 21px; }
+.sit-head p { margin: 0; max-width: 75ch; }
+.sit-head .first { font-size: 14px; color: var(--muted); }
+.sit-head .first b { color: var(--ink); }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
+@media (max-width: 420px) { .cards { grid-template-columns: 1fr; } }
+article.tool { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 16px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+article.tool.isfm { border-color: var(--teal); box-shadow: inset 0 3px 0 var(--teal); }
+.tool-top { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+.tool-top h4 { font-size: 19px; margin-right: auto; }
+.tool p { margin: 0; font-size: 14px; }
+.tool .use b, .tool .avoid b { font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; margin-right: 6px; }
+.tool .use b { color: var(--ok); }
+.tool .avoid b { color: var(--bad); }
+dl.spec { margin: 0; display: grid; grid-template-columns: 88px 1fr; gap: 6px 10px; font-size: 13px; border-top: 1px dashed var(--rule); padding-top: 10px; }
+dl.spec dt { font-family: var(--font-mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); padding-top: 2px; }
+dl.spec dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.inst { display: flex; gap: 6px; align-items: flex-start; }
+.inst code { background: var(--code-bg); padding: 3px 6px; border-radius: 3px; font-size: 12px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+button.copy { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--rule); background: var(--surface); color: var(--muted); border-radius: 3px; padding: 2px 7px; cursor: pointer; }
+button.copy:hover { color: var(--teal); border-color: var(--teal); }
+details.script { border-top: 1px dashed var(--rule); padding-top: 8px; }
+details.script summary { cursor: pointer; font-family: var(--font-mono); font-size: 12px; color: var(--teal); }
+.codebox { position: relative; margin-top: 8px; }
+.codebox pre { margin: 0; background: var(--code-bg); border-radius: 4px; padding: 12px; overflow-x: auto; font-size: 12px; line-height: 1.5; }
+.codebox button.copy { position: absolute; top: 6px; right: 6px; }
+.toy { background: var(--teal-fill); border-radius: 4px; padding: 8px 10px; font-size: 13px; }
+.toy b { font-family: var(--font-mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--teal); margin-right: 6px; }
+
+/* Bench tables */
+.benchtab { overflow-x: auto; margin-top: 14px; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); }
+.benchtab table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+.benchtab caption { text-align: left; padding: 10px 12px 4px; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.benchtab th, .benchtab td { padding: 6px 12px; border-top: 1px solid var(--rule); text-align: right; white-space: nowrap; }
+.benchtab th:first-child, .benchtab td:first-child { text-align: left; }
+.benchtab thead th { font-weight: 600; font-size: 12px; color: var(--muted); }
+.benchtab tr.best td { color: var(--teal); font-weight: 600; }
+.benchtab.notes th, .benchtab.notes td { text-align: left; white-space: normal; vertical-align: top; }
+.benchtab.notes td:first-child { white-space: nowrap; }
+.benchtab .note { padding: 6px 12px 10px; font-size: 12.5px; color: var(--muted); white-space: normal; text-align: left; }
+
+.empty { color: var(--muted); font-style: italic; }
+footer { padding-block: 30px 50px; color: var(--muted); font-size: 13px; }
+footer .wrap { display: grid; gap: 8px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <span class="eyebrow">IS 507 · Data, Statistical Models, and Information · Fall 2026 · Yonghan Jung</span>
+    <h1>Which tool, when</h1>
+    <p class="lede">Start from the situation: what you have (a table, a series, images, text) and what you need (a prediction, new samples, vectors, a smaller picture, a decision). Where a foundation model exists, it is listed first. Every card says how to install it, a short script, the hardware it needs, whether it runs on a Mac, and the evidence for how well it works.</p>
+    <div class="bench" aria-label="Test machine">
+      <span>Toy runs: <b>Apple M4</b>, 10 CPU cores, <b>24 GB</b> memory</span>
+      <span>macOS 15.6 · Python 3.12</span>
+      <span>Run on <b>2026-11-22</b></span>
+      <span>Versions checked on PyPI and model cards, Nov 2026</span>
+    </div>
+  </div>
+</header>
+
+<section class="block" id="rules">
+  <div class="wrap">
+    <h2>Before any tool</h2>
+    <p class="sub">The tool changes; this procedure does not. Do these in order, every time.</p>
+    <ol class="rules">
+      <li><b>Hold out a test set first</b>Split before you look. For time series, the test set is the last stretch of time, never a random sample.</li>
+      <li><b>Measure a baseline</b>Mean, majority class, last value, same season last year, or a linear model. Write the number down.</li>
+      <li><b>Choose settings on validation</b>Use cross-validation or a validation split to pick models and settings. The test set is used once, at the end.</li>
+      <li><b>Compare training and validation error</b>A large gap means overfitting. Both high means the model is too simple or the features are weak.</li>
+      <li><b>If they tie, keep the simpler one</b>A foundation model has to beat the baseline by more than the noise to earn its cost, license, and download.</li>
+    </ol>
+  </div>
+</section>
+
+<section class="block" id="mac">
+  <div class="wrap">
+    <h2>Will it run on my Mac?</h2>
+    <p class="sub">Every card carries one of four labels. "Mac" means a MacBook with Apple Silicon and 16 GB or more of memory.</p>
+    <div class="legend">
+      <span><span class="pill mac-ok">Runs on a Mac</span> CPU or Apple GPU (MPS / MLX), toy to medium data, minutes or less</span>
+      <span><span class="pill mac-limit">Mac, with limits</span> runs, but slow, capped in size, or needs 32 GB+</span>
+      <span><span class="pill mac-no">Needs NVIDIA GPU</span> CUDA-only or impractically slow without it</span>
+      <span><span class="pill mac-cloud">Cloud API</span> runs on the vendor's servers; needs a key, and your data leaves the machine</span>
+    </div>
+    <div class="benchtab notes" style="margin-top:18px">
+      <table>
+        <caption>Mac notes we hit while testing this page</caption>
+        <thead><tr><th>Symptom</th><th>Cause and fix</th></tr></thead>
+        <tbody>
+          <tr><td>Fitting stalls at near 0% CPU</td><td>Two causes we saw. (1) XGBoost or LightGBM and PyTorch in the same Python process load two copies of OpenMP (the library that runs loops in parallel), and our run stalled. Keep them in separate notebooks or processes. (2) Other busy apps: OpenMP threads wait for each other, so a crowded machine slows them sharply. Close heavy apps or set <code>OMP_NUM_THREADS=4</code>.</td></tr>
+          <tr><td><code>Library not loaded: libomp.dylib</code></td><td>XGBoost and LightGBM wheels on macOS need OpenMP: <code>brew install libomp</code>.</td></tr>
+          <tr><td>TabPFN asks for a license</td><td>TabPFN-2.5 and newer weights need a one-time login at ux.priorlabs.ai. For class, TabPFN-2 needs no login: <code>TabPFNClassifier.create_default_for_version(ModelVersion.V2)</code>.</td></tr>
+          <tr><td>TabPFN refuses more than 1,000 rows on CPU</td><td>TabPFN-2 caps CPU runs at 1,000 rows. Use <code>device="mps"</code>, or set <code>TABPFN_ALLOW_CPU_LARGE_DATASET=1</code> and wait.</td></tr>
+          <tr><td><code>ImportError ... partially initialized module</code></td><td>Your own file has the same name as the package (for example <code>statsforecast.py</code> or <code>xgboost.py</code>), so Python imports your file instead. Rename it.</td></tr>
+          <tr><td>Install fails on Python 3.13 or 3.14</td><td>Use Python 3.12 for this course: XGBoost 3.4 needs 3.12 or newer, and AutoGluon needs 3.13 or older. <code>uv venv --python 3.12</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="map">
+  <div class="wrap">
+    <h2>Situation map</h2>
+    <p class="sub">Rows are what you need, columns are what you have. Teal names marked FM are foundation models: pretrained on many datasets, used here without training. Click a name to jump to its card.</p>
+    <div class="map-scroll">
+      <table class="map">
+        <thead><tr><th>Need</th><th>A table</th><th>A time series or sequence</th><th>Images</th><th>Text</th></tr></thead>
+        <tbody id="map-body"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<div class="bar">
+  <div class="wrap">
+    <nav id="tasknav" aria-label="Sections"></nav>
+    <div class="controls">
+      <input type="search" id="q" placeholder="Search tools" aria-label="Search tools">
+      <label class="tog" for="maconly"><input type="checkbox" id="maconly"> Mac-ready only</label>
+      <span class="count" id="count"></span>
+    </div>
+  </div>
+</div>
+
+<main id="catalog"></main>
+<footer>
+  <div class="wrap">
+    <p>Versions, licenses, and leaderboard numbers were checked on PyPI, GitHub, model cards, and the leaderboards linked on each card on 22 November 2026. Leaderboards change every month, so check them again before you choose a model for a project.</p>
+    <p>"Our Mac" results are single toy runs on an Apple M4 (24 GB) that was also running other apps, so times are upper bounds. Accuracy numbers are from one fixed split with a fixed seed. Toy environment: Python 3.12, scikit-learn 1.9.1, XGBoost 3.4.1, LightGBM 4.7.0, tabpfn 10.2.0 (TabPFN-2 weights), chronos-forecasting 2.3.2, statsforecast 2.0.3, sentence-transformers 6.3.0, SDV 1.32.1 (the toy runs) and SDV 2.2.0 (the card scripts, checked in a separate environment because SDV 2.x needs pandas below 3). Cards without an "Our Mac" line were checked against official documentation and model cards but not run here.</p>
+    <p>Main benchmarks: <a href="https://huggingface.co/spaces/TabArena/leaderboard" target="_blank" rel="noopener">TabArena</a> (tables) · <a href="https://huggingface.co/spaces/Salesforce/GIFT-Eval" target="_blank" rel="noopener">GIFT-Eval</a> and <a href="https://arxiv.org/abs/2509.26468" target="_blank" rel="noopener">fev-bench</a> (forecasting) · <a href="https://huggingface.co/spaces/mteb/leaderboard" target="_blank" rel="noopener">MTEB</a> (embeddings) · <a href="https://arena.ai/leaderboard/text" target="_blank" rel="noopener">arena.ai</a> (LLMs) · <a href="https://artificialanalysis.ai/image/leaderboard/text-to-image" target="_blank" rel="noopener">Artificial Analysis</a> (images) · <a href="https://huggingface.co/spaces/hf-audio/open_asr_leaderboard" target="_blank" rel="noopener">Open ASR</a> (speech).</p>
+    <p>IS 507, Fall 2026 · Yonghan Jung</p>
+  </div>
+</footer>
+<script>
+const TOOLS = [];
+const T = o => TOOLS.push(o);
+
+/* ---------- PREDICT: TABLE ---------- */
+T({ id: "tabpfn", name: "TabPFN", fm: true, mac: "ok", tags: "tabular table classification regression prior labs",
+  use: "a small or medium table and you want strong accuracy with no tuning: one <code>fit</code>, no hyperparameter search. On a laptop, a few thousand rows; with a GPU, TabPFN-3.5 handles up to 1M rows.",
+  avoid: "the project is commercial (weights from v2.5 on are non-commercial), or you are on a CPU with more than about 5,000 rows.",
+  install: "pip install tabpfn",
+  version: "tabpfn 10.2.0 (Nov 2026). Default model TabPFN-3.5. Code Apache-2.0; TabPFN-2.5 and newer weights are non-commercial and need a one-time license login at ux.priorlabs.ai (or <code>TABPFN_TOKEN</code>). TabPFN-2 weights need no login and allow commercial use with attribution.",
+  hw: "CPU works up to about 5,000 rows by default. Uses the Apple GPU (MPS) automatically. 8 GB of GPU memory covers most tables. TabPFN-2 checkpoints: about 70 MB on disk.",
+  perf: 'TabArena (v0.1.9, 20 Nov 2026): TabPFN-3.5 Elo 1908, rank 5 of 101; tuned LightGBM 1434; default linear model 865. Elo is scaled so a default random forest = 1000. <a href="https://huggingface.co/spaces/TabArena/leaderboard" target="_blank" rel="noopener">leaderboard</a>',
+  toy: "TOY_TABPFN",
+  script: `from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_auc_score
+from tabpfn import TabPFNClassifier
+from tabpfn.constants import ModelVersion
+
+X, y = load_breast_cancer(return_X_y=True)
+Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.3, random_state=0)
+
+clf = TabPFNClassifier()          # TabPFN-3.5: asks for a one-time license login
+# clf = TabPFNClassifier.create_default_for_version(ModelVersion.V2)  # no login
+clf.fit(Xtr, ytr)
+print(roc_auc_score(yte, clf.predict_proba(Xte)[:, 1]))` });
+
+T({ id: "tabicl", name: "TabICL v2", fm: true, mac: "ok", tags: "tabular table classification inria open license",
+  use: "you want a tabular foundation model with an open license and no login. Benchmarked from 300 to 100,000 rows and up to 2,000 columns.",
+  avoid: "you have more than about 100 columns and need the last bit of accuracy; check a boosted tree beside it.",
+  install: "pip install tabicl",
+  version: "tabicl 2.2.0 (Sep 2026). BSD-3-Clause, weights not gated.",
+  hw: "Picks CUDA, then Apple GPU (MPS), then CPU. Small tables run fine on a laptop CPU.",
+  perf: 'TabArena Elo 1593. Published median time per 1,000 rows: 0.75 s train, 0.14 s predict. <a href="https://github.com/soda-inria/tabicl" target="_blank" rel="noopener">GitHub</a>',
+  script: `from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import train_test_split
+from tabicl import TabICLClassifier
+
+X, y = load_breast_cancer(return_X_y=True)
+Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.3, random_state=0)
+clf = TabICLClassifier().fit(Xtr, ytr)   # downloads the checkpoint on first fit
+print(clf.score(Xte, yte))` });
+
+T({ id: "autogluon", name: "AutoGluon (with Mitra)", short: "AutoGluon", fm: true, mac: "ok", tags: "automl tabular ensemble mitra amazon",
+  use: "you want one line that tries many models (boosted trees, neural nets, and the Mitra foundation model) and ensembles them within a time limit.",
+  avoid: "you need to explain each step, or you cannot wait minutes per fit. It also skips Mitra above 10,000 rows or 500 columns.",
+  install: 'pip install "autogluon.tabular[mitra]>=1.6"',
+  version: "autogluon 1.6.3 (Sep 2026), Apache-2.0, Python 3.10 to 3.13. Mitra-v2 weights: Apache-2.0, 75.7M parameters.",
+  hw: 'Runs on a CPU with the <code>best</code> preset. The <code>extreme</code> preset expects a GPU.',
+  perf: "TabArena Elo: Mitra-v2 1805; AutoGluon 1.6 (extreme, 4 h) 1773.",
+  script: `from sklearn.datasets import fetch_california_housing
+from autogluon.tabular import TabularPredictor
+
+df = fetch_california_housing(as_frame=True).frame
+train, test = df.iloc[:16000], df.iloc[16000:]
+p = TabularPredictor(label="MedHouseVal").fit(train, presets="best", time_limit=600)
+print(p.leaderboard(test))` });
+
+T({ id: "linear", name: "Linear and logistic regression", short: "Linear / logistic", fm: false, mac: "ok", tags: "baseline ols logistic regression interpretable sklearn",
+  use: "always, as the first baseline. Also when you need coefficients you can explain, or the data are very wide and small.",
+  avoid: "the relation is strongly nonlinear and you only care about accuracy; then it is the floor, not the answer.",
+  install: "pip install scikit-learn",
+  version: "scikit-learn 1.9.1, BSD-3-Clause, Python 3.11 or newer.",
+  hw: "Any laptop. Fits in milliseconds to seconds.",
+  perf: "TabArena Elo 865 (default), 998 (tuned). Weak on average, but it tells you how much the complex model actually adds.",
+  toy: "TOY_LINEAR",
+  script: `from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import cross_val_score
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+
+X, y = load_breast_cancer(return_X_y=True)
+model = make_pipeline(StandardScaler(), LogisticRegression(max_iter=2000))
+print(cross_val_score(model, X, y, cv=5, scoring="roc_auc").mean())` });
+
+T({ id: "xgboost", name: "XGBoost, LightGBM, CatBoost", short: "Boosted trees", fm: false, mac: "ok", tags: "gradient boosting xgboost lightgbm catboost histgradientboosting tabular",
+  use: "a medium or large table (10,000 rows to millions), commercial work, or you need fast cheap predictions. The default workhorse for tables.",
+  avoid: "you have only a few hundred rows; TabPFN or a linear model is often as good with less tuning.",
+  install: "pip install xgboost lightgbm catboost",
+  version: "XGBoost 3.4.1 (Apache-2.0, Python 3.12 or newer), LightGBM 4.7.0 (MIT), CatBoost 1.2.10 (Apache-2.0). scikit-learn's HistGradientBoosting needs no extra install.",
+  hw: 'Any laptop CPU. On a Mac, XGBoost and LightGBM need OpenMP: <code>brew install libomp</code>. Do not import them in the same Python process as PyTorch (see the Mac notes).',
+  perf: "TabArena Elo after tuning and ensembling: LightGBM 1434, CatBoost 1424, XGBoost 1378. Published median train time per 1,000 rows with tuning: about 417 s, so tuning, not fitting, is the cost.",
+  toy: "TOY_GBM",
+  script: `from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import cross_val_score
+from xgboost import XGBClassifier
+from lightgbm import LGBMClassifier
+# scikit-learn's HistGradientBoostingClassifier works the same way; on a Mac,
+# run it in a separate notebook from XGBoost/LightGBM (they bring a second OpenMP)
+
+X, y = load_breast_cancer(return_X_y=True)
+for m in [XGBClassifier(), LGBMClassifier(verbose=-1)]:
+    print(type(m).__name__, cross_val_score(m, X, y, cv=5, scoring="roc_auc").mean())` });
+
+/* ---------- PREDICT: TIME SERIES ---------- */
+T({ id: "chronos2", name: "Chronos-2", fm: true, mac: "ok", tags: "time series forecasting amazon zero-shot covariates",
+  use: "you need a forecast now, for one series or thousands, with or without covariates, and no training. Context up to 8,192 steps, horizon up to 1,024.",
+  avoid: "the series is short and very regular (seasonal naive may already win), or the target is financial returns (nothing forecasts them well).",
+  install: 'pip install "chronos-forecasting>=2.0" "pandas[pyarrow]"',
+  version: "chronos-forecasting 2.3.2, Apache-2.0, weights not gated. 120M parameters; a 28M small version exists.",
+  hw: "CPU or GPU. Runs on a laptop CPU; Apple GPU via <code>device_map=\"mps\"</code>.",
+  perf: 'fev-bench (paper v4, Jun 2026): skill score 47.3, rank 1, win rate 91.4%. GIFT-Eval MASE 0.698 (seasonal naive = 1.00). <a href="https://arxiv.org/abs/2509.26468" target="_blank" rel="noopener">fev-bench</a> · <a href="https://huggingface.co/spaces/Salesforce/GIFT-Eval" target="_blank" rel="noopener">GIFT-Eval</a>',
+  toy: "TOY_CHRONOS2",
+  script: `from chronos import Chronos2Pipeline
+from statsforecast.utils import AirPassengersDF as df   # columns: unique_id, ds, y
+
+pipe = Chronos2Pipeline.from_pretrained("amazon/chronos-2", device_map="cpu")
+pred = pipe.predict_df(df, prediction_length=12, quantile_levels=[0.1, 0.5, 0.9],
+                       id_column="unique_id", timestamp_column="ds", target="y")
+print(pred.head())` });
+
+T({ id: "chronosbolt", name: "Chronos-Bolt", fm: true, mac: "ok", tags: "time series forecasting amazon small fast",
+  use: "you want a very small, fast forecaster for single series (sizes from 9M to 205M parameters).",
+  avoid: "you have covariates or related series; Chronos-2 handles those and is more accurate.",
+  install: 'pip install chronos-forecasting',
+  version: "Same package as Chronos-2. Apache-2.0.",
+  hw: "Laptop CPU is enough.",
+  perf: "GIFT-Eval MASE 0.808 (base). fev-bench skill score 38.9.",
+  toy: "TOY_BOLT",
+  script: `import torch
+from chronos import BaseChronosPipeline
+from statsforecast.utils import AirPassengersDF as df
+
+pipe = BaseChronosPipeline.from_pretrained("amazon/chronos-bolt-small", device_map="cpu")
+q, mean = pipe.predict_quantiles(torch.tensor(df["y"].values, dtype=torch.float32),
+                                 prediction_length=12, quantile_levels=[0.1, 0.5, 0.9])
+print(q[0, :, 1])   # median forecast` });
+
+T({ id: "timesfm", name: "TimesFM 2.5 and 3.0", short: "TimesFM", fm: true, mac: "ok", tags: "time series forecasting google",
+  use: "you want Google's forecaster. 2.5 (200M, Apache-2.0, context 16K) for any use; 3.0 (330M) is stronger but its weights are non-commercial.",
+  avoid: "you need a commercial license for 3.0 (only through BigQuery ML).",
+  install: 'pip install "timesfm[torch]"      # or timesfm[mlx] on Apple Silicon',
+  version: "timesfm 3.0.2 on PyPI. The 2.5 model card says to install from source if the class below is missing.",
+  hw: "CPU, GPU, or Apple's MLX. Published: 11 ms for one series on an M4 Max with MLX.",
+  perf: "GIFT-Eval MASE: TimesFM-3 0.667, TimesFM-2.5 0.705. fev-bench skill score (2.5): 42.2.",
+  script: `import numpy as np, timesfm
+
+m = timesfm.TimesFM_2p5_200M_torch.from_pretrained("google/timesfm-2.5-200m-pytorch")
+m.compile(timesfm.ForecastConfig(max_context=1024, max_horizon=256, normalize_inputs=True,
+          use_continuous_quantile_head=True, fix_quantile_crossing=True))
+point, quant = m.forecast(horizon=12, inputs=[np.sin(np.linspace(0, 20, 200))])
+print(point.shape)` });
+
+T({ id: "statsforecast", name: "statsforecast (naive, ETS, ARIMA)", short: "Seasonal naive / ETS / ARIMA", fm: false, mac: "ok", tags: "time series baseline arima ets seasonal naive nixtla",
+  use: "always, first. Seasonal naive (\"same month last year\") is the floor every model must beat. ETS and ARIMA are fast and explainable.",
+  avoid: "never skip it. It is the comparison that makes any other result meaningful.",
+  install: "pip install statsforecast",
+  version: "statsforecast 2.1.1, Apache-2.0.",
+  hw: "CPU only, very fast. Fits millions of series on a cluster.",
+  perf: "On GIFT-Eval, AutoARIMA MASE 1.074 and AutoETS 1.212 against seasonal naive 1.00 and Chronos-2 0.698: across many datasets, classical models barely beat the naive floor.",
+  toy: "TOY_STATS",
+  script: `from statsforecast import StatsForecast
+from statsforecast.models import Naive, SeasonalNaive, AutoETS, AutoARIMA
+from statsforecast.utils import AirPassengersDF as df
+
+sf = StatsForecast(models=[Naive(), SeasonalNaive(12), AutoETS(season_length=12),
+                           AutoARIMA(season_length=12)], freq="ME")   # month-end dates
+print(sf.forecast(df=df, h=12, level=[95]))` });
+
+T({ id: "mlforecast", name: "mlforecast (lags + boosted trees)", short: "Lags + LightGBM", fm: false, mac: "ok", tags: "time series lag features lightgbm nixtla many series",
+  use: "many related series with covariates (store sales, demand). Lag features plus a boosted tree are hard to beat when you have lots of history.",
+  avoid: "you have one short series; there is too little data to learn lags.",
+  install: "pip install mlforecast lightgbm",
+  version: "mlforecast 1.1.0, Apache-2.0.",
+  hw: "CPU. Mac needs <code>brew install libomp</code> for LightGBM.",
+  perf: "fev-bench skill score for a CatBoost lag model: 23.0 (Chronos-2: 47.3). Strong when tuned on your own data, weaker zero-shot.",
+  script: `import lightgbm as lgb
+from mlforecast import MLForecast
+from mlforecast.lag_transforms import RollingMean
+from mlforecast.utils import generate_daily_series
+
+series = generate_daily_series(n_series=20, max_length=100)
+fc = MLForecast(models=[lgb.LGBMRegressor(verbosity=-1)], freq="D", lags=[7, 14],
+                lag_transforms={7: [RollingMean(window_size=28)]}, date_features=["dayofweek"])
+print(fc.fit(series).predict(14))` });
+
+/* ---------- PREDICT: IMAGE ---------- */
+T({ id: "siglip", name: "SigLIP 2 zero-shot", short: "SigLIP 2 zero-shot", fm: true, mac: "ok", tags: "image classification zero-shot clip google",
+  use: "you have images but no labels, or the label set changes often. You type the labels as words.",
+  avoid: "the domain is narrow (X-rays, factory parts). Zero-shot is weak there; train a probe on labeled images.",
+  install: "pip install transformers torch pillow",
+  version: "google/siglip2-base-patch16-224, Apache-2.0, not gated. About 0.4B parameters with the text tower.",
+  hw: "Laptop CPU or Apple GPU.",
+  perf: 'ImageNet zero-shot accuracy: B/16 78.2%, So400m/14 84.1%, g/16 85.0% (<a href="https://arxiv.org/abs/2502.14786" target="_blank" rel="noopener">paper</a>).',
+  script: `from transformers import pipeline
+
+clf = pipeline(model="google/siglip2-base-patch16-224", task="zero-shot-image-classification")
+url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+print(clf(url, candidate_labels=["two cats", "a plane", "a remote control"]))` });
+
+T({ id: "dino", name: "DINOv2 / DINOv3 + logistic regression", short: "DINOv2 + logistic", fm: true, mac: "ok", tags: "image classification embedding linear probe meta",
+  use: "you have a few hundred to a few thousand labeled images. Embed each image once with the frozen model, then fit logistic regression on the vectors.",
+  avoid: "your images are very unlike photos and you have many labels and a GPU; then fine-tune.",
+  install: "pip install transformers torch torchvision scikit-learn",
+  version: "DINOv2: Apache-2.0, not gated. DINOv3: gated on Hugging Face (accept terms), DINOv3 license.",
+  hw: "Small and base sizes run on a laptop CPU or Apple GPU. DINOv2-small: 21M parameters.",
+  perf: "ImageNet linear-probe accuracy, DINOv2: ViT-S 81.1%, ViT-B 84.5%, ViT-L 86.3%. DINOv3 (IN-ReaL): S 87.0, B 89.3, L 90.2.",
+  script: `import torch, numpy as np
+from torchvision.datasets import CIFAR10
+from transformers import AutoImageProcessor, AutoModel
+from sklearn.linear_model import LogisticRegression
+
+name = "facebook/dinov2-small"
+proc, model = AutoImageProcessor.from_pretrained(name), AutoModel.from_pretrained(name).eval()
+def embed(ds, n):
+    with torch.inference_mode():
+        X = torch.cat([model(**proc(images=[ds[i][0] for i in range(j, j + 50)],
+                       return_tensors="pt")).pooler_output for j in range(0, n, 50)])
+    return X.numpy(), np.array([ds[i][1] for i in range(n)])
+Xtr, ytr = embed(CIFAR10(".", train=True, download=True), 1000)
+Xte, yte = embed(CIFAR10(".", train=False, download=True), 500)
+print(LogisticRegression(max_iter=3000).fit(Xtr, ytr).score(Xte, yte))` });
+
+T({ id: "timm", name: "Fine-tune a pretrained CNN or ViT (timm)", short: "timm fine-tune", fm: false, mac: "limit", tags: "image classification fine-tuning convnext vit",
+  use: "you have thousands of labeled images from a domain unlike everyday photos, and the probe above is not good enough.",
+  avoid: "you only have a CPU and a deadline. Try the frozen-embedding probe first.",
+  install: "pip install timm torch torchvision",
+  version: "timm 1.0.31, Apache-2.0. Each checkpoint carries its own license.",
+  hw: "Needs a GPU for real training. Apple GPU (MPS) works for small runs but is several times slower than an NVIDIA card.",
+  perf: "Usually beats a frozen probe once you have thousands of in-domain labels; measure both on the same split.",
+  script: `import timm, torch
+
+model = timm.create_model("convnext_tiny", pretrained=True, num_classes=10)
+cfg = timm.data.resolve_model_data_config(model)
+tfm = timm.data.create_transform(**cfg, is_training=True)
+opt = torch.optim.AdamW(model.parameters(), lr=1e-4)
+# for x, y in loader:
+#     loss = torch.nn.functional.cross_entropy(model(x), y)
+#     loss.backward(); opt.step(); opt.zero_grad()` });
+
+/* ---------- PREDICT: TEXT ---------- */
+T({ id: "llmzero", name: "Zero-shot with an LLM", short: "LLM zero-shot", fm: true, mac: "cloud", tags: "text classification llm zero-shot claude api prompt",
+  use: "you have few or no labels and can describe each label in words, or you need a prototype today.",
+  avoid: "you classify millions of texts on a budget, the text cannot leave your machine (use a local model through Ollama instead), or you already have enough labels to train.",
+  install: "pip install anthropic",
+  version: "anthropic Python SDK. Needs an API key. Claude Opus 5.5: $4 / $20 per million input / output tokens; Claude Haiku 5.5: $0.10 / $0.50.",
+  hw: "Runs on the provider's servers; any laptop works.",
+  perf: "Score the LLM on a labeled held-out set, side by side with the embedding baseline. Without that comparison you do not know whether it is better.",
+  script: `import anthropic
+
+client = anthropic.Anthropic()          # reads ANTHROPIC_API_KEY
+r = client.beta.messages.create(
+    model="claude-opus-5-5", max_tokens=1024,
+    betas=["server-side-fallback-2026-07-01"], fallbacks="default",
+    output_config={"effort": "low"},
+    system="Label the review as positive or negative. Reply with one word.",
+    messages=[{"role": "user", "content": "The battery died after two days."}])
+print(next(b.text for b in r.content if b.type == "text"))` });
+
+T({ id: "embedlr", name: "Sentence embeddings + logistic regression", short: "Embeddings + logistic", fm: true, mac: "ok", tags: "text classification embedding sentence-transformers",
+  use: "you have hundreds to tens of thousands of labeled texts. Strong, cheap, runs on a laptop, and the model never sees your labels until you fit the last step.",
+  avoid: "the label depends on long-range reasoning over a document; then an LLM or fine-tuning may help.",
+  install: "pip install sentence-transformers scikit-learn",
+  version: "sentence-transformers 6.3.0, Apache-2.0. Models: all-MiniLM-L6-v2 (22M, fast), BAAI/bge-small-en-v1.5 (33M), microsoft/harrier-oss-v1-270m (MIT).",
+  hw: "Laptop CPU or Apple GPU. Small models download about 100 MB.",
+  perf: "Multilingual MTEB v2: harrier-oss-v1-270m 66.5, 27B version 74.3 (model card, Apr 2026).",
+  toy: "TOY_EMBEDLR",
+  script: `from sentence_transformers import SentenceTransformer
+from sklearn.datasets import fetch_20newsgroups
+from sklearn.linear_model import LogisticRegression
+
+cats = ["sci.space", "rec.autos", "sci.med", "comp.graphics"]
+kw = dict(categories=cats, remove=("headers", "footers", "quotes"))
+tr, te = fetch_20newsgroups(subset="train", **kw), fetch_20newsgroups(subset="test", **kw)
+enc = SentenceTransformer("BAAI/bge-small-en-v1.5", device="mps")   # or "cpu"
+Xtr, Xte = enc.encode(tr.data, batch_size=64), enc.encode(te.data, batch_size=64)
+print(LogisticRegression(max_iter=2000).fit(Xtr, tr.target).score(Xte, te.target))` });
+
+T({ id: "tfidf", name: "TF-IDF + logistic regression", short: "TF-IDF + logistic", fm: false, mac: "ok", tags: "text classification baseline bag of words",
+  use: "always, as the first text baseline. Seconds to train, easy to inspect which words drive each label.",
+  avoid: "meaning depends on word order or synonyms more than on keywords.",
+  install: "pip install scikit-learn",
+  version: "scikit-learn 1.9.1.",
+  hw: "Any laptop.",
+  perf: "Often within a few points of embeddings on topic labels; much worse on sentiment with negation or sarcasm.",
+  toy: "TOY_TFIDF",
+  script: `from sklearn.datasets import fetch_20newsgroups
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import make_pipeline
+
+cats = ["sci.space", "rec.autos", "sci.med", "comp.graphics"]
+kw = dict(categories=cats, remove=("headers", "footers", "quotes"))
+tr, te = fetch_20newsgroups(subset="train", **kw), fetch_20newsgroups(subset="test", **kw)
+model = make_pipeline(TfidfVectorizer(min_df=2, sublinear_tf=True), LogisticRegression(max_iter=2000))
+print(model.fit(tr.data, tr.target).score(te.data, te.target))` });
+
+T({ id: "modernbert", name: "Fine-tune ModernBERT", short: "ModernBERT fine-tune", fm: false, mac: "limit", tags: "text classification fine-tuning encoder transformer",
+  use: "you have thousands of labels and need the best accuracy per dollar at prediction time.",
+  avoid: "you only have a CPU. Training on a CPU is too slow; on an Apple GPU it works for small runs.",
+  install: "pip install transformers datasets torch",
+  version: "answerdotai/ModernBERT-base, Apache-2.0, 149M parameters, 8,192-token context.",
+  hw: "A GPU for training. Prediction runs fine on a laptop.",
+  perf: 'GLUE average: ModernBERT-base 88.4, large 90.4, against BERT-base 84.7 (<a href="https://arxiv.org/abs/2412.13663" target="_blank" rel="noopener">paper</a>).',
+  script: `from datasets import load_dataset
+from transformers import (AutoTokenizer, AutoModelForSequenceClassification,
+                          Trainer, TrainingArguments)
+
+mid = "answerdotai/ModernBERT-base"
+tok = AutoTokenizer.from_pretrained(mid)
+ds = load_dataset("rotten_tomatoes").map(lambda b: tok(b["text"], truncation=True), batched=True)
+model = AutoModelForSequenceClassification.from_pretrained(mid, num_labels=2)
+args = TrainingArguments("out", per_device_train_batch_size=16, num_train_epochs=2, learning_rate=5e-5)
+Trainer(model=model, args=args, train_dataset=ds["train"], eval_dataset=ds["test"],
+        processing_class=tok).train()` });
+
+/* ---------- GENERATE: TABLE ---------- */
+T({ id: "tabpfngen", name: "TabPFN unsupervised (sampling)", short: "TabPFN sampling", fm: true, mac: "ok", tags: "synthetic data tabular generation sampling tabpfn",
+  use: "a small numeric table and you want new rows with no training, from the same model you may already use for prediction. It samples column by column and can follow a causal graph (<code>dag=</code>).",
+  avoid: "privacy matters: a 2025 benchmark of 35 tables found foundation-model generators had the highest privacy risk. Also not for large or mostly categorical tables.",
+  install: 'pip install "tabpfn-extensions[unsupervised]"',
+  version: "tabpfn-extensions 0.6.3 with tabpfn 10.2.0. Weight licenses as in the TabPFN card; TabPFN-2 needs no login.",
+  hw: "Runs on CPU. Each column is one TabPFN fit, so wide tables take minutes. In our run the Apple GPU path failed (device mismatch), so the script uses CPU.",
+  perf: 'No published benchmark of sample quality from Prior Labs. Privacy: <a href="https://arxiv.org/abs/2507.17066" target="_blank" rel="noopener">arXiv 2507.17066</a>. Check with the SDMetrics quality score and train-on-synthetic, test-on-real.',
+  toy: "TOY_TABPFNGEN",
+  script: `import torch
+from sklearn.datasets import load_breast_cancer
+from tabpfn import TabPFNClassifier, TabPFNRegressor
+from tabpfn.constants import ModelVersion
+from tabpfn_extensions.unsupervised import TabPFNUnsupervisedModel
+
+X = torch.tensor(load_breast_cancer().data[:, :4], dtype=torch.float32)
+model = TabPFNUnsupervisedModel(    # TabPFN-2 weights: no login needed
+    tabpfn_clf=TabPFNClassifier.create_default_for_version(ModelVersion.V2, device="cpu", n_estimators=3),
+    tabpfn_reg=TabPFNRegressor.create_default_for_version(ModelVersion.V2, device="cpu", n_estimators=3))
+model.fit(X)
+X_syn = model.generate_synthetic_data(n_samples=500, t=1.0, n_permutations=3)   # (500, 4)` });
+
+T({ id: "sdvcopula", name: "SDV Gaussian copula", short: "SDV GaussianCopula", fm: false, mac: "ok", tags: "synthetic data tabular generation copula sdv baseline",
+  use: "first, always: a fast, explainable baseline that handles mixed column types and constraints. It is SDV's own recommended starting point.",
+  avoid: "relations between columns are strongly nonlinear; it keeps each column's shape and the correlations, not more.",
+  install: "pip install sdv",
+  version: "SDV 2.2.0 (Nov 2026), BUSL-1.1: free to use, but you may not sell synthesis as a service; each release becomes MIT after four years. SDV 2.x needs pandas below 3, so give it its own environment.",
+  hw: "Laptop CPU, seconds.",
+  perf: 'TabStruct (ICLR 2026, 13 generators, 29 datasets) is a recent neutral comparison. <a href="https://arxiv.org/abs/2509.11950" target="_blank" rel="noopener">arXiv 2509.11950</a>',
+  toy: "TOY_COPULA",
+  script: `from sklearn.datasets import load_breast_cancer
+from sdv.metadata import Metadata
+from sdv.single_table import GaussianCopulaSynthesizer
+from sdv.evaluation import evaluate_quality
+
+data = {"bc": load_breast_cancer(as_frame=True).frame}     # SDV 2.x: a dict of tables
+metadata = Metadata.detect_from_dataframes(data)
+synth = GaussianCopulaSynthesizer(metadata)
+synth.fit(data)
+syn = synth.sample(num_rows=1000)                          # returns {"bc": DataFrame}
+print(evaluate_quality(data, syn, metadata).get_score())` });
+
+T({ id: "sdvgan", name: "SDV CTGAN and TVAE", short: "CTGAN / TVAE", fm: false, mac: "ok", tags: "synthetic data tabular generation gan vae deep",
+  use: "thousands of rows or more with complex, non-Gaussian relations between columns.",
+  avoid: "a few hundred rows; CTGAN tends to underfit there and the copula is as good.",
+  install: "pip install sdv",
+  version: "In SDV 2.2.0. Same license note as the copula card.",
+  hw: "CPU works; uses the Apple GPU automatically (<code>enable_gpu=True</code> is the default). Minutes for thousands of rows.",
+  perf: "TabStruct: CTGAN 0.80 on machine-learning usefulness for its simulated datasets, tied with the diffusion model TabDiff.",
+  toy: "TOY_GAN",
+  script: `from sklearn.datasets import load_breast_cancer
+from sdv.metadata import Metadata
+from sdv.single_table import CTGANSynthesizer, TVAESynthesizer
+
+data = {"bc": load_breast_cancer(as_frame=True).frame}
+metadata = Metadata.detect_from_dataframes(data)
+synth = CTGANSynthesizer(metadata, epochs=300)     # or TVAESynthesizer(metadata, epochs=300)
+synth.fit(data)
+syn = synth.sample(num_rows=1000)["bc"]` });
+
+T({ id: "tabdiff", name: "TabDiff and TabSyn (diffusion)", short: "TabDiff / TabSyn", fm: false, mac: "no", tags: "synthetic data tabular diffusion research",
+  use: "you need the best published fidelity on mid-size mixed-type tables and you have an NVIDIA GPU.",
+  avoid: "you are on a laptop or want a pip package; both are research repositories run from the command line.",
+  install: "git clone https://github.com/MinkaiXu/TabDiff",
+  version: "TabDiff (ICLR 2025) MIT; TabSyn (ICLR 2024) Apache-2.0, pins torch 2.0.1 with CUDA 11.7.",
+  hw: "NVIDIA GPU.",
+  perf: "TabDiff: up to 22.5% better pairwise correlation than the previous best on 7 datasets. A 16-dataset study found diffusion best but the gap not significant under an equal GPU budget (arXiv 2406.12945).",
+  script: `# Linux + NVIDIA GPU
+git clone https://github.com/MinkaiXu/TabDiff && cd TabDiff
+conda env create -f tabdiff.yaml
+python download_dataset.py && python process_dataset.py
+python main.py --dataname adult --mode train
+python main.py --dataname adult --mode test --report --no_wandb` });
+
+T({ id: "sdmetrics", name: "Check synthetic data (SDMetrics + TSTR)", short: "SDMetrics check", fm: false, mac: "ok", tags: "synthetic data evaluation quality privacy utility",
+  use: "every time you generate a table. Check validity (diagnostic), fidelity (quality score), utility (train on synthetic, test on real), and privacy (distance to the closest real record).",
+  avoid: "reporting only the quality score; a generator that copies the training rows scores perfectly and leaks everything.",
+  install: "pip install sdmetrics",
+  version: "SDMetrics 0.33.0, MIT. Privacy metrics: <code>DCRBaselineProtection</code>, <code>DCROverfittingProtection</code>, <code>DisclosureProtection</code>.",
+  hw: "Laptop.",
+  perf: "Train-on-synthetic, test-on-real AUC next to train-on-real AUC tells you how much usefulness you lost.",
+  script: `from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_auc_score
+
+def tstr_auc(train_df, test_df, target="target"):
+    """Train on one table (synthetic or real), test on held-out REAL rows."""
+    m = LogisticRegression(max_iter=5000).fit(train_df.drop(columns=target), train_df[target])
+    return roc_auc_score(test_df[target], m.predict_proba(test_df.drop(columns=target))[:, 1])
+
+# print(tstr_auc(real_train, real_test), tstr_auc(synthetic, real_test))` });
+
+/* ---------- GENERATE: SEQUENCE ---------- */
+T({ id: "chronost5", name: "Chronos-T5 sample paths", short: "Chronos-T5 paths", fm: true, mac: "ok", tags: "time series generation sample paths scenarios monte carlo",
+  use: "you want many plausible futures that continue a real series (Monte Carlo scenarios), with no training. Of the forecasting models here, only the original Chronos (T5) returns actual sample paths.",
+  avoid: "you need whole new series from scratch, not continuations. And do not stitch paths from Chronos-2 or TimesFM quantiles: sampling each step independently destroys the dependence between steps.",
+  install: "pip install chronos-forecasting statsmodels",
+  version: "chronos-forecasting 2.3.2; Chronos-T5 sizes 8M to 710M. Apache-2.0.",
+  hw: "Laptop CPU.",
+  perf: "Forecast accuracy is not the same as realistic paths: check path statistics (spread, autocorrelation) against the real series.",
+  toy: "TOY_T5",
+  script: `import torch, statsmodels.api as sm
+from chronos import BaseChronosPipeline
+
+co2 = sm.datasets.co2.load_pandas().data["co2"].resample("MS").mean().ffill()
+y = torch.tensor(co2.values, dtype=torch.float32)
+t5 = BaseChronosPipeline.from_pretrained("amazon/chronos-t5-small", device_map="cpu")
+paths = t5.predict(y, prediction_length=24, num_samples=200)   # (1, 200, 24) sample paths
+print(paths.shape)` });
+
+T({ id: "sdvpar", name: "SDV PARSynthesizer", short: "SDV PAR", fm: false, mac: "ok", tags: "sequential synthetic data panel entities sdv",
+  use: "many entities, each with its own sequence plus fixed context (customers with transactions, stocks with sector). It also learns how long sequences are.",
+  avoid: "one long single series; use bootstrap or ARIMA simulation.",
+  install: "pip install sdv",
+  version: "In SDV 2.2.0. Use <code>sample_sequences()</code>; <code>sample()</code> now raises an error, and the docs page still shows the old call.",
+  hw: "Laptop CPU (<code>cuda=</code> for NVIDIA).",
+  perf: "No neutral benchmark found; compare sequence lengths, per-step distributions, and autocorrelation with the real data.",
+  script: `from sdv.datasets.demo import download_demo
+from sdv.sequential import PARSynthesizer
+
+data, metadata = download_demo(modality="sequential", dataset_name="nasdaq100_2019")
+synth = PARSynthesizer(metadata, context_columns=["Sector", "Industry"], epochs=128)
+synth.fit(data)
+syn = synth.sample_sequences(num_sequences=10, sequence_length=50)   # {"nasdaq100_2019": df}` });
+
+T({ id: "bootstrap", name: "Block bootstrap and ARIMA simulation", short: "Bootstrap / ARIMA sim", fm: false, mac: "ok", tags: "time series simulation bootstrap arima baseline generation",
+  use: "always, as the baseline generator. The stationary block bootstrap resamples real stretches and keeps short-range dependence; ARIMA simulation is explainable.",
+  avoid: "the series has trends or regime changes that a stationary model cannot carry.",
+  install: "pip install statsmodels arch",
+  version: "statsmodels 0.15.0 (BSD-3), arch 9.0.0.",
+  hw: "Laptop, instant.",
+  perf: "If a deep generator cannot beat these on the statistics you care about, keep these.",
+  script: `import statsmodels.api as sm
+from arch.bootstrap import StationaryBootstrap
+
+y = sm.datasets.macrodata.load_pandas().data["realgdp"].pct_change().dropna().values
+res = sm.tsa.ARIMA(y, order=(1, 0, 1)).fit()
+sim = res.simulate(nsimulations=len(y), repetitions=100)       # model-based paths
+bs = StationaryBootstrap(8, y, seed=0)
+boot = [d[0][0] for d in bs.bootstrap(100)]                    # model-free paths` });
+
+T({ id: "timegan", name: "TimeGAN and DoppelGANger", short: "TimeGAN", fm: false, mac: "limit", tags: "time series gan generation legacy",
+  use: "teaching how GANs generate fixed-length windows of sequences.",
+  avoid: "you want a maintained stack: the package pins TensorFlow 2.15, Python 3.11 or older, and NumPy below 2. gretel-synthetics, which had DoppelGANger in PyTorch, is archived.",
+  install: "pip install fg-data-synthetic      # separate Python 3.11 environment",
+  version: "fg-data-synthetic 2.1.0 (renamed from ydata-synthetic). License: MIT in the repository, GPLv3+ in the old PyPI metadata.",
+  hw: "CPU works but slowly (thousands of epochs).",
+  perf: "No current benchmark; treat as a teaching example.",
+  script: `import numpy as np, pandas as pd
+from data_synthetic.synthesizers import ModelParameters, TrainParameters
+from data_synthetic.synthesizers.timeseries import TimeSeriesSynthesizer
+
+df = pd.DataFrame(np.cumsum(np.random.randn(2000, 3), 0), columns=list("abc"))
+gan = ModelParameters(batch_size=128, lr=5e-4, noise_dim=32, layers_dim=128, latent_dim=24, gamma=1)
+tr = TrainParameters(epochs=5000, sequence_length=24, number_sequences=3)
+s = TimeSeriesSynthesizer(modelname="timegan", model_parameters=gan)
+s.fit(df, tr, num_cols=list(df))
+windows = s.sample(n_samples=100)        # list of 24 x 3 DataFrames` });
+
+/* ---------- GENERATE: TEXT ---------- */
+T({ id: "ollama", name: "Local LLM with Ollama", short: "Ollama (local LLM)", fm: true, mac: "ok", tags: "text generation llm local private synthetic qwen gemma gpt-oss",
+  use: "you need synthetic records, labels, or drafts and the data must stay on your machine. Ask for JSON that matches a schema to get clean rows.",
+  avoid: "you need frontier quality or very high volume; use a hosted API.",
+  install: "brew install ollama && pip install ollama",
+  version: "Ollama 0.40, Python client 0.6.3 (MIT). Open models, Apache-2.0 and ungated: Qwen3.5 (0.8B to 27B), Gemma 4 (2B to 31B), gpt-oss 20B.",
+  hw: "Rule of thumb: memory of about the download size plus 1 to 3 GB. 8 GB Mac: up to Qwen3.5 4B (3.3 GB). 16 GB: 9B models or gpt-oss 20B (14 GB). 32 GB: 26B to 31B.",
+  perf: "Gemma 4 model card, MMLU-Pro: 31B 85.2%, 12B 77.2%, E4B 69.4%, E2B 60.0%: smaller is faster but clearly weaker.",
+  toy: "TOY_OLLAMA",
+  script: `from pydantic import BaseModel
+from ollama import chat
+
+class Review(BaseModel):
+    product: str; rating: int; text: str
+class Batch(BaseModel):
+    reviews: list[Review]
+
+r = chat(model="qwen3.5:4b", messages=[{"role": "user", "content": "Write 5 varied product reviews."}],
+         format=Batch.model_json_schema(), options={"temperature": 0.9, "seed": 1})
+print(Batch.model_validate_json(r.message.content))` });
+
+T({ id: "hfllm", name: "Hugging Face transformers (Gemma 4)", short: "transformers LLM", fm: true, mac: "ok", tags: "text generation llm transformers gemma",
+  use: "you need full control from Python: custom decoding, access to probabilities, or fine-tuning later.",
+  avoid: "you only want answers; Ollama is simpler and faster on a Mac.",
+  install: "pip install -U transformers torch accelerate",
+  version: "transformers 5.24.0 (Python 3.11 or newer). google/gemma-4-E2B-it: Apache-2.0.",
+  hw: "E2B runs on a laptop (Apple GPU through <code>device_map=\"auto\"</code>).",
+  perf: "Same model quality as through Ollama; slower on a Mac because Ollama uses optimized Metal kernels.",
+  script: `from transformers import AutoProcessor, AutoModelForMultimodalLM
+
+mid = "google/gemma-4-E2B-it"
+proc = AutoProcessor.from_pretrained(mid)
+model = AutoModelForMultimodalLM.from_pretrained(mid, dtype="auto", device_map="auto")
+msgs = [{"role": "user", "content": "Write a one-sentence synthetic patient note."}]
+inp = proc.apply_chat_template(msgs, tokenize=True, return_dict=True, return_tensors="pt",
+                               add_generation_prompt=True, enable_thinking=False).to(model.device)
+out = model.generate(**inp, max_new_tokens=128)
+print(proc.decode(out[0][inp["input_ids"].shape[-1]:], skip_special_tokens=True))` });
+
+T({ id: "llmapi", name: "Hosted LLM APIs", short: "LLM API", fm: true, mac: "cloud", tags: "text generation llm api claude hosted",
+  use: "you need the strongest models, long documents, or large volume, and the data may leave your machine.",
+  avoid: "the data are private or regulated, or you cannot pay per token.",
+  install: "pip install anthropic",
+  version: "Anthropic Python SDK (Claude Opus 5.5: $4 / $20 per million input / output tokens; Claude Haiku 5.5: $0.10 / $0.50). Other vendors have similar SDKs.",
+  hw: "Runs on the provider's servers.",
+  perf: 'Text leaderboard on <a href="https://arena.ai/leaderboard/text" target="_blank" rel="noopener">arena.ai</a> (22 Nov 2026): #1 Gemini 4 Carbon (High), Elo 1,527. Rankings move monthly; check before you choose.',
+  script: `import anthropic
+
+client = anthropic.Anthropic()          # reads ANTHROPIC_API_KEY
+r = client.beta.messages.create(
+    model="claude-opus-5-5", max_tokens=16000,
+    betas=["server-side-fallback-2026-07-01"], fallbacks="default",
+    messages=[{"role": "user", "content": "Write 5 short, varied customer complaints about late delivery."}])
+for block in r.content:
+    if block.type == "text":
+        print(block.text)` });
+
+/* ---------- GENERATE: IMAGE ---------- */
+T({ id: "flux", name: "FLUX.2 [klein] 4B with diffusers", short: "FLUX.2 klein 4B", fm: true, mac: "limit", tags: "image generation diffusion text to image flux",
+  use: "you need images from text prompts with an open, commercial-friendly license (Apache-2.0, ungated), in 4 denoising steps.",
+  avoid: "you only have a CPU, or you have less than 32 GB of memory on a Mac.",
+  install: "pip install -U diffusers transformers accelerate torch",
+  version: "diffusers 0.43.0. FLUX.2 [klein] 4B: 3.9B parameters, Apache-2.0. Z-Image-Turbo (6.2B, Apache-2.0) is a stronger open option.",
+  hw: "About 13 GB of GPU memory (RTX 3090 or 4070 class); 16 GB download. On Apple Silicon diffusers supports MPS, but we did not test this model; diffusers recommends attention slicing below 64 GB.",
+  perf: 'Artificial Analysis text-to-image Elo (Nov 2026): FLUX.2 klein 4B 840, Z-Image-Turbo 936, FLUX.2 dev 1000 (non-commercial); top hosted model 1263. <a href="https://artificialanalysis.ai/image/leaderboard/text-to-image" target="_blank" rel="noopener">leaderboard</a>',
+  script: `import torch
+from diffusers import Flux2KleinPipeline
+
+pipe = Flux2KleinPipeline.from_pretrained("black-forest-labs/FLUX.2-klein-4B", torch_dtype=torch.bfloat16)
+pipe.enable_model_cpu_offload()      # NVIDIA; on a Mac try pipe.to("mps") (not tested here)
+img = pipe(prompt="A histogram drawn in chalk on a blackboard", height=1024, width=1024,
+           guidance_scale=1.0, num_inference_steps=4,
+           generator=torch.Generator("cpu").manual_seed(0)).images[0]
+img.save("klein.png")` });
+
+T({ id: "sd35", name: "Stable Diffusion 3.5", short: "SD 3.5", fm: true, mac: "limit", tags: "image generation diffusion stable diffusion",
+  use: "you want the largest ecosystem of add-ons (LoRAs, control models) and your organization earns under $1M a year.",
+  avoid: "you need a fully open license; it is the Stability Community License and the weights are gated.",
+  install: "pip install -U diffusers transformers accelerate torch && hf auth login",
+  version: "SD 3.5 Medium (2.5B) and Large (8B). Stability Community License, gated.",
+  hw: "16 to 24 GB of GPU memory. Dropping the T5 text encoder (<code>text_encoder_3=None</code>) cuts memory a lot.",
+  perf: "arena.ai text-to-image: SD 3.5 Large ranks well below current hosted and newer open models.",
+  script: `import torch
+from diffusers import StableDiffusion3Pipeline
+
+pipe = StableDiffusion3Pipeline.from_pretrained("stabilityai/stable-diffusion-3.5-medium",
+                                                torch_dtype=torch.float16,
+                                                text_encoder_3=None, tokenizer_3=None)
+pipe = pipe.to("mps")       # or "cuda"
+pipe("a scatter plot made of autumn leaves", num_inference_steps=28).images[0].save("sd35.png")` });
+
+/* ---------- EMBED ---------- */
+T({ id: "textemb", name: "Open text embedding models", short: "Qwen3 / EmbeddingGemma", fm: true, mac: "ok", tags: "embedding text semantic search sentence-transformers qwen gemma harrier",
+  use: "you need meaning-based search, deduplication, clustering, or features from text, and the text should stay on your machine.",
+  avoid: "exact keyword match matters (product codes, names); keyword search (BM25) is better there. Check any model on your own data before trusting it.",
+  install: "pip install -U sentence-transformers",
+  version: "sentence-transformers 6.3.0. Qwen3-Embedding-0.6B / 4B / 8B: Apache-2.0. EmbeddingGemma-300m: Gemma terms, gated (accept on Hugging Face, then <code>hf auth login</code>). Harrier-OSS-v1 270M / 0.6B / 27B: MIT.",
+  hw: "Models up to 0.6B run on a laptop CPU or Apple GPU (about 1.2 GB download). 8B and larger need a GPU.",
+  perf: "MTEB English v2: Qwen3-Embedding 0.6B 70.70, 4B 74.60, 8B 75.22; EmbeddingGemma-300m 69.67 (model cards).",
+  toy: "TOY_EMB",
+  script: `from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer("Qwen/Qwen3-Embedding-0.6B", truncate_dim=256)
+docs = ["Mars is called the Red Planet.", "Venus is Earth's twin.", "Jupiter has a red spot."]
+q = model.encode_query("Which planet is red?")
+d = model.encode_document(docs)
+print(model.similarity(q, d))` });
+
+T({ id: "apiemb", name: "Embedding APIs", short: "Embedding API", fm: true, mac: "cloud", tags: "embedding text api openai",
+  use: "you want nothing to install or host, and the text may leave your machine.",
+  avoid: "the data cannot leave campus, or you need the exact same model in five years.",
+  install: "pip install openai",
+  version: "OpenAI text-embedding-3-small (1,536 dims) and -large (3,072 dims); shorten with <code>dimensions</code>. About $0.02 and $0.13 per million tokens.",
+  hw: "Runs on the provider's servers.",
+  perf: "OpenAI's own MTEB figures (older MTEB version): 62.3 small, 64.6 large. Open models above now score higher on MTEB v2.",
+  script: `from openai import OpenAI
+
+docs = ["Mars is called the Red Planet.", "Venus is Earth's twin."]
+r = OpenAI().embeddings.create(model="text-embedding-3-small", input=docs, dimensions=256)
+print(len(r.data[0].embedding))` });
+
+T({ id: "imgemb", name: "Image embeddings (SigLIP 2, DINOv2)", short: "SigLIP 2 / DINOv2", fm: true, mac: "ok", tags: "embedding image search similarity clip dino",
+  use: "SigLIP 2 to search images with text (and text with images); DINOv2 to find visually similar images or as features for a classifier.",
+  avoid: "you need to read text inside images; that is OCR (see Turn inputs into data).",
+  install: "pip install transformers torch pillow",
+  version: "SigLIP 2 and DINOv2: Apache-2.0, not gated. DINOv3: gated, DINOv3 license.",
+  hw: "Small and base sizes (about 20M to 400M parameters) run on a laptop.",
+  perf: "ImageNet linear probe: SigLIP 2 89.1, DINOv3 88.4 (as reported by DeepLearning.AI's The Batch); DINOv3 leads on dense tasks such as segmentation.",
+  script: `import torch
+from transformers import AutoModel, AutoProcessor
+from transformers.image_utils import load_image
+
+ckpt = "google/siglip2-base-patch16-224"
+model, proc = AutoModel.from_pretrained(ckpt), AutoProcessor.from_pretrained(ckpt)
+img = load_image("http://images.cocodataset.org/val2017/000000039769.jpg")
+with torch.no_grad():
+    out = model.get_image_features(**proc(images=img, return_tensors="pt"))
+emb = getattr(out, "pooler_output", out)
+print(emb.shape)` });
+
+T({ id: "tabemb", name: "TabPFN row embeddings", short: "TabPFN embeddings", fm: true, mac: "ok", tags: "embedding tabular rows tabpfn extensions",
+  use: "you want label-aware vectors for the rows of a small table, for example to feed a simple model or a clustering step.",
+  avoid: "you need a published benefit; there is no benchmark for this yet. Also not for commercial use with TabPFN-2.5 or newer weights.",
+  install: "pip install tabpfn tabpfn-extensions",
+  version: "tabpfn-extensions 0.6.3 (Apache-2.0 code). Weight licenses as in the TabPFN card.",
+  hw: "Laptop with Apple GPU; up to about 5,000 rows on CPU.",
+  perf: "No published benchmark. Compare against plain features with logistic regression on your own split.",
+  script: `from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import train_test_split
+from tabpfn_extensions import TabPFNClassifier
+from tabpfn_extensions.embedding import TabPFNEmbedding
+
+X, y = load_breast_cancer(return_X_y=True)
+Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.5, random_state=42)
+emb = TabPFNEmbedding(n_fold=10, model=TabPFNClassifier(n_estimators=1))
+Etr = emb.fit_transform(Xtr, ytr)[0]   # out-of-fold vectors for the training rows
+Ete = emb.transform(Xte)[0]` });
+
+T({ id: "vsearch", name: "Vector search: NumPy or FAISS", short: "NumPy / FAISS search", fm: false, mac: "ok", tags: "vector search nearest neighbor faiss database retrieval",
+  use: "NumPy for up to about a million vectors: 100,000 vectors of 768 numbers is 300 MB and one matrix product searches it in milliseconds. FAISS beyond that, or for approximate search.",
+  avoid: "reaching for a vector database when the data fit in memory, belong to one user, and rarely change. That is overkill.",
+  install: "pip install faiss-cpu",
+  version: "faiss-cpu 1.16.0, MIT, macOS arm64 wheels.",
+  hw: "Laptop CPU. Memory is the limit: rows × dimensions × 4 bytes.",
+  perf: 'Douze et al., "The Faiss library" (2024), <a href="https://arxiv.org/abs/2401.08281" target="_blank" rel="noopener">arXiv 2401.08281</a>.',
+  script: `import numpy as np, faiss
+
+X = np.random.rand(10000, 384).astype("float32"); faiss.normalize_L2(X)
+index = faiss.IndexFlatIP(X.shape[1]); index.add(X)
+D, I = index.search(X[:5], 10)                         # FAISS
+I_np = np.argsort(-(X[:5] @ X.T), axis=1)[:, :10]      # same answer, NumPy only
+print((I == I_np).all())` });
+
+/* ---------- COMPRESS ---------- */
+T({ id: "pca", name: "PCA and truncated SVD", short: "PCA / SVD", fm: false, mac: "ok", tags: "dimension reduction pca svd compression features denoising",
+  use: "you want fewer, uncorrelated features for a model, or to denoise. Truncated SVD works directly on sparse TF-IDF matrices.",
+  avoid: "the structure is curved and you only want a 2-D picture; use UMAP for the picture.",
+  install: "pip install scikit-learn",
+  version: "scikit-learn 1.9.1.",
+  hw: "Any laptop.",
+  perf: "Linear, exact, and reversible: the explained-variance ratio tells you exactly how much you threw away.",
+  toy: "TOY_PCA",
+  script: `from sklearn.datasets import load_digits
+from sklearn.decomposition import PCA
+
+X, y = load_digits(return_X_y=True)          # 1,797 images x 64 pixels
+pca = PCA(n_components=0.95).fit(X)          # keep 95% of the variance
+print(pca.n_components_, "of 64 dimensions kept")` });
+
+T({ id: "umap", name: "UMAP and t-SNE", short: "UMAP / t-SNE", fm: false, mac: "ok", tags: "visualization dimension reduction umap tsne manifold",
+  use: "you want a 2-D picture of high-dimensional data (embeddings, cells, customers), or UMAP as a step before clustering.",
+  avoid: "reading distances between clusters or cluster sizes off the picture, or feeding t-SNE output to a model. Both distort global geometry.",
+  install: "pip install umap-learn",
+  version: "umap-learn 0.6.0 (Nov 2026), BSD. t-SNE ships with scikit-learn.",
+  hw: "Laptop CPU. UMAP compiles with numba on first run, so the first call is slow.",
+  perf: "Neighbors are preserved well, global layout is not. Check: does a k-NN classifier in 2-D still work?",
+  toy: "TOY_UMAP",
+  script: `import umap
+from sklearn.datasets import load_digits
+from sklearn.manifold import TSNE
+
+X, y = load_digits(return_X_y=True)
+Z_umap = umap.UMAP(n_neighbors=15, min_dist=0.1, random_state=0).fit_transform(X)
+Z_tsne = TSNE(n_components=2, perplexity=30, random_state=0).fit_transform(X)` });
+
+T({ id: "embshrink", name: "Shrink embeddings (Matryoshka, int8, binary)", short: "Shrink embeddings", fm: false, mac: "ok", tags: "embedding compression quantization matryoshka binary",
+  use: "your vector index is too big. Cut dimensions (only for models trained for it: Qwen3, EmbeddingGemma, OpenAI) or store int8 (4x smaller) or binary (32x smaller).",
+  avoid: "the model was not trained with Matryoshka loss; cutting its dimensions then loses much more.",
+  install: "pip install -U sentence-transformers",
+  version: "Built into sentence-transformers: <code>truncate_dim</code>, <code>precision=\"int8\"</code> or <code>\"ubinary\"</code>.",
+  hw: "Any laptop.",
+  perf: "Sentence-transformers reports a Matryoshka model keeping 98.4% of performance at 8.3% of its size, and binary vectors keeping about 96% of retrieval quality with rescoring.",
+  script: `from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer("Qwen/Qwen3-Embedding-0.6B", truncate_dim=128)  # 1024 -> 128 dims
+docs = ["Mars is red.", "Venus is hot."]
+e8 = model.encode(docs, precision="int8")      # 4x smaller than float32
+eb = model.encode(docs, precision="ubinary")   # 32x smaller
+print(e8.shape, eb.shape)` });
+
+T({ id: "parquet", name: "Parquet, Polars, and DuckDB", short: "Parquet + DuckDB", fm: false, mac: "ok", tags: "storage compression parquet zstd polars duckdb big files sql",
+  use: "you save or share tables (Parquet keeps types and compresses well), or the data are bigger than memory and you want SQL or lazy queries over files.",
+  avoid: "a person needs to open the file in Excel; send CSV as well.",
+  install: "pip install pyarrow polars duckdb",
+  version: "pyarrow 26, polars 2.1, duckdb 2.0.1 (all need Python 3.11 or newer). In DuckDB 2.0, <code>.pl()</code> and <code>.arrow()</code> were removed from <code>execute()</code> results; <code>duckdb.sql(...).df()</code> still works.",
+  hw: "Laptop. Both stream data from disk, so the file can be larger than RAM.",
+  perf: 'Polars PDS-H benchmark (vendor, May 2025, scale 10): Polars streaming 3.9 s, DuckDB 5.9 s, pandas 366 s. <a href="https://pola.rs/posts/benchmarks/" target="_blank" rel="noopener">pola.rs</a>',
+  script: `import polars as pl, duckdb
+from sklearn.datasets import load_digits
+
+load_digits(as_frame=True).frame.to_parquet("digits.parquet", compression="zstd")
+print(duckdb.sql("SELECT target, count(*) AS n FROM 'digits.parquet' GROUP BY target").df())
+# bigger than memory: scan lazily, write Parquet without loading everything
+# pl.scan_csv("big.csv").sink_parquet("big.parquet")` });
+
+/* ---------- DISCOVER ---------- */
+T({ id: "embcluster", name: "Embed, reduce, then cluster (BERTopic recipe)", short: "Embed → UMAP → HDBSCAN", fm: true, mac: "ok", tags: "clustering topics text images bertopic hdbscan",
+  use: "you want groups or topics in text or images. Embed with a foundation model, reduce with UMAP, cluster with HDBSCAN; BERTopic wraps this for text.",
+  avoid: "you need stable cluster labels for a report without checking them; read samples from each cluster first.",
+  install: "pip install bertopic",
+  version: "bertopic 0.17.4, MIT.",
+  hw: "Laptop, with a small embedding model.",
+  perf: "Quality depends on the embedding model; inspect top words or example items per cluster.",
+  script: `from bertopic import BERTopic
+from sklearn.datasets import fetch_20newsgroups
+
+docs = fetch_20newsgroups(subset="train", remove=("headers", "footers", "quotes")).data[:2000]
+topic_model = BERTopic(embedding_model="all-MiniLM-L6-v2")
+topics, _ = topic_model.fit_transform(docs)
+print(topic_model.get_topic_info().head(10))` });
+
+T({ id: "kmeans", name: "k-means and HDBSCAN", short: "k-means / HDBSCAN", fm: false, mac: "ok", tags: "clustering kmeans hdbscan unsupervised",
+  use: "k-means when clusters are roughly round and you know how many. HDBSCAN when you do not know k, shapes are odd, and some points are noise (label −1).",
+  avoid: "running HDBSCAN on raw high-dimensional data; reduce it first.",
+  install: "pip install scikit-learn umap-learn",
+  version: "Both in scikit-learn 1.9.1.",
+  hw: "Laptop.",
+  perf: "Check against known labels when you have them (adjusted Rand index), or by reading cluster members.",
+  toy: "TOY_CLUSTER",
+  script: `import umap
+from sklearn.datasets import load_digits
+from sklearn.cluster import KMeans, HDBSCAN
+from sklearn.metrics import adjusted_rand_score
+
+X, y = load_digits(return_X_y=True)
+Z = umap.UMAP(random_state=0).fit_transform(X)
+km = KMeans(n_clusters=10, random_state=0).fit_predict(X)
+hd = HDBSCAN(min_cluster_size=20).fit_predict(Z)
+print(adjusted_rand_score(y, km), adjusted_rand_score(y, hd))` });
+
+T({ id: "anomaly", name: "Isolation Forest and PyOD", short: "Isolation Forest / PyOD", fm: false, mac: "ok", tags: "anomaly detection outlier fraud isolation forest pyod",
+  use: "you want to flag unusual rows (fraud, sensor faults) without labels. PyOD has 61 detectors behind one API.",
+  avoid: "trusting the contamination setting blindly; check a sample of flagged rows by hand.",
+  install: "pip install scikit-learn pyod",
+  version: "PyOD 3.6.9, BSD-2.",
+  hw: "Laptop.",
+  perf: 'ADBench (57 datasets): no single detector wins everywhere. For time series, TSB-AD (NeurIPS 2024) found simple statistical methods often beat neural nets and foundation models. <a href="https://github.com/TheDatumOrg/TSB-AD" target="_blank" rel="noopener">TSB-AD</a>',
+  script: `from sklearn.datasets import load_breast_cancer
+from sklearn.ensemble import IsolationForest
+from pyod.models.ecod import ECOD
+
+X, y = load_breast_cancer(return_X_y=True)
+s_iso = -IsolationForest(random_state=0).fit(X).score_samples(X)   # higher = more unusual
+s_ecod = ECOD().fit(X).decision_scores_
+print(s_iso[:5], s_ecod[:5])` });
+
+/* ---------- FIX ---------- */
+T({ id: "tabpfnimpute", name: "TabPFN imputation", short: "TabPFN impute", fm: true, mac: "ok", tags: "missing data imputation tabpfn",
+  use: "a small table with nonlinear relations between columns and missing cells.",
+  avoid: "you need proper multiple-imputation uncertainty, commercial use with new weights, or published evidence (none yet).",
+  install: "pip install tabpfn tabpfn-extensions",
+  version: "tabpfn-extensions 0.6.3. <code>simple_impute</code> fits one TabPFN per column.",
+  hw: "Apple GPU recommended; slow on CPU.",
+  perf: "No published benchmark. Compare RMSE on cells you hide on purpose, as in the scikit-learn card.",
+  script: `from tabpfn_extensions import TabPFNClassifier, TabPFNRegressor
+from tabpfn_extensions.unsupervised import simple_impute
+
+# X_missing: a NumPy array with np.nan in the missing cells
+X_imp = simple_impute(X_missing,
+                      tabpfn_reg=TabPFNRegressor(n_estimators=3),
+                      tabpfn_clf=TabPFNClassifier(n_estimators=3))` });
+
+T({ id: "imputers", name: "scikit-learn imputers", short: "Simple / KNN / Iterative imputer", fm: false, mac: "ok", tags: "missing data imputation mice knn",
+  use: "SimpleImputer (median) with <code>add_indicator=True</code> as the baseline; KNNImputer for small dense numeric data; IterativeImputer (MICE-like) when columns predict each other.",
+  avoid: "imputing before the train/test split; fit the imputer on training data only, inside a pipeline.",
+  install: "pip install scikit-learn",
+  version: "scikit-learn 1.9.1. IterativeImputer is still experimental: import <code>enable_iterative_imputer</code> first.",
+  hw: "Laptop.",
+  perf: "Hide 10% of known cells and measure RMSE on them; the script does exactly that.",
+  script: `import numpy as np
+from sklearn.datasets import load_breast_cancer
+from sklearn.experimental import enable_iterative_imputer  # noqa: F401
+from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
+
+X, _ = load_breast_cancer(return_X_y=True)
+Xm = X.copy(); Xm[np.random.default_rng(0).random(X.shape) < 0.1] = np.nan
+for imp in [SimpleImputer(strategy="median"), KNNImputer(), IterativeImputer(random_state=0)]:
+    Xi = imp.fit_transform(Xm)
+    print(type(imp).__name__, np.sqrt(np.mean((Xi - X)[np.isnan(Xm)] ** 2)))` });
+
+T({ id: "pandera", name: "pandera (data checks)", short: "pandera", fm: false, mac: "ok", tags: "data validation schema contract quality",
+  use: "you want a pipeline to stop when data break their promises: ages over 120, negative income, missing IDs.",
+  avoid: "one-off exploration; a few asserts are enough there.",
+  install: "pip install pandera",
+  version: "pandera 0.36.0, MIT. Import as <code>pandera.pandas</code>; Polars is also supported.",
+  hw: "Laptop.",
+  perf: "Not a model; it turns silent data bugs into loud errors.",
+  script: `import pandas as pd, pandera.pandas as pa
+
+schema = pa.DataFrameSchema({
+    "age": pa.Column(int, pa.Check.in_range(0, 120)),
+    "income": pa.Column(float, pa.Check.ge(0), nullable=True)})
+schema.validate(pd.DataFrame({"age": [25, 140], "income": [5e4, None]}), lazy=True)
+# raises SchemaErrors listing every failed check` });
+
+/* ---------- DECIDE ---------- */
+T({ id: "causalscience", name: "causalscience", fm: false, mac: "ok", tags: "causal inference effect identification back-door front-door ate graph",
+  use: "you have a causal graph and want to know whether an effect is identifiable, then estimate it (back-door, front-door, and more). This is the package from our causal inference lectures.",
+  avoid: "production use (alpha release), commercial use (noncommercial license), or when you cannot defend the graph.",
+  install: "python -m pip install --upgrade 'causalscience==0.1.0a20'",
+  version: "0.1.0a20 (22 Nov 2026), alpha, CausalScience Noncommercial License 1.0, Python 3.11 or newer.",
+  hw: "Laptop.",
+  perf: 'Compare <code>estimate</code> with the known truth on simulated data first, as in the lecture demos. <a href="https://pypi.org/project/causalscience/" target="_blank" rel="noopener">PyPI</a>',
+  script: `import numpy as np, pandas as pd
+from causalscience import estimate_bd
+
+rng = np.random.default_rng(11); c = rng.binomial(1, .5, 1200)
+a = rng.binomial(1, .2 + .5 * c); yv = rng.binomial(1, .1 + .3 * c + .4 * a)
+df = pd.DataFrame(dict(C=c, A=a, Y=yv))
+fit = estimate_bd(df, treatment="A", outcome="Y", adjustment=["C"], action=1,
+                  schema={k: "binary" for k in df}, num_boost_round=30)
+print(fit["estimation_status"], fit["estimate"])   # E[Y | do(A=1)]` });
+
+T({ id: "doubleml", name: "DoubleML and EconML", short: "DoubleML / EconML", fm: false, mac: "ok", tags: "causal inference double machine learning ate cate heterogeneous effects",
+  use: "DoubleML for one average effect with valid confidence intervals using ML nuisance models; EconML for effects that vary across people (CATE, causal forests).",
+  avoid: "you cannot argue there is no unmeasured confounding. No estimator fixes a wrong adjustment set.",
+  install: "pip install doubleml econml",
+  version: "DoubleML 0.11.4 (BSD-3), EconML 0.17.1 (MIT, Nov 2026).",
+  hw: "Laptop; cost is the ML models inside cross-fitting.",
+  perf: "Simulated data with a known effect is the honest check: the script's true effect is 0.5.",
+  script: `from sklearn.ensemble import RandomForestRegressor
+from doubleml import DoubleMLPLR
+from doubleml.plm.datasets import make_plr_CCDDHNR2018
+
+data = make_plr_CCDDHNR2018(n_obs=1000, dim_x=20, alpha=0.5)   # true effect = 0.5
+plr = DoubleMLPLR(data, ml_l=RandomForestRegressor(), ml_m=RandomForestRegressor(), n_folds=5)
+plr.fit(); print(plr.summary)` });
+
+T({ id: "mapie", name: "Conformal prediction (MAPIE)", short: "MAPIE conformal", fm: false, mac: "ok", tags: "uncertainty prediction interval conformal coverage",
+  use: "you need prediction intervals or sets that cover the truth, for example, 90% of the time on average, around any model.",
+  avoid: "the data drift or have time order; exchangeability fails. Use MAPIE's time-series methods then.",
+  install: "pip install mapie",
+  version: "MAPIE 1.6.0, BSD-3, v1 API.",
+  hw: "Laptop.",
+  perf: "Finite-sample coverage guarantee under exchangeability (Angelopoulos and Bates, 2023). The script prints the coverage it actually got.",
+  script: `from sklearn.datasets import load_diabetes
+from sklearn.ensemble import RandomForestRegressor
+from mapie.regression import SplitConformalRegressor
+from mapie.utils import train_conformalize_test_split
+from mapie.metrics.regression import regression_coverage_score
+
+X, y = load_diabetes(return_X_y=True)
+Xtr, Xcal, Xte, ytr, ycal, yte = train_conformalize_test_split(
+    X, y, train_size=0.6, conformalize_size=0.2, test_size=0.2, random_state=0)
+m = SplitConformalRegressor(RandomForestRegressor(random_state=0), confidence_level=0.9)
+m.fit(Xtr, ytr); m.conformalize(Xcal, ycal)
+y_pred, y_int = m.predict_interval(Xte)
+print(regression_coverage_score(yte, y_int))` });
+
+T({ id: "shap", name: "SHAP", fm: false, mac: "ok", tags: "explanation interpretability feature importance trees",
+  use: "you need to show which features drive a tree model's predictions. TreeSHAP is exact and fast.",
+  avoid: "reading SHAP values as causal effects, or trusting them when features are strongly correlated.",
+  install: "pip install shap",
+  version: "SHAP 0.54.1, MIT, Python 3.12 or newer.",
+  hw: "Laptop.",
+  perf: "Explains the model, not the world. Pair it with the causal tools above when the question is what would happen if.",
+  script: `import shap
+from sklearn.datasets import load_diabetes
+from sklearn.ensemble import RandomForestRegressor
+
+X, y = load_diabetes(return_X_y=True, as_frame=True)
+sv = shap.TreeExplainer(RandomForestRegressor(random_state=0).fit(X, y))(X)
+shap.plots.beeswarm(sv)` });
+
+T({ id: "optuna", name: "Optuna", fm: false, mac: "ok", tags: "hyperparameter tuning search bayesian optimization",
+  use: "you tune more than two or three settings. It searches smarter than a grid and stops bad trials early.",
+  avoid: "you have time for only a handful of trials; a small grid is fine. Never tune on the test set.",
+  install: "pip install optuna",
+  version: "Optuna 5.1.0, MIT. v5 made multivariate TPE the default sampler.",
+  hw: "Laptop; cost is your model times the number of trials.",
+  perf: "Report the cross-validated score of the best trial, then the test score once.",
+  script: `import optuna
+from sklearn.datasets import load_breast_cancer
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import cross_val_score
+
+X, y = load_breast_cancer(return_X_y=True)
+def objective(t):
+    clf = RandomForestClassifier(n_estimators=t.suggest_int("n_estimators", 50, 500),
+                                 max_depth=t.suggest_int("max_depth", 2, 16, log=True))
+    return cross_val_score(clf, X, y, cv=5, scoring="roc_auc").mean()
+study = optuna.create_study(direction="maximize"); study.optimize(objective, n_trials=30)
+print(study.best_params)` });
+
+/* ---------- INGEST ---------- */
+T({ id: "docling", name: "docling (PDF and Office to text)", short: "docling", fm: true, mac: "ok", tags: "pdf document parsing tables ocr markdown docx pptx",
+  use: "you have mixed documents (PDF, DOCX, PPTX, HTML) and need clean text and tables. Optional small vision model GraniteDocling-258M, with an MLX build for Apple Silicon.",
+  avoid: "the PDF is born-digital and you only need raw text fast; PyMuPDF is faster.",
+  install: "pip install docling",
+  version: "docling 2.151.1, MIT. GraniteDocling-258M: Apache-2.0. On a Mac it can use Apple's built-in OCR.",
+  hw: "Laptop; the vision model path uses MLX on Apple Silicon.",
+  perf: "Marker's own benchmark (vendor-reported): docling 67.5 at 2.1 pages/s; marker fast 71.0 at 23.6 pages/s.",
+  script: `from docling.document_converter import DocumentConverter
+
+res = DocumentConverter().convert("https://arxiv.org/pdf/2408.09869")
+print(res.document.export_to_markdown()[:500])` });
+
+T({ id: "pymupdf", name: "PyMuPDF", fm: false, mac: "ok", tags: "pdf text extraction fast",
+  use: "born-digital PDFs (exported from Word or LaTeX) and you want text or Markdown in milliseconds per page.",
+  avoid: "scanned pages dominate, or the AGPL license is a problem for your project.",
+  install: "pip install pymupdf",
+  version: "PyMuPDF 2.1, AGPL-3.0 or commercial license, Python 3.11 or newer.",
+  hw: "Laptop.",
+  perf: "No model involved for born-digital text, so it is exact where the PDF has a text layer.",
+  script: `import pymupdf
+
+doc = pymupdf.open("report.pdf")
+md = doc.to_markdown()
+print(md[:500])` });
+
+T({ id: "whisper", name: "Speech to text on a Mac (mlx-whisper)", short: "mlx-whisper", fm: true, mac: "ok", tags: "speech audio transcription asr whisper interview",
+  use: "you have interviews, lectures, or calls to transcribe on your own machine. mlx-whisper uses the Apple GPU.",
+  avoid: "you need speaker labels out of the box; add a diarization step.",
+  install: "pip install mlx-whisper      # needs ffmpeg: brew install ffmpeg",
+  version: "mlx-whisper 0.4.3, MIT. Alternatives: whisper.cpp (brew), faster-whisper (CPU only on a Mac), parakeet-mlx.",
+  hw: "Apple Silicon only. Whisper large-v3-turbo: about 1.6 GB download.",
+  perf: "Open ASR leaderboard (English, Nov 2026 snapshot): Qwen3-ASR-1.7B WER 6.15, Parakeet-TDT-0.6B-v3 7.04, Whisper large-v3 8.24, large-v3-turbo 8.75. A 2026 blog benchmark found mlx-whisper about 2x faster than whisper.cpp on the same Mac.",
+  script: `import mlx_whisper
+
+out = mlx_whisper.transcribe("interview.mp3",
+                             path_or_hf_repo="mlx-community/whisper-large-v3-turbo")
+print(out["text"][:500])` });
+
+T({ id: "ocrfm", name: "OCR foundation models (olmOCR-2)", short: "olmOCR-2", fm: true, mac: "no", tags: "ocr scanned documents handwriting vision language model",
+  use: "hard scans, tables in images, or handwriting, where layout tools fail.",
+  avoid: "you are on a Mac; use docling with Apple OCR or Tesseract (<code>brew install tesseract</code>) instead.",
+  install: 'pip install "olmocr[gpu]"',
+  version: "olmOCR-2-7B, Apache-2.0.",
+  hw: "NVIDIA GPU with 12 GB or more.",
+  perf: "olmOCR-Bench (Ai2, Oct 2025): olmOCR 82.4, PaddleOCR-VL 80.0, DeepSeek-OCR 75.7, Mistral OCR API 72.0.",
+  script: `# Run on a Linux machine with an NVIDIA GPU
+python -m olmocr.pipeline ./workspace --markdown --pdfs scanned.pdf` });
+
+const TASKS = [
+  { id: "predict", name: "Predict", eyebrow: "Task 1 · learn y from x",
+    blurb: "You have examples with a known answer and want the answer for new cases. This is where foundation models changed the most since 2024: for small tables and for forecasting, a pretrained model with no training is now a serious first try.",
+    sits: [
+      { id: "predict-table", name: "A table: predict one column", when: "Rows are cases, columns are features, one column is the target (a number or a class).",
+        first: "a linear or logistic baseline, then TabPFN if the table has under about 10,000 rows, boosted trees if it is larger or the work is commercial.",
+        tools: ["tabpfn", "tabicl", "autogluon", "linear", "xgboost"], bench: "BENCH_TABLE" },
+      { id: "predict-ts", name: "A time series: forecast what comes next", when: "Values ordered in time (sales per day, visits per hour). The test set is always the last stretch.",
+        first: "seasonal naive as the floor, then Chronos-2 zero-shot. Add lags plus boosted trees when you have many related series.",
+        tools: ["chronos2", "chronosbolt", "timesfm", "statsforecast", "mlforecast"], bench: "BENCH_TS" },
+      { id: "predict-image", name: "Images: predict a label", when: "Photos, scans, or screenshots with a category to predict.",
+        first: "SigLIP 2 zero-shot if you have no labels; frozen DINOv2 embeddings plus logistic regression if you have a few hundred labels.",
+        tools: ["siglip", "dino", "timm"] },
+      { id: "predict-text", name: "Text: predict a label", when: "Reviews, tickets, posts, or notes with a category or score to predict.",
+        first: "TF-IDF plus logistic regression as the baseline, then sentence embeddings plus logistic regression. Use an LLM zero-shot when you have almost no labels.",
+        tools: ["llmzero", "embedlr", "tfidf", "modernbert"], bench: "BENCH_TEXT" }
+    ] },
+  { id: "generate", name: "Generate", eyebrow: "Task 2 · sample new data",
+    blurb: "You want new samples that look like your data: to share data without sharing people, to augment a small set, to simulate scenarios, or to create test inputs. Always check the samples for fidelity, usefulness, and privacy.",
+    sits: [
+      { id: "gen-table", name: "Tables: sample new rows", when: "You want a synthetic version of a table with the same columns and similar relations.",
+        first: "the Gaussian copula as the baseline, TabPFN sampling for small numeric tables, CTGAN for large complex ones. Then check with SDMetrics and train-on-synthetic, test-on-real.",
+        tools: ["tabpfngen", "sdvcopula", "sdvgan", "tabdiff", "sdmetrics"], bench: "BENCH_GEN" },
+      { id: "gen-seq", name: "Sequences: simulate time series", when: "You want plausible future paths of a series, or synthetic sequences for many entities.",
+        first: "the block bootstrap as the baseline; Chronos-T5 sample paths to continue a real series; SDV PAR for many entities with context.",
+        tools: ["chronost5", "sdvpar", "bootstrap", "timegan"] },
+      { id: "gen-text", name: "Text: generate records and drafts", when: "Synthetic survey answers, notes, labels, or test inputs.",
+        first: "a small local model through Ollama with a JSON schema; a hosted API when quality or volume demands it.",
+        tools: ["ollama", "hfllm", "llmapi"], bench: "BENCH_LLM" },
+      { id: "gen-image", name: "Images: generate from a prompt", when: "Illustrations, synthetic examples, or augmentation.",
+        first: "a hosted image API on a laptop; FLUX.2 klein 4B or Z-Image-Turbo with diffusers on a GPU.",
+        tools: ["flux", "sd35"] }
+    ] },
+  { id: "embed", name: "Embed", eyebrow: "Task 3 · turn things into vectors",
+    blurb: "An embedding maps each item (a sentence, an image, a row) to a list of numbers so that similar items get nearby vectors. Embeddings feed search, clustering, deduplication, and simple classifiers.",
+    sits: [
+      { id: "embed-text", name: "Text to vectors", when: "Semantic search, deduplication, topic discovery, or features for a classifier.",
+        first: "Qwen3-Embedding-0.6B or EmbeddingGemma locally; an API if nothing may be installed.",
+        tools: ["textemb", "apiemb"] },
+      { id: "embed-image", name: "Images to vectors", when: "Search images by text, find near-duplicates, or build features.",
+        first: "SigLIP 2 for text-to-image search, DINOv2 for image-to-image similarity.", tools: ["imgemb"] },
+      { id: "embed-table", name: "Table rows to vectors", when: "Label-aware features for a small table.",
+        first: "plain standardized features; try TabPFN embeddings only if they beat that on validation.", tools: ["tabemb"] },
+      { id: "embed-search", name: "Search the vectors", when: "Find the nearest items to a query vector.",
+        first: "a NumPy matrix product. Move to FAISS past about a million vectors.", tools: ["vsearch"] }
+    ] },
+  { id: "compress", name: "Compress", eyebrow: "Task 4 · keep the signal, drop the size",
+    blurb: "Data reduction has three different goals that need different tools: fewer features for a model, a 2-D picture for people, and smaller files or indexes for storage.",
+    sits: [
+      { id: "compress-features", name: "Fewer features for a model", when: "Many correlated columns, or a sparse text matrix.", first: "PCA (keep 95% of variance) or truncated SVD for sparse data.", tools: ["pca"] },
+      { id: "compress-picture", name: "A 2-D picture for people", when: "You want to see structure in high-dimensional data.", first: "UMAP; t-SNE as a second view. Never use either as model input.", tools: ["umap"], bench: "BENCH_DIGITS" },
+      { id: "compress-vectors", name: "Smaller embeddings", when: "The vector index is too large or too slow.", first: "Matryoshka truncation if the model supports it, then int8.", tools: ["embshrink"] },
+      { id: "compress-storage", name: "Smaller files, faster queries", when: "CSV files are slow, large, or lose column types.", first: "Parquet with zstd; query it with DuckDB or Polars.", tools: ["parquet"] }
+    ] },
+  { id: "discover", name: "Find structure", eyebrow: "Task 5 · no labels, find patterns",
+    blurb: "Without a target column you can still ask which items group together and which items do not fit any group.",
+    sits: [
+      { id: "discover-cluster", name: "Group similar items", when: "Customer segments, document topics, image groups.", first: "embed (for text or images), reduce with UMAP, cluster with HDBSCAN; k-means when k is known.", tools: ["embcluster", "kmeans"] },
+      { id: "discover-anomaly", name: "Flag unusual items", when: "Fraud, faults, data-entry errors.", first: "Isolation Forest, then read the top flagged rows yourself.", tools: ["anomaly"] }
+    ] },
+  { id: "fix", name: "Fix data", eyebrow: "Task 6 · before any model",
+    blurb: "Most real data science time goes here. Missing values and broken rows change every result downstream.",
+    sits: [
+      { id: "fix-missing", name: "Fill missing values", when: "Some cells are empty.", first: "median plus a missing-indicator column inside a pipeline; IterativeImputer when columns predict each other.", tools: ["tabpfnimpute", "imputers"] },
+      { id: "fix-validate", name: "Check data automatically", when: "Data arrive repeatedly and can silently break.", first: "a pandera schema at the start of the pipeline.", tools: ["pandera"] }
+    ] },
+  { id: "decide", name: "Decide", eyebrow: "Task 7 · from prediction to action",
+    blurb: "A prediction is not yet a decision. These tools answer: what would happen if we acted, how sure are we, why does the model say this, and did we tune it fairly.",
+    sits: [
+      { id: "decide-causal", name: "Estimate the effect of an action", when: "What happens to Y if we change A? (Lectures 11 and 12.)", first: "draw the graph, check identification with causalscience, then estimate with AIPW or DoubleML.", tools: ["causalscience", "doubleml"] },
+      { id: "decide-uncertainty", name: "Attach honest uncertainty", when: "A prediction will drive a decision and you need an interval.", first: "split conformal prediction around your best model.", tools: ["mapie"] },
+      { id: "decide-explain", name: "Explain a model", when: "Someone asks why the model predicted this.", first: "SHAP for tree models; coefficients for linear ones.", tools: ["shap"] },
+      { id: "decide-tune", name: "Tune settings fairly", when: "A model has several settings to choose.", first: "Optuna with cross-validation; touch the test set once.", tools: ["optuna"] }
+    ] },
+  { id: "ingest", name: "Turn inputs into data", eyebrow: "Task 8 · PDFs, scans, audio",
+    blurb: "Much real data starts as documents and recordings. Converting them well decides what every later step can see.",
+    sits: [
+      { id: "ingest-docs", name: "Documents and scans to text and tables", when: "Reports, forms, slides, papers.", first: "PyMuPDF for born-digital PDFs, docling for mixed documents and tables, an OCR model on a GPU for hard scans.", tools: ["docling", "pymupdf", "ocrfm"] },
+      { id: "ingest-audio", name: "Speech to text", when: "Interviews, lectures, meetings.", first: "mlx-whisper with large-v3-turbo on a Mac.", tools: ["whisper"] }
+    ] }
+];
+
+const MAP = [
+  { task: "Predict", hint: "a known target", cells: [["tabpfn", "tabicl", "linear", "xgboost"], ["chronos2", "timesfm", "statsforecast", "mlforecast"], ["siglip", "dino", "timm"], ["llmzero", "embedlr", "tfidf"]] },
+  { task: "Generate", hint: "new samples", cells: [["tabpfngen", "sdvcopula", "sdvgan"], ["chronost5", "sdvpar", "bootstrap"], ["flux", "sd35"], ["ollama", "llmapi"]] },
+  { task: "Embed", hint: "vectors for search", cells: [["tabemb"], [], ["imgemb"], ["textemb", "apiemb", "vsearch"]] },
+  { task: "Compress", hint: "smaller, same signal", cells: [["pca", "umap", "parquet"], [], ["umap"], ["embshrink", "pca"]] },
+  { task: "Find structure", hint: "no labels", cells: [["kmeans", "anomaly"], ["anomaly"], ["embcluster"], ["embcluster"]] },
+  { task: "Fix data", hint: "before modeling", cells: [["imputers", "tabpfnimpute", "pandera"], [], [], []] },
+  { task: "Decide", hint: "act on results", cells: [["causalscience", "doubleml", "mapie", "shap", "optuna"], [], [], []] },
+  { task: "Turn into data", hint: "PDFs, scans, audio", cells: [["parquet"], [], ["docling", "ocrfm"], ["pymupdf", "docling", "whisper"]] }
+];
+
+/* Toy runs on an Apple M4 (24 GB), 22 Nov 2026, Python 3.12. Seeds fixed. Machine was also running other apps. */
+const TOY = {
+  TOY_TABPFN: "TabPFN-2 (no login). Breast cancer: AUC 0.994, accuracy 0.965 in 10.8 s on the Apple GPU (42 s on CPU). California housing, 1,400 rows: R² 0.742 in 8.6 s on the Apple GPU (84 s on CPU, which also needs <code>TABPFN_ALLOW_CPU_LARGE_DATASET=1</code>). Best R² of all models we tried.",
+  TOY_LINEAR: "Breast cancer: AUC 0.996, accuracy 0.959, in 0.04 s. California housing: R² 0.598 in 0.01 s. On breast cancer the baseline is already as good as anything else.",
+  TOY_GBM: "Breast cancer AUC: XGBoost 0.985, LightGBM 0.987, HistGradientBoosting 0.989. California housing R²: 0.715, 0.731, 0.728. Each took 1 to 11 s on our busy machine, so read the times as upper bounds.",
+  TOY_CHRONOS2: "AirPassengers, last 12 months held out: MAE 13.4 (MAPE 3.0%), best of all models we tried. 0.1 s on the Apple GPU, 0.4 s on CPU, after a 480 MB download.",
+  TOY_BOLT: "AirPassengers: small MAE 18.9 (MAPE 3.9%), base MAE 22.3. Both under 0.3 s. Bigger was not better here.",
+  TOY_STATS: "AirPassengers: seasonal naive MAE 47.8 (MAPE 10.0%), AutoETS 35.6, AutoARIMA 18.5. All under 0.5 s.",
+  TOY_TFIDF: "20 Newsgroups, 4 topics (2,365 train / 1,575 test posts): accuracy 0.850 in 1.4 s.",
+  TOY_EMBEDLR: "Same 4-topic task: all-MiniLM-L6-v2 accuracy 0.891 (93 posts/s on the Apple GPU, 23/s on CPU); BAAI/bge-small-en-v1.5 accuracy 0.905 (25 posts/s on the Apple GPU). Both beat TF-IDF (0.850).",
+  TOY_PCA: "Digits (1,797 images, 64 pixels): 29 components keep 95% of the variance. In 2-D, PCA keeps only 0.603 five-nearest-neighbor accuracy (0.963 with all 64 pixels): good for features, poor for pictures.",
+  TOY_UMAP: "Digits in 2-D: five-nearest-neighbor accuracy 0.975 for UMAP and 0.976 for t-SNE, about 33 s each (UMAP time includes its first-run compile). Both keep neighbors; neither keeps distances between clusters.",
+  TOY_EMB: "Small models ran fine on the Apple GPU: all-MiniLM-L6-v2 (91 MB) at 93 posts/s and bge-small-en-v1.5 at 25 posts/s on a busy machine. Accuracy as features: see Predict, Text.",
+  TOY_COPULA: "Breast cancer train split (398 rows, 31 columns): quality score 0.927 in 2.9 s. A classifier trained on the synthetic rows scored AUC 0.936 on real test rows (0.996 when trained on real rows).",
+  TOY_TABPFNGEN: "TabPFN-2 on CPU, breast cancer with 4 features + label (398 rows): quality 0.892, train-on-synthetic AUC 0.952, 129 s. The Gaussian copula on the same columns: 0.924 and 0.965 in 1.9 s. On the Apple GPU, tabpfn-extensions 0.6.3 stopped with a device-mismatch error, so use <code>device=\"cpu\"</code>.",
+  TOY_OLLAMA: "Already-installed qwen2.5:1.5b (Q4, 986 MB): 15 to 19 tokens per second while generating 200 tokens of reviews, on a machine busy with other apps. Reading the prompt ran at 380 to 1,800 tokens per second.",
+  TOY_GAN: "Same table, 300 epochs: CTGAN quality 0.751, train-on-synthetic AUC 0.941, 41 s. TVAE quality 0.871, AUC 0.982, 22 s. Both used the Apple GPU automatically."
+};
+
+const BENCH = {
+  BENCH_TABLE: { title: "Our Mac: two toy tables, one fixed split (seed 0)",
+    cols: ["Model", "Breast cancer AUC", "Accuracy", "California R²", "RMSE", "Time (s)"],
+    rows: [
+      { cells: ["Logistic / linear regression", "0.996", "0.959", "0.598", "0.723", "0.04"] },
+      { cells: ["HistGradientBoosting", "0.989", "0.942", "0.728", "0.594", "11"] },
+      { cells: ["XGBoost (300 trees)", "0.985", "0.942", "0.715", "0.609", "1"] },
+      { cells: ["LightGBM (300 trees)", "0.987", "0.947", "0.731", "0.591", "7"] },
+      { best: true, cells: ["TabPFN-2, Apple GPU", "0.994", "0.965", "0.742", "0.579", "11"] },
+      { cells: ["TabPFN-2, CPU", "0.994", "0.965", "0.742", "0.578", "42 / 84"] }
+    ],
+    note: "Breast cancer: 569 rows, 30 features, 70/30 split. California housing: a 2,000-row sample, 8 features, 70/30 split. Times are fit plus predict on a machine with other apps running, so they are upper bounds. The lesson: on breast cancer the linear baseline already ties the best model; on housing, where relations are nonlinear, TabPFN and boosted trees add about 0.13 R²." },
+  BENCH_TS: { title: "Our Mac: AirPassengers, train on 132 months, forecast the last 12",
+    cols: ["Model", "MAE (passengers)", "MAPE", "Time (s)"],
+    rows: [
+      { cells: ["Seasonal naive (floor)", "47.8", "10.0%", "0.04"] },
+      { cells: ["AutoETS", "35.6", "7.2%", "0.17"] },
+      { cells: ["AutoARIMA", "18.5", "4.2%", "0.47"] },
+      { cells: ["Chronos-Bolt small, zero-shot", "18.9", "3.9%", "0.03"] },
+      { cells: ["Chronos-Bolt base, zero-shot", "22.3", "4.4%", "0.13"] },
+      { best: true, cells: ["Chronos-2, zero-shot", "13.4", "3.0%", "0.10"] }
+    ],
+    note: "One series of 144 monthly values (statsforecast's AirPassengersDF). Foundation-model times are on the Apple GPU after loading; CPU gave the same forecasts in under 0.4 s. One series proves little: GIFT-Eval, which spans many domains and frequencies, gives Chronos-2 a MASE of 0.698 against 1.00 for seasonal naive and 1.074 for AutoARIMA." },
+  BENCH_TEXT: { title: "Our Mac: 20 Newsgroups, 4 topics (sci.med, sci.space, rec.autos, comp.graphics)",
+    cols: ["Model", "Test accuracy", "Speed", "Time (s)"],
+    rows: [
+      { cells: ["TF-IDF + logistic regression", "0.850", "-", "1.4"] },
+      { cells: ["all-MiniLM-L6-v2 + logistic, CPU", "0.891", "23 posts/s", "168"] },
+      { cells: ["all-MiniLM-L6-v2 + logistic, Apple GPU", "0.891", "93 posts/s", "42"] },
+      { cells: ["bge-small-en-v1.5 + logistic, CPU", "0.905", "7 posts/s", "526"] },
+      { best: true, cells: ["bge-small-en-v1.5 + logistic, Apple GPU", "0.905", "25 posts/s", "155"] }
+    ],
+    note: "2,365 training and 1,575 test posts, headers and quotes removed. Embedding time covers all 3,940 posts. The machine was busy, so CPU times are inflated; the Apple GPU was 3 to 4 times faster than the CPU on the same model, with identical accuracy." },
+  BENCH_GEN: { title: "Our Mac: synthetic copies of the breast cancer training split (398 rows, 31 columns)",
+    cols: ["Generator", "Quality score", "Train-on-synthetic AUC", "Time (s)"],
+    rows: [
+      { cells: ["Real training data (reference)", "-", "0.996", "-"] },
+      { cells: ["SDV Gaussian copula", "0.927", "0.936", "2.9"] },
+      { cells: ["SDV CTGAN, 300 epochs", "0.751", "0.941", "41"] },
+      { best: true, cells: ["SDV TVAE, 300 epochs", "0.871", "0.982", "22"] }
+    ],
+    note: "Quality score: SDMetrics column shapes and pair trends (1 = identical distributions). Train-on-synthetic AUC: logistic regression fit on synthetic rows, scored on the 171 real test rows. The two measures disagree: the copula copies each column best, TVAE keeps the relation to the label best. Report both, plus a privacy check. TabPFN sampling was run separately on a smaller table (4 features + label) because it fits one model per column: quality 0.892 and train-on-synthetic AUC 0.952 in 129 s on CPU, against 0.924 and 0.965 in 1.9 s for the copula on the same columns (real data: 0.959)." },
+  BENCH_DIGITS: { title: "Our Mac: digits (1,797 images of 8 x 8 pixels) squeezed to 2-D",
+    cols: ["Method", "5-NN accuracy (5-fold)", "Time (s)"],
+    rows: [
+      { cells: ["No reduction (64 dimensions)", "0.963", "-"] },
+      { cells: ["PCA to 2-D", "0.603", "0.00"] },
+      { cells: ["UMAP to 2-D", "0.975", "33"] },
+      { best: true, cells: ["t-SNE to 2-D", "0.976", "33"] }
+    ],
+    note: "Five-nearest-neighbor accuracy in the reduced space measures how well local neighborhoods survive. PCA keeps global variance, not neighborhoods; UMAP and t-SNE keep neighborhoods so well that 2-D beats 64-D here. That does not make t-SNE output a good model input: it cannot place new points." },
+  BENCH_LLM: { title: "How big a local model fits your Mac (Ollama default downloads, Nov 2026)",
+    cols: ["Mac memory", "Comfortable models", "Download"],
+    rows: [
+      { cells: ["8 GB", "Qwen3.5 0.8B, 2B, 4B", "1.2 to 3.3 GB"] },
+      { best: true, cells: ["16 GB", "Qwen3.5 9B, Gemma 4 E4B or 12B, gpt-oss 20B", "6.6 to 14 GB"] },
+      { cells: ["32 GB", "Gemma 4 26B (MoE) or 31B, Qwen3.6 27B", "16 to 19 GB"] },
+      { cells: ["64 GB+", "Qwen3.6 35B and larger", "23 GB+"] }
+    ],
+    note: "Rule of thumb, not a guarantee: you need about the download size plus 1 to 3 GB of free memory, more for long prompts. Our measured speed for a 1.5B model on a busy M4 was 15 to 19 tokens per second; larger models are slower roughly in proportion to their download size." }
+};
+</script>
+<script>
+(function () {
+  const MAC = {
+    ok: ["mac-ok", "Runs on a Mac"],
+    limit: ["mac-limit", "Mac, with limits"],
+    no: ["mac-no", "Needs NVIDIA GPU"],
+    cloud: ["mac-cloud", "Cloud API"]
+  };
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const plain = s => String(s).replace(/<[^>]+>/g, "");
+  const pill = m => `<span class="pill ${MAC[m][0]}">${MAC[m][1]}</span>`;
+
+  function copyText(btn, text) {
+    const done = () => { const o = btn.textContent; btn.textContent = "Copied"; setTimeout(() => (btn.textContent = o), 1400); };
+    const fallback = () => {
+      const box = btn.closest(".inst, .codebox");
+      const el = box && box.querySelector("code, pre");
+      if (!el) return;
+      const r = document.createRange(); r.selectNodeContents(el);
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      btn.textContent = "Press ⌘C";
+      setTimeout(() => (btn.textContent = "Copy"), 2000);
+    };
+    try {
+      navigator.clipboard.writeText(text).then(done, fallback);
+    } catch (e) { fallback(); }
+  }
+
+  function card(t) {
+    const toyText = t.toy && TOY[t.toy];
+    const toy = toyText ? `<p class="toy"><b>Our Mac</b>${toyText}</p>` : "";
+    const script = t.script ? `<details class="script"><summary>Minimal script</summary>
+      <div class="codebox"><button class="copy" type="button" data-copy="script">Copy</button><pre><code>${esc(t.script)}</code></pre></div></details>` : "";
+    return `<article class="tool${t.fm ? " isfm" : ""}" id="tool-${t.id}" data-mac="${t.mac}" data-text="${esc(plain(t.name + " " + t.use + " " + (t.tags || "")).toLowerCase())}">
+      <div class="tool-top"><h4>${t.name}</h4>${t.fm ? '<span class="fm">Foundation model</span>' : ""}${pill(t.mac)}</div>
+      <p class="use"><b>Use when</b>${t.use}</p>
+      <p class="avoid"><b>Avoid when</b>${t.avoid}</p>
+      <dl class="spec">
+        <dt>Install</dt><dd><div class="inst"><code>${esc(t.install)}</code><button class="copy" type="button" data-copy="install">Copy</button></div></dd>
+        <dt>Version</dt><dd>${t.version}</dd>
+        <dt>Hardware</dt><dd>${t.hw}</dd>
+        <dt>Evidence</dt><dd>${t.perf}</dd>
+      </dl>
+      ${toy}${script}
+    </article>`;
+  }
+
+  function benchTable(b) {
+    const head = b.cols.map(c => `<th>${c}</th>`).join("");
+    const rows = b.rows.map(r => `<tr${r.best ? ' class="best"' : ""}>${r.cells.map(c => `<td>${c}</td>`).join("")}</tr>`).join("");
+    return `<div class="benchtab"><table><caption>${b.title}</caption><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>${b.note ? `<div class="note">${b.note}</div>` : ""}</div>`;
+  }
+
+  const byId = Object.fromEntries(TOOLS.map(t => [t.id, t]));
+  const main = document.getElementById("catalog");
+  let html = "";
+  for (const task of TASKS) {
+    html += `<section class="task" id="${task.id}"><div class="wrap">
+      <div class="task-head"><span class="eyebrow">${task.eyebrow}</span><h2>${task.name}</h2><p>${task.blurb}</p></div>`;
+    for (const s of task.sits) {
+      const tools = s.tools.map(id => byId[id]).filter(Boolean);
+      html += `<div class="sit" id="${s.id}"><div class="sit-head"><h3>${s.name}</h3><p>${s.when}</p>
+        <p class="first"><b>First try:</b> ${s.first}</p></div>
+        <div class="cards">${tools.map(card).join("")}</div>
+        ${s.bench && BENCH[s.bench] ? benchTable(BENCH[s.bench]) : ""}
+      </div>`;
+    }
+    html += `</div></section>`;
+  }
+  main.innerHTML = html;
+
+  // Situation map
+  const mapBody = document.getElementById("map-body");
+  mapBody.innerHTML = MAP.map(row => `<tr><th scope="row">${row.task}<small>${row.hint}</small></th>${row.cells.map(cell =>
+    cell.length ? `<td>${cell.map(id => { const t = byId[id]; return t ? `<a href="#tool-${id}" class="${t.fm ? "isfm" : ""}">${t.short || t.name}</a>` : ""; }).join("")}</td>` : '<td><span class="na">—</span></td>'
+  ).join("")}</tr>`).join("");
+
+  // Nav
+  document.getElementById("tasknav").innerHTML = TASKS.map(t => `<a href="#${t.id}">${t.name}</a>`).join("");
+
+  // Copy buttons
+  document.addEventListener("click", e => {
+    const b = e.target.closest("button.copy");
+    if (!b) return;
+    const art = b.closest("article.tool");
+    const t = art && byId[art.id.replace("tool-", "")];
+    if (t) copyText(b, b.dataset.copy === "script" ? t.script : t.install);
+  });
+
+  // Filters
+  const q = document.getElementById("q"), macOnly = document.getElementById("maconly"), count = document.getElementById("count");
+  function apply() {
+    const term = q.value.trim().toLowerCase();
+    let shown = 0;
+    document.querySelectorAll("article.tool").forEach(a => {
+      const ok = (!term || a.dataset.text.includes(term)) && (!macOnly.checked || a.dataset.mac === "ok");
+      a.hidden = !ok; if (ok) shown++;
+    });
+    document.querySelectorAll(".sit").forEach(s => { s.hidden = !s.querySelector("article.tool:not([hidden])"); });
+    document.querySelectorAll("section.task").forEach(s => { s.hidden = !s.querySelector(".sit:not([hidden])"); });
+    count.textContent = `${shown} of ${TOOLS.length} tools`;
+  }
+  q.addEventListener("input", apply); macOnly.addEventListener("change", apply);
+  apply();
+
+  // Cards are rendered by script, so jump to a linked card once it exists
+  if (location.hash.length > 1) {
+    const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    if (target) target.scrollIntoView();
+  }
+})();
+</script>
+</body>
+</html>

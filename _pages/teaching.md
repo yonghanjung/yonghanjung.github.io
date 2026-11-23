@@ -26,6 +26,10 @@ Interactive demos:
 - [Lecture 11: Was it luck? The six steps of a hypothesis test, interactive lab](/teaching/2026F/IS507/lecture-11-lab.html)
 - [Lecture 12: Causal Inference I, from Simpson's paradox to double machine learning, interactive lab](/teaching/2026F/IS507/lecture-12-lab.html)
 
+Reference:
+
+- [Toolkit: Which tool, when. Tools for prediction, generation, embedding, and more, with install lines, scripts, and whether each runs on a Mac](/teaching/2026F/IS507/toolkit.html)
+
 ## IS 455: Database Design & Prototyping
 
 **Spring 2026, University of Illinois Urbana-Champaign**
