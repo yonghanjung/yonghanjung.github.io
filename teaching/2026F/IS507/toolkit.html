@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Which Tool, When</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="IS 507 toolkit: which data science tool to use in which situation, with install lines, scripts, hardware needs, Mac support, and evidence.">
+<meta name="description" content="IS 507 toolkit: which data science tool to use in which situation, with install lines, scripts, and whether each runs on a laptop, needs a GPU, or is a cloud API.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,600;1,400&display=swap">
@@ -103,6 +103,17 @@ section.block { padding-block: 34px 6px; }
 .mac-limit { color: var(--warn); background: var(--warn-fill); }
 .mac-no { color: var(--bad); background: var(--bad-fill); }
 .mac-cloud { color: var(--cloud); background: var(--cloud-fill); }
+.mac-gpu { color: var(--navy); background: var(--surface); }
+.howto { margin: 14px 0 0; padding-left: 22px; display: grid; gap: 4px; font-size: 15px; max-width: 62ch; }
+.howto a { color: var(--teal); }
+.tested { margin: 16px 0 0; font-size: 14px; color: var(--muted); max-width: 70ch; }
+.tested b { color: var(--ink); }
+details.more { border-top: 1px dashed var(--rule); padding-top: 8px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
+details.more > * { min-width: 0; }
+details.more > summary { cursor: pointer; font-family: var(--font-mono); font-size: 12px; color: var(--teal); }
+.tool .lbl { font-family: var(--font-mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+details.results { margin-top: 14px; }
+details.results > summary { cursor: pointer; font-family: var(--font-mono); font-size: 12px; color: var(--teal); }
 .fm { font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--surface); background: var(--teal); padding: 2px 7px; border-radius: 3px; white-space: nowrap; }
 
 /* Situation map */
@@ -197,12 +208,15 @@ footer .wrap { display: grid; gap: 8px; }
   <div class="wrap">
     <span class="eyebrow">IS 507 · Data, Statistical Models, and Information · Fall 2026 · Yonghan Jung</span>
     <h1>Which tool, when</h1>
-    <p class="lede">Start from the situation: what you have (a table, a series, images, text) and what you need (a prediction, new samples, vectors, a smaller picture, a decision). Where a foundation model exists, it is listed first. Every card says how to install it, a short script, the hardware it needs, whether it runs on a Mac, and the evidence for how well it works.</p>
-    <div class="bench" aria-label="Test machine">
-      <span>Toy runs: <b>Apple M4</b>, 10 CPU cores, <b>24 GB</b> memory</span>
-      <span>macOS 15.6 · Python 3.12</span>
-      <span>Run on <b>2026-11-22</b></span>
-      <span>Versions checked on PyPI and model cards, Nov 2026</span>
+    <p class="lede">Find your situation, start with the first tool, and keep a fancier one only if it beats that start on the same test set. Foundation models (pretrained giants you use without training) are marked in teal.</p>
+    <ol class="howto">
+      <li>Find your row in the <a href="#map">situation map</a>: what you need, and what data you have.</li>
+      <li>Click the first tool. Each card shows when to use it and the install line.</li>
+      <li>Open <b>More</b> on a card for the script, hardware, and evidence.</li>
+    </ol>
+    <div class="bench" aria-label="Page facts">
+      <span>55 tools in 8 tasks</span>
+      <span>Versions checked <b>Nov 2026</b></span>
     </div>
   </div>
 </header>
@@ -223,28 +237,14 @@ footer .wrap { display: grid; gap: 8px; }
 
 <section class="block" id="mac">
   <div class="wrap">
-    <h2>Will it run on my Mac?</h2>
-    <p class="sub">Every card carries one of four labels. "Mac" means a MacBook with Apple Silicon and 16 GB or more of memory.</p>
+    <h2>Will it run on my computer?</h2>
+    <p class="sub">Every card carries one of three labels.</p>
     <div class="legend">
-      <span><span class="pill mac-ok">Runs on a Mac</span> CPU or Apple GPU (MPS / MLX), toy to medium data, minutes or less</span>
-      <span><span class="pill mac-limit">Mac, with limits</span> runs, but slow, capped in size, or needs 32 GB+</span>
-      <span><span class="pill mac-no">Needs NVIDIA GPU</span> CUDA-only or impractically slow without it</span>
-      <span><span class="pill mac-cloud">Cloud API</span> runs on the vendor's servers; needs a key, and your data leaves the machine</span>
+      <span><span class="pill mac-ok">Laptop</span> an ordinary laptop is enough; faster with the laptop's own GPU, but a CPU works</span>
+      <span><span class="pill mac-gpu">GPU</span> needs an NVIDIA graphics card with a lot of memory, or a rented one (for example, Google Colab)</span>
+      <span><span class="pill mac-cloud">Cloud API</span> runs on a company's servers; needs an account and a key, and your data leaves your computer</span>
     </div>
-    <div class="benchtab notes" style="margin-top:18px">
-      <table>
-        <caption>Mac notes we hit while testing this page</caption>
-        <thead><tr><th>Symptom</th><th>Cause and fix</th></tr></thead>
-        <tbody>
-          <tr><td>Fitting stalls at near 0% CPU</td><td>Two causes we saw. (1) XGBoost or LightGBM and PyTorch in the same Python process load two copies of OpenMP (the library that runs loops in parallel), and our run stalled. Keep them in separate notebooks or processes. (2) Other busy apps: OpenMP threads wait for each other, so a crowded machine slows them sharply. Close heavy apps or set <code>OMP_NUM_THREADS=4</code>.</td></tr>
-          <tr><td><code>Library not loaded: libomp.dylib</code></td><td>XGBoost and LightGBM wheels on macOS need OpenMP: <code>brew install libomp</code>.</td></tr>
-          <tr><td>TabPFN asks for a license</td><td>TabPFN-2.5 and newer weights need a one-time login at ux.priorlabs.ai. For class, TabPFN-2 needs no login: <code>TabPFNClassifier.create_default_for_version(ModelVersion.V2)</code>.</td></tr>
-          <tr><td>TabPFN refuses more than 1,000 rows on CPU</td><td>TabPFN-2 caps CPU runs at 1,000 rows. Use <code>device="mps"</code>, or set <code>TABPFN_ALLOW_CPU_LARGE_DATASET=1</code> and wait.</td></tr>
-          <tr><td><code>ImportError ... partially initialized module</code></td><td>Your own file has the same name as the package (for example <code>statsforecast.py</code> or <code>xgboost.py</code>), so Python imports your file instead. Rename it.</td></tr>
-          <tr><td>Install fails on Python 3.13 or 3.14</td><td>Use Python 3.12 for this course: XGBoost 3.4 needs 3.12 or newer, and AutoGluon needs 3.13 or older. <code>uv venv --python 3.12</code></td></tr>
-        </tbody>
-      </table>
-    </div>
+    <p class="tested"><b>Our test laptop:</b> MacBook, Apple M4 chip, 10 cores, 24 GB memory, no NVIDIA GPU. Cards with an "Our laptop" result ran there.</p>
   </div>
 </section>
 
@@ -266,7 +266,7 @@ footer .wrap { display: grid; gap: 8px; }
     <nav id="tasknav" aria-label="Sections"></nav>
     <div class="controls">
       <input type="search" id="q" placeholder="Search tools" aria-label="Search tools">
-      <label class="tog" for="maconly"><input type="checkbox" id="maconly"> Mac-ready only</label>
+      <label class="tog" for="maconly"><input type="checkbox" id="maconly"> Laptop only</label>
       <span class="count" id="count"></span>
     </div>
   </div>
@@ -276,7 +276,7 @@ footer .wrap { display: grid; gap: 8px; }
 <footer>
   <div class="wrap">
     <p>Versions, licenses, and leaderboard numbers were checked on PyPI, GitHub, model cards, and the leaderboards linked on each card on 22 November 2026. Leaderboards change every month, so check them again before you choose a model for a project.</p>
-    <p>"Our Mac" results are single toy runs on an Apple M4 (24 GB) that was also running other apps, so times are upper bounds. Accuracy numbers are from one fixed split with a fixed seed. Toy environment: Python 3.12, scikit-learn 1.9.1, XGBoost 3.4.1, LightGBM 4.7.0, tabpfn 10.2.0 (TabPFN-2 weights), chronos-forecasting 2.3.2, statsforecast 2.0.3, sentence-transformers 6.3.0, SDV 1.32.1 (the toy runs) and SDV 2.2.0 (the card scripts, checked in a separate environment because SDV 2.x needs pandas below 3). Cards without an "Our Mac" line were checked against official documentation and model cards but not run here.</p>
+    <p>"Our laptop" results are single runs on a MacBook (Apple M4, 24 GB memory) that was also running other apps, so times are upper bounds. Accuracy numbers use one fixed split and seed. Cards without an "Our laptop" line were checked against official documentation but not run here.</p>
     <p>Main benchmarks: <a href="https://huggingface.co/spaces/TabArena/leaderboard" target="_blank" rel="noopener">TabArena</a> (tables) · <a href="https://huggingface.co/spaces/Salesforce/GIFT-Eval" target="_blank" rel="noopener">GIFT-Eval</a> and <a href="https://arxiv.org/abs/2509.26468" target="_blank" rel="noopener">fev-bench</a> (forecasting) · <a href="https://huggingface.co/spaces/mteb/leaderboard" target="_blank" rel="noopener">MTEB</a> (embeddings) · <a href="https://arena.ai/leaderboard/text" target="_blank" rel="noopener">arena.ai</a> (LLMs) · <a href="https://artificialanalysis.ai/image/leaderboard/text-to-image" target="_blank" rel="noopener">Artificial Analysis</a> (images) · <a href="https://huggingface.co/spaces/hf-audio/open_asr_leaderboard" target="_blank" rel="noopener">Open ASR</a> (speech).</p>
     <p>IS 507, Fall 2026 · Yonghan Jung</p>
   </div>
@@ -1172,7 +1172,7 @@ print(study.best_params)` });
 
 /* ---------- INGEST ---------- */
 T({ id: "docling", name: "docling (PDF and Office to text)", short: "docling", fm: true, mac: "ok", tags: "pdf document parsing tables ocr markdown docx pptx",
-  use: "you have mixed documents (PDF, DOCX, PPTX, HTML) and need clean text and tables. Optional small vision model GraniteDocling-258M, with an MLX build for Apple Silicon.",
+  use: "you have mixed documents (PDF, DOCX, PPTX, HTML) and need clean text and tables.",
   avoid: "the PDF is born-digital and you only need raw text fast; PyMuPDF is faster.",
   install: "pip install docling",
   version: "docling 2.151.1, MIT. GraniteDocling-258M: Apache-2.0. On a Mac it can use Apple's built-in OCR.",
@@ -1197,7 +1197,7 @@ md = doc.to_markdown()
 print(md[:500])` });
 
 T({ id: "whisper", name: "Speech to text on a Mac (mlx-whisper)", short: "mlx-whisper", fm: true, mac: "ok", tags: "speech audio transcription asr whisper interview",
-  use: "you have interviews, lectures, or calls to transcribe on your own machine. mlx-whisper uses the Apple GPU.",
+  use: "you have interviews, lectures, or calls to transcribe on your own machine.",
   avoid: "you need speaker labels out of the box; add a diarization step.",
   install: "pip install mlx-whisper      # needs ffmpeg: brew install ffmpeg",
   version: "mlx-whisper 0.4.3, MIT. Alternatives: whisper.cpp (brew), faster-whisper (CPU only on a Mac), parakeet-mlx.",
@@ -1297,7 +1297,7 @@ const TASKS = [
     blurb: "Much real data starts as documents and recordings. Converting them well decides what every later step can see.",
     sits: [
       { id: "ingest-docs", name: "Documents and scans to text and tables", when: "Reports, forms, slides, papers.", first: "PyMuPDF for born-digital PDFs, docling for mixed documents and tables, an OCR model on a GPU for hard scans.", tools: ["docling", "pymupdf", "ocrfm"] },
-      { id: "ingest-audio", name: "Speech to text", when: "Interviews, lectures, meetings.", first: "mlx-whisper with large-v3-turbo on a Mac.", tools: ["whisper"] }
+      { id: "ingest-audio", name: "Speech to text", when: "Interviews, lectures, meetings.", first: "Whisper large-v3-turbo on your laptop.", tools: ["whisper"] }
     ] }
 ];
 
@@ -1396,9 +1396,9 @@ const BENCH = {
 <script>
 (function () {
   const MAC = {
-    ok: ["mac-ok", "Runs on a Mac"],
-    limit: ["mac-limit", "Mac, with limits"],
-    no: ["mac-no", "Needs NVIDIA GPU"],
+    ok: ["mac-ok", "Laptop"],
+    limit: ["mac-gpu", "GPU"],
+    no: ["mac-gpu", "GPU"],
     cloud: ["mac-cloud", "Cloud API"]
   };
   const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -1423,20 +1423,22 @@ const BENCH = {
 
   function card(t) {
     const toyText = t.toy && TOY[t.toy];
-    const toy = toyText ? `<p class="toy"><b>Our Mac</b>${toyText}</p>` : "";
-    const script = t.script ? `<details class="script"><summary>Minimal script</summary>
-      <div class="codebox"><button class="copy" type="button" data-copy="script">Copy</button><pre><code>${esc(t.script)}</code></pre></div></details>` : "";
+    const toy = toyText ? `<p class="toy"><b>Our laptop</b>${toyText}</p>` : "";
+    const script = t.script ? `<p class="lbl">Minimal script</p>
+      <div class="codebox"><button class="copy" type="button" data-copy="script">Copy</button><pre><code>${esc(t.script)}</code></pre></div>` : "";
     return `<article class="tool${t.fm ? " isfm" : ""}" id="tool-${t.id}" data-mac="${t.mac}" data-text="${esc(plain(t.name + " " + t.use + " " + (t.tags || "")).toLowerCase())}">
       <div class="tool-top"><h4>${t.name}</h4>${t.fm ? '<span class="fm">Foundation model</span>' : ""}${pill(t.mac)}</div>
       <p class="use"><b>Use when</b>${t.use}</p>
+      <div class="inst"><code>${esc(t.install)}</code><button class="copy" type="button" data-copy="install">Copy</button></div>
+      <details class="more"><summary>More</summary>
       <p class="avoid"><b>Avoid when</b>${t.avoid}</p>
       <dl class="spec">
-        <dt>Install</dt><dd><div class="inst"><code>${esc(t.install)}</code><button class="copy" type="button" data-copy="install">Copy</button></div></dd>
         <dt>Version</dt><dd>${t.version}</dd>
         <dt>Hardware</dt><dd>${t.hw}</dd>
         <dt>Evidence</dt><dd>${t.perf}</dd>
       </dl>
       ${toy}${script}
+      </details>
     </article>`;
   }
 
@@ -1457,7 +1459,7 @@ const BENCH = {
       html += `<div class="sit" id="${s.id}"><div class="sit-head"><h3>${s.name}</h3><p>${s.when}</p>
         <p class="first"><b>First try:</b> ${s.first}</p></div>
         <div class="cards">${tools.map(card).join("")}</div>
-        ${s.bench && BENCH[s.bench] ? benchTable(BENCH[s.bench]) : ""}
+        ${s.bench && BENCH[s.bench] ? `<details class="results"><summary>Our test results for this situation</summary>${benchTable(BENCH[s.bench])}</details>` : ""}
       </div>`;
     }
     html += `</div></section>`;

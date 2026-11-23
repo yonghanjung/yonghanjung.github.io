@@ -28,7 +28,7 @@ Interactive demos:
 
 Reference:
 
-- [Toolkit: Which tool, when. Tools for prediction, generation, embedding, and more, with install lines, scripts, and whether each runs on a Mac](/teaching/2026F/IS507/toolkit.html)
+- [Toolkit: Which tool, when. Tools for prediction, generation, embedding, and more, with install lines, scripts, and whether each runs on a laptop or needs a GPU](/teaching/2026F/IS507/toolkit.html)
 
 ## IS 455: Database Design & Prototyping
 
