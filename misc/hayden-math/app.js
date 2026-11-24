@@ -203,6 +203,7 @@
         })
       );
     const card = el("section", "card setup");
+    card.append(lessonEntry());
     const topicRow = el("div", "setup-row");
     topicRow.append(el("span", "label", "Topics"));
     const topics = el("div", "topic-grid");
@@ -950,10 +951,1236 @@
     if (notice) box.append(el("p", "notice", notice));
     app.append(box);
   }
+  const TODAY_KEY = "haydenMathLab.today.array.v1";
+  const TODAY_STEPS = ["See", "Build", "Try", "Check"];
+  const TODAY_MODELS = ["Rows", "Bars", "Number line"];
+  const freshLesson = () => ({
+    step: "",
+    cut: 10,
+    turned: false,
+    examplePart: "",
+    model: "",
+    notes: {},
+    hint: 0,
+    answer: "",
+    unit: "",
+    checked: false,
+  });
+  const digitsOnly = (value) =>
+    String(value ?? "")
+      .replace(/[^0-9]/g, "")
+      .slice(0, 2);
+  function readLesson() {
+    const initial = freshLesson();
+    try {
+      const saved = JSON.parse(localStorage.getItem(TODAY_KEY));
+      if (!saved || !["see", "build", "try", "check", "done"].includes(saved.step)) return initial;
+      const answer = digitsOnly(saved.answer);
+      const unit = ["each", "boxes", "all"].includes(saved.unit) ? saved.unit : "";
+      const step = ["check", "done"].includes(saved.step) && (!answer || !unit) ? "try" : saved.step;
+      return {
+        step,
+        cut: Number.isInteger(saved.cut) && saved.cut > 0 && saved.cut < 12 ? saved.cut : 10,
+        turned: saved.turned === true,
+        examplePart: ["A", "B"].includes(saved.examplePart) ? saved.examplePart : "",
+        model: TODAY_MODELS.includes(saved.model) ? saved.model : "",
+        notes: Object.fromEntries(TODAY_MODELS.map((model) => [model, [0, 1].map((i) => digitsOnly(saved.notes?.[model]?.[i]))])),
+        hint: Number.isInteger(saved.hint) && saved.hint >= 0 && saved.hint <= 3 ? saved.hint : 0,
+        answer,
+        unit,
+        checked: step === "check" && saved.checked === true,
+      };
+    } catch {
+      return initial;
+    }
+  }
+  let lesson = readLesson();
+  function saveLesson() {
+    try {
+      localStorage.setItem(TODAY_KEY, JSON.stringify(lesson));
+    } catch {}
+  }
+  function lessonEntry() {
+    const entry = el("section", "today-entry");
+    entry.setAttribute("aria-label", "Today’s visual lesson");
+    const copy = el("div");
+    copy.append(el("h2", "", "Today"), el("p", "", "Split and turn an array."));
+    const label = lesson.step === "done" ? "Review lesson" : lesson.step ? "Continue lesson" : "Start lesson";
+    const actions = el("div", "path-entry-actions");
+    actions.append(
+      button(label, () => openLesson(), "today-entry-action"),
+      button("Explore lessons", openLibrary, "path-entry-action")
+    );
+    entry.append(copy, actions);
+    return entry;
+  }
+  function openLesson() {
+    screen = "today";
+    if (!lesson.step) lesson.step = "see";
+    saveLesson();
+    render();
+    lessonHeading();
+  }
+  function closeLesson() {
+    screen = "home";
+    const url = new URL(location.href);
+    if (url.searchParams.get("lesson") === "today") {
+      url.searchParams.delete("lesson");
+      history.replaceState(history.state, "", url);
+    }
+    render();
+    window.scrollTo(0, 0);
+    app.querySelector(".today-entry-action")?.focus({ preventScroll: true });
+  }
+  function lessonHeading() {
+    window.scrollTo(0, 0);
+    app.querySelector(".today-heading")?.focus({ preventScroll: true });
+  }
+  function lessonStep(step) {
+    lesson.step = step;
+    saveLesson();
+    render();
+    lessonHeading();
+  }
+  function tileArray(rows, width, cut = 0, active = "") {
+    const board = el("div", "today-array" + (cut ? "" : " today-array-grouped"));
+    board.style.setProperty("--columns", width);
+    board.setAttribute("role", "img");
+    board.setAttribute(
+      "aria-label",
+      `${rows} rows of ${width} tiles${cut ? `, with ${cut} in part A and ${width - cut} in part B in each row` : ""}`
+    );
+    for (let r = 0; r < rows; r++) {
+      const row = el("span", "today-array-row");
+      for (let c = 0; c < width; c++) {
+        const part = cut && c >= cut ? "B" : "A";
+        const cls = `today-tile today-part-${part}${active && active !== part ? " today-faded" : ""}${cut && c === cut ? " today-cut" : ""}`;
+        row.append(el("span", cls));
+      }
+      board.append(row);
+    }
+    return board;
+  }
+  function lessonPane(card) {
+    const stack = el("div", "today-layout");
+    const picture = el("div", "today-picture");
+    const work = el("div", "today-work");
+    stack.append(picture, work);
+    card.append(stack);
+    return [picture, work];
+  }
+  function lessonActions(card, next, action, previous) {
+    const row = el("div", "today-actions");
+    if (previous) row.append(button("Back", () => lessonStep(previous)));
+    row.append(button(next, action, "primary"));
+    card.append(row);
+  }
+  function paintSplit(picture, work, cut, active = "") {
+    picture.replaceChildren(el("p", "today-dimension", "4 rows · 12 tiles in each"), tileArray(4, 12, cut, active));
+    work.replaceChildren();
+    for (const [part, cols] of [
+      ["A", cut],
+      ["B", 12 - cut],
+    ]) {
+      const equation = `Part ${part} · 4 × ${cols} = ${4 * cols}`;
+      if (!active) work.append(el("p", `today-equation today-part-${part}`, equation));
+      else work.append(el("p", `today-equation today-part-${part}${part === active ? " today-focus" : ""}`, equation));
+    }
+    work.append(el("p", "today-total", `${4 * cut} + ${4 * (12 - cut)} = 48`));
+  }
+  function lessonSee(card) {
+    const [picture, work] = lessonPane(card);
+    const picks = el("div", "today-picks");
+    picks.setAttribute("aria-label", "Highlight a part of the array");
+    const controls = ["A", "B"].map((part) =>
+      button(
+        `Part ${part}`,
+        () => {
+          lesson.examplePart = part;
+          saveLesson();
+          update();
+        },
+        `today-part-${part}`
+      )
+    );
+    function update() {
+      paintSplit(picture, work, 10, lesson.examplePart);
+      controls.forEach((control, i) => control.setAttribute("aria-pressed", String(lesson.examplePart === ["A", "B"][i])));
+    }
+    picks.append(...controls);
+    card.append(picks);
+    update();
+    lessonActions(card, "Next: Build", () => lessonStep("build"));
+  }
+  function lessonBuild(card) {
+    const [picture, work] = lessonPane(card);
+    const group = el("div", "today-picks");
+    group.setAttribute("role", "group");
+    group.setAttribute("aria-label", "What does 48 divided by 4 mean?");
+    const choices = [false, true].map((turned) =>
+      button(turned ? "4 tiles per group" : "Make 4 rows", () => {
+        lesson.turned = turned;
+        saveLesson();
+        update();
+      })
+    );
+    group.append(...choices);
+    card.insertBefore(group, picture.parentElement);
+    const ruler = el("div", "today-tools");
+    const cutLabel = el("label", "today-dimension", "Move the cut");
+    cutLabel.htmlFor = "today-cut";
+    const slider = el("input", "today-range");
+    Object.assign(slider, { id: "today-cut", type: "range", min: "1", max: "11", step: "1" });
+    const changeCut = (cut) => {
+      lesson.cut = cut;
+      saveLesson();
+      update();
+    };
+    slider.addEventListener("input", () => changeCut(Number(slider.value)));
+    const minus = button("−", () => changeCut(lesson.cut - 1), "", "Move cut left");
+    const plus = button("+", () => changeCut(lesson.cut + 1), "", "Move cut right");
+    const cutControls = el("div", "today-cut-controls");
+    cutControls.append(minus, slider, plus);
+    ruler.append(cutLabel, cutControls);
+    const meaning = el("div", "today-note");
+    meaning.setAttribute("aria-live", "polite");
+    card.append(ruler, meaning);
+    function update() {
+      if (lesson.turned) {
+        picture.replaceChildren(el("p", "today-dimension", "12 rows · 4 tiles in each"), tileArray(12, 4));
+        work.replaceChildren(el("p", "today-total", "Still 48 tiles"));
+      } else {
+        paintSplit(picture, work, lesson.cut);
+      }
+      choices.forEach((choice, i) => choice.setAttribute("aria-pressed", String(lesson.turned === Boolean(i))));
+      ruler.hidden = lesson.turned;
+      slider.value = lesson.cut;
+      slider.setAttribute("aria-valuetext", `${lesson.cut} and ${12 - lesson.cut} tiles in each row`);
+      minus.disabled = lesson.cut <= 1;
+      plus.disabled = lesson.cut >= 11;
+      meaning.replaceChildren(
+        el("p", "today-equation", "48 ÷ 4 = 12"),
+        el("p", "", lesson.turned ? "4 tiles per group. The 12 counts groups." : "4 groups. The 12 counts tiles in each group.")
+      );
+    }
+    update();
+    lessonActions(card, "Next: Try", () => lessonStep("try"), "see");
+  }
+  function lessonModel(picture) {
+    const target = el("div", "today-model-preview");
+    const models = el("div", "today-picks");
+    models.setAttribute("role", "group");
+    models.setAttribute("aria-label", "Optional drawing model");
+    const buttons = TODAY_MODELS.map((model) =>
+      button(model, () => {
+        lesson.model = lesson.model === model ? "" : model;
+        saveLesson();
+        show();
+      })
+    );
+    models.append(...buttons);
+    picture.append(el("p", "today-dimension", "Pick a model if it helps."), models, target);
+    function show() {
+      buttons.forEach((b, i) => b.setAttribute("aria-pressed", String(lesson.model === TODAY_MODELS[i])));
+      target.replaceChildren();
+      if (!lesson.model) return;
+      const kind = lesson.model;
+      const model = el("div", `today-model${kind === "Number line" ? " today-line" : kind === "Bars" ? " today-bars" : ""}`);
+      model.setAttribute("role", "img");
+      model.setAttribute(
+        "aria-label",
+        kind === "Number line" ? "Number line from zero to 72 with four equal jumps" : `Four blank ${kind.toLowerCase()}`
+      );
+      for (let i = 0; i < 4; i++) model.append(el("span", "", kind === "Number line" ? "?" : `Box ${i + 1}`));
+      target.append(model);
+      if (kind === "Number line") {
+        const ends = el("div", "today-line-ends");
+        ends.append(el("span", "", "0"), el("span", "", "72"));
+        target.append(ends);
+      }
+      const notes = el("fieldset", "today-notes");
+      notes.append(el("legend", "", "Add labels (optional)"));
+      const values = lesson.notes[kind] ?? ["", ""];
+      values.forEach((value, i) => {
+        const field = el("label", "", `Label ${i + 1}`);
+        const input = el("input");
+        Object.assign(input, { type: "text", inputMode: "numeric", maxLength: 2, autocomplete: "off", value });
+        input.addEventListener("input", () => {
+          values[i] = input.value = digitsOnly(input.value);
+          lesson.notes[kind] = values;
+          saveLesson();
+        });
+        field.append(input);
+        notes.append(field);
+      });
+      target.append(notes);
+    }
+    show();
+  }
+  const lessonUnits = { each: "Tiles in each box", boxes: "Boxes", all: "Tiles altogether" };
+  function lessonTry(card) {
+    const [picture, work] = lessonPane(card);
+    lessonModel(picture);
+    const hints = [
+      "All four boxes must have the same number of tiles.",
+      "Share 40 tiles first. How many are left to share?",
+      "The 40 give each box 10 tiles. The other 32 give each box 8 more. Put the two amounts together.",
+    ];
+    const hintList = el("div", "today-hints");
+    hintList.setAttribute("aria-live", "polite");
+    const hintButton = button("Hint", () => {
+      lesson.hint++;
+      saveLesson();
+      updateHints();
+      if (hintButton.hidden) hintList.lastElementChild?.focus();
+    });
+    function updateHints() {
+      hintList.replaceChildren(
+        ...hints.slice(0, lesson.hint).map((hint) => {
+          const line = el("p", "today-note", hint);
+          line.tabIndex = -1;
+          return line;
+        })
+      );
+      hintButton.textContent = lesson.hint ? "Next hint" : "Hint";
+      hintButton.hidden = lesson.hint >= hints.length;
+    }
+    picture.append(hintList, hintButton);
+    updateHints();
+    const form = el("form", "today-form");
+    const number = el("input");
+    Object.assign(number, {
+      id: "today-answer",
+      type: "text",
+      inputMode: "numeric",
+      maxLength: 2,
+      pattern: "[0-9]{1,2}",
+      required: true,
+      autocomplete: "off",
+      value: lesson.answer,
+    });
+    const numberLabel = el("label", "", "Your number");
+    numberLabel.htmlFor = number.id;
+    number.addEventListener("input", () => {
+      lesson.answer = number.value = digitsOnly(number.value);
+      saveLesson();
+    });
+    const unit = el("select");
+    Object.assign(unit, { id: "today-unit", required: true });
+    const unitLabel = el("label", "", "What does it count?");
+    unitLabel.htmlFor = unit.id;
+    for (const [key, text] of [["", "Choose one"], ...Object.entries(lessonUnits)]) {
+      const option = el("option", "", text);
+      option.value = key;
+      unit.append(option);
+    }
+    unit.value = lesson.unit;
+    unit.addEventListener("change", () => {
+      lesson.unit = unit.value;
+      saveLesson();
+    });
+    const submit = el("button", "primary", "Keep my answer");
+    submit.type = "submit";
+    form.append(numberLabel, number, unitLabel, unit, submit);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      lesson.checked = false;
+      lessonStep("check");
+    });
+    work.append(form);
+    card.append(button("Back", () => lessonStep("build")));
+  }
+  function lessonProof(picture, work) {
+    const model = el("div", "today-proof");
+    model.setAttribute("role", "img");
+    model.setAttribute("aria-label", "Four boxes, each with 10 tiles from the first part and 8 from the second part");
+    for (let i = 0; i < 4; i++) {
+      const row = el("div", "today-proof-row");
+      row.append(el("span", "today-part-A", "10"), el("span", "today-part-B", "+ 8"));
+      model.append(row);
+    }
+    picture.append(el("p", "today-dimension", "72 = 40 + 32"), model, el("p", "", "60 + 12 works too."));
+    work.append(el("p", "today-total", "10 + 8 = 18 per box"), el("p", "", "4 × 18 = 72. All 72 tiles are used."));
+  }
+  function lessonCheck(card) {
+    const [picture, work] = lessonPane(card);
+    const correctNumber = Number(lesson.answer) === 18;
+    const correctUnit = lesson.unit === "each";
+    const edit = () => {
+      lesson.checked = false;
+      lessonStep("try");
+    };
+    picture.append(el("p", "today-dimension", "Your answer"), el("p", "today-total", `${lesson.answer} · ${lessonUnits[lesson.unit].toLowerCase()}`));
+    if (!lesson.checked) {
+      work.append(el("p", "today-note", "Can you multiply your number by 4 to get back to 72? What does your number count?"));
+      lessonActions(card, "I checked", () => {
+        lesson.checked = true;
+        lessonStep("check");
+        app.querySelector(".today-feedback")?.focus({ preventScroll: true });
+      });
+      card.append(button("Edit answer", edit));
+      return;
+    }
+    const message =
+      correctNumber && correctUnit
+        ? "Your number and its meaning match."
+        : correctNumber
+          ? "The number matches. Check what it counts."
+          : "Multiply your number by 4. Do the boxes hold all 72 tiles?";
+    const feedback = el("p", "today-note today-feedback", message);
+    feedback.tabIndex = -1;
+    feedback.setAttribute("role", "status");
+    work.append(feedback);
+    if (correctNumber && correctUnit) {
+      lessonProof(picture, work);
+      lessonActions(card, "Finish lesson", () => lessonStep("done"));
+    } else {
+      card.append(button("Edit answer", edit, "primary"));
+    }
+  }
+  function today() {
+    toolbar.replaceChildren(button("Math Lab", closeLesson, "", "Back to Math Lab"));
+    const title = {
+      see: "See the parts",
+      build: "Split and turn the array",
+      try: "Share 72 tiles",
+      check: "Check your answer",
+      done: "Lesson complete",
+    }[lesson.step];
+    const prompt = {
+      see: "Four rows. Twelve tiles in each. Tap a part to see what it counts.",
+      build: "Move the cut. Then change how the same 48 tiles are grouped.",
+      try: "Put all 72 tiles into 4 boxes. Each box gets the same number. How many go in each box?",
+      check: "Check your thinking before you see the answer.",
+      done: "You used one picture for multiplication and division.",
+    }[lesson.step];
+    const surface = el("section", "today-surface");
+    const heading = el("h1", "today-heading", title);
+    heading.tabIndex = -1;
+    const rail = el("ol", "today-rail");
+    rail.setAttribute("aria-label", "Lesson steps");
+    const stepIndex = TODAY_STEPS.findIndex((step) => step.toLowerCase() === lesson.step);
+    TODAY_STEPS.forEach((step, i) => {
+      const item = el("li", i < stepIndex || lesson.step === "done" ? "today-passed" : "", step);
+      if (i === stepIndex) item.setAttribute("aria-current", "step");
+      rail.append(item);
+    });
+    const card = el("div", "card today-card");
+    surface.append(heading, el("p", "today-prompt", prompt), rail, card);
+    if (lesson.step === "see") lessonSee(card);
+    else if (lesson.step === "build") lessonBuild(card);
+    else if (lesson.step === "try") lessonTry(card);
+    else if (lesson.step === "check") lessonCheck(card);
+    else {
+      const [picture, work] = lessonPane(card);
+      lessonProof(picture, work);
+      lessonActions(card, "Back to practice", closeLesson);
+      card.append(
+        button("Replay lesson", () => {
+          lesson = freshLesson();
+          lessonStep("see");
+        })
+      );
+    }
+    const parents = el("details", "today-parents");
+    parents.append(
+      el("summary", "", "For parents"),
+      el("p", "", "Ask what each number counts. On another day, try 84 tiles shared equally among 6 boxes without showing a split.")
+    );
+    surface.append(parents);
+    app.append(surface);
+  }
+  const PATHS_KEY = "haydenMathLab.paths.v1";
+  const numberField = (name, label, max = 9999) => ({ name, label, max });
+  const checkOK = (ok, message = "Try the numbers again, then check what they count.") => (ok ? "" : message);
+  const countList = (n) => Array.from({ length: n }, (_, i) => i);
+  const sameSet = (a, b) => a.length === b.length && b.every((key) => a.includes(key));
+  const pairKey = (a, b) => `${Math.min(a, b)}×${Math.max(a, b)}`;
+  const PATHS = [
+    {
+      id: "exchange",
+      title: "Trade a hundred",
+      note: "See what stays the same when you regroup.",
+      prompt: "Watch the trades. Then find 503 − 278.",
+      fields: [numberField("result", "503 − 278")],
+      hints: [
+        "Start with 5 hundreds, no tens, and 3 ones.",
+        "Can you trade one hundred for 10 tens?",
+        "Write 503 as 4 hundreds, 9 tens, and 13 ones.",
+      ],
+      check: ({ result }) => checkOK(result === 225),
+      model: exchangeModel,
+      proof: ["503 = 400 + 90 + 13. Take away 200 + 70 + 8.", "200 + 20 + 5 = 225. Check: 225 + 278 = 503."],
+    },
+    {
+      id: "area",
+      title: "Find the missing pieces",
+      note: "Make four parts of one rectangle.",
+      prompt: "Mia counts only 100 + 6 in this 13 × 12 rectangle. Tap the two pieces she missed. How many tiles are there in all?",
+      fields: [numberField("total", "Tiles altogether", 1560)],
+      hints: [
+        "Each piece has a height and a width.",
+        "Find the piece with 10 rows and 2 columns, and the piece with 3 rows and 10 columns.",
+        "Add the four products: 100, 20, 30, and 6.",
+      ],
+      check: ({ total }, p) =>
+        sameSet(p.picks, [1, 2])
+          ? checkOK(total === 156, "You found both pieces. Add all four tile counts.")
+          : "Choose exactly the two pieces Mia missed.",
+      model: areaModel,
+      proof: ["The missing pieces are 10 × 2 = 20 and 3 × 10 = 30.", "100 + 20 + 30 + 6 = 156. Check by columns: 13 × 10 + 13 × 2 = 130 + 26 = 156."],
+    },
+    {
+      id: "fractions",
+      title: "Match the fractions",
+      note: "Line up two strips of the same length.",
+      prompt: "Compare halves and quarters, then shade enough eighths to reach 3/4 on the strips.",
+      fields: [],
+      hints: [
+        "Both strips represent the same whole.",
+        "One quarter covers the same length as two eighths.",
+        "Match three quarters, using two eighths for each quarter.",
+      ],
+      check: (_, p) => checkOK(p.count === 6, "Line up the shaded ends. Does the bottom strip stop at the same place?"),
+      model: fractionModel,
+      proof: [
+        "The same-length strips end at the same place when 3 quarters and 6 eighths are shaded.",
+        "With different-sized wholes, half can be a different length. Half of 8 cm is 4 cm. Half of 12 cm is 6 cm.",
+      ],
+    },
+    {
+      id: "remainder",
+      title: "Pack the leftovers",
+      note: "See what a remainder tells you.",
+      prompt:
+        "Pack 95 tiles. Each box can hold up to 4 tiles. How many boxes can you fill completely? How many tiles are left? How many boxes do you need for all the tiles?",
+      fields: [numberField("full", "Full boxes", 95), numberField("left", "Leftover tiles", 95), numberField("all", "Boxes for all the tiles", 95)],
+      hints: [
+        "Use as many full boxes as you can first.",
+        "20 boxes use 80 tiles. How many complete boxes can you make with the rest?",
+        "23 boxes use 92 tiles. Any tiles left need a box of their own.",
+      ],
+      check: ({ full, left, all }) =>
+        full !== 23 || left !== 3
+          ? "Each full box holds 4. Check that 4 times your full boxes plus your leftover tiles equals 95, and that fewer than 4 are left."
+          : checkOK(all === 24, "Where will the 3 leftover tiles go?"),
+      model: packingModel,
+      proof: [
+        "23 full boxes hold 92 tiles. Three tiles remain, so 4 × 23 + 3 = 95.",
+        "To pack all 95 tiles, use 24 boxes. The last box holds the 3 leftovers.",
+      ],
+    },
+    {
+      id: "measure",
+      title: "Count the spaces",
+      note: "Find lengths and elapsed time.",
+      prompt: "A line starts at 5 cm and ends at 12 cm. How long is it? How much time passes from 3:50 to 4:05?",
+      fields: [numberField("length", "Length in cm", 99), numberField("time", "Elapsed minutes", 99)],
+      hints: [
+        "Count the spaces between marks on the ruler.",
+        "For time, first move to 4:00, then move past it.",
+        "Ten minutes to 4:00 and five more minutes reach 4:05.",
+      ],
+      check: ({ length, time }) =>
+        length !== 7
+          ? "Read from the starting mark to the ending mark."
+          : checkOK(time === 15, "Join the time before 4:00 with the time after 4:00."),
+      model: measureModel,
+      proof: [
+        "The line covers 12 − 5 = 7 cm. Count the 7 spaces from 5 to 12.",
+        "3:50 → 4:00 is 10 minutes. 4:00 → 4:05 is 5 more. 10 + 5 = 15 minutes.",
+      ],
+    },
+    {
+      id: "transfer",
+      title: "Try a new array",
+      note: "Use an idea on fresh numbers.",
+      prompt: "How many tiles fill 4 rows of 17? Then share 84 tiles equally among 6 boxes. How many go in each box?",
+      fields: [numberField("total", "Tiles in the 4 rows", 999), numberField("each", "Tiles in each box", 84)],
+      hints: [
+        "For the array, try a cut in the same place on every row.",
+        "For sharing, choose two parts of 84 that can both be shared among 6 boxes.",
+        "Try 17 = 10 + 7 and 84 = 60 + 24.",
+      ],
+      check: ({ total, each }) =>
+        total !== 68 ? "Check both parts of each of the four rows." : checkOK(each === 14, "Check your tiles per box by multiplying by 6."),
+      model: transferModel,
+      proof: ["4 × 17 = 4 × 10 + 4 × 7 = 40 + 28 = 68.", "84 = 60 + 24. Each box gets 10 + 4 = 14 tiles. Check: 6 × 14 = 84."],
+    },
+    {
+      id: "tape",
+      title: "Tiles and tape",
+      note: "Build a counterexample.",
+      challenge: true,
+      prompt:
+        "Use exactly 12 one-inch square tiles to build a rectangle with no gaps or overlaps. Mia says every rectangle needs the same length of tape around the outside. Build two different rectangles to check. How many inches of tape does each rectangle need?",
+      fields: [
+        numberField("oneTape", "Tape for rectangle 1 (in)", 99),
+        numberField("twoTape", "Tape for rectangle 2 (in)", 99),
+        { ...numberField("least", "Least tape for any rectangle (in)", 99), optional: true },
+      ],
+      hints: [
+        "Tiles fill the inside. Tape goes around the outside.",
+        "Turning the same rectangle does not make a new one.",
+        "Try row sizes that divide 12. Count the outside edges of each rectangle.",
+      ],
+      check: tapeCheck,
+      model: tapeModel,
+      proof: [
+        "The rectangles are 1 × 12, 2 × 6, and 3 × 4. They use 26, 16, and 14 inches of tape.",
+        "For example, 3 × 4 and 2 × 6 both use 12 tiles, but 14 ≠ 16. The least tape is 14 inches.",
+      ],
+    },
+    {
+      id: "trays",
+      title: "Red and blue trays",
+      note: "Use the same-size parts.",
+      challenge: true,
+      prompt:
+        "Hayden puts all 72 tiles on two red trays and three blue trays. Trays of the same color hold equal amounts. Each red tray holds six more tiles than each blue tray. How many tiles are on one tray of each color?",
+      fields: [numberField("red", "Tiles on one red tray", 72), numberField("blue", "Tiles on one blue tray", 72)],
+      hints: [
+        "Red has a blue-sized part plus 6 more.",
+        "There are two red trays, so set aside 6 + 6 tiles.",
+        "Share the remaining 60 tiles among the five equal parts.",
+      ],
+      check: ({ red, blue }) =>
+        red - blue !== 6
+          ? "Each red tray needs 6 more tiles than a blue tray."
+          : checkOK(red > 0 && blue > 0 && 2 * red + 3 * blue === 72, "Count both red trays and all three blue trays. Do they use all 72 tiles?"),
+      model: traysModel,
+      proof: [
+        "Set aside 6 tiles on each red tray: 72 − 12 = 60. The five matching parts have 60 ÷ 5 = 12 tiles each.",
+        "Blue gets 12, and red gets 12 + 6 = 18. Check: 2 × 18 + 3 × 12 = 72.",
+      ],
+    },
+    {
+      id: "garden",
+      title: "Design a garden",
+      note: "Find every rectangle that fits.",
+      challenge: true,
+      prompt:
+        "A rectangular garden has a perimeter of 52 meters. Its sides are whole numbers of meters. Its area is more than 150 square meters. The longer side is at least 5 meters longer than the shorter side. Find every possible pair of side lengths.",
+      fields: [],
+      hints: [
+        "The two neighboring sides add to half the perimeter.",
+        "The shorter side can be 1 to 10 meters if the sides differ by at least 5 meters.",
+        "List the short sides. Use 26 minus each short side to find its partner. Check the areas.",
+      ],
+      check: gardenCheck,
+      model: gardenModel,
+      proof: [
+        "Short side + long side = 26 m. The difference rule makes 1–10 m the only short sides to test.",
+        "9 × 17 = 153 m² and 10 × 16 = 160 m². Both have a 52 m perimeter; the side differences are 8 m and 6 m.",
+        "At 8 × 18 the area is 144 m², and all smaller short sides give even less. 11 × 15 fails the difference rule.",
+      ],
+    },
+  ];
+
+  function blankPath() {
+    return { mode: "try", hint: 0, move: 0, count: 0, tape: [0, 0], picks: [], candidates: [], values: {}, observation: "" };
+  }
+  function readPaths() {
+    let raw;
+    try {
+      raw = JSON.parse(localStorage.getItem(PATHS_KEY));
+    } catch {
+      return {};
+    }
+    const saved = {};
+    for (const task of PATHS) {
+      const v = raw?.[task.id];
+      if (!v || typeof v !== "object") continue;
+      const state = blankPath();
+      for (const [key, limit] of [
+        ["hint", task.hints.length],
+        ["move", 12],
+        ["count", 8],
+      ]) {
+        if (Number.isInteger(v[key]) && v[key] >= 0 && v[key] <= limit) state[key] = v[key];
+      }
+      if (["try", "review", "done"].includes(v.mode)) state.mode = v.mode;
+      if (Array.isArray(v.tape) && v.tape.length === 2 && v.tape.every((n) => Number.isInteger(n) && n >= 0 && n <= 12)) state.tape = v.tape;
+      if (Array.isArray(v.picks)) state.picks = [...new Set(v.picks.filter((n) => Number.isInteger(n) && n >= 0 && n < 4))];
+      if (Array.isArray(v.candidates))
+        state.candidates = v.candidates
+          .slice(0, 12)
+          .filter((pair) => Array.isArray(pair) && pair.length === 2 && pair.every((side) => typeof side === "string" && side.length <= 8));
+      if (["alone", "asked", "hint"].includes(v.observation)) state.observation = v.observation;
+      for (const f of task.fields)
+        if (typeof v.values?.[f.name] === "string" && v.values[f.name].length <= 8) state.values[f.name] = v.values[f.name];
+      if (state.mode === "done") {
+        const result = pathValues(task, state);
+        if (!result || task.check(result, state)) state.mode = "try";
+      }
+      saved[task.id] = state;
+    }
+    return saved;
+  }
+  let pathProgress = readPaths(),
+    currentPath = null,
+    pathFeedback = "";
+  function savePaths() {
+    try {
+      localStorage.setItem(PATHS_KEY, JSON.stringify(pathProgress));
+    } catch {}
+  }
+  function openLibrary() {
+    screen = "library";
+    render();
+    pathFocus();
+  }
+  function openPath(task) {
+    currentPath = task;
+    pathProgress[task.id] ??= blankPath();
+    pathFeedback = "";
+    screen = "path";
+    savePaths();
+    render();
+    pathFocus();
+  }
+  function pathFocus() {
+    window.scrollTo(0, 0);
+    app.querySelector(".today-heading")?.focus({ preventScroll: true });
+  }
+  function pathReturn() {
+    screen = "home";
+    render();
+    window.scrollTo(0, 0);
+    app.querySelector(".path-entry-action")?.focus({ preventScroll: true });
+  }
+  function pathHeader(title, intro) {
+    const section = el("section", "today-surface");
+    const h = el("h1", "today-heading", title);
+    h.tabIndex = -1;
+    section.append(h, el("p", "today-prompt", intro));
+    app.append(section);
+    return section;
+  }
+  function pathLibrary() {
+    toolbar.replaceChildren(button("Math Lab", pathReturn, "", "Back to Math Lab"));
+    const page = pathHeader("Explore lessons", "Choose a picture lesson or a thinking challenge.");
+    for (const [challenge, label] of [
+      [false, "Picture lessons"],
+      [true, "Hwangso challenges"],
+    ]) {
+      const group = el("section", "path-library-group");
+      group.setAttribute("aria-label", label);
+      group.append(el("h2", "", label));
+      const grid = el("div", "path-library-grid");
+      for (const task of PATHS.filter((t) => Boolean(t.challenge) === challenge)) {
+        const status = pathProgress[task.id]?.mode;
+        const action = status === "done" ? "Review" : status ? "Continue" : "Start";
+        const card = el("div", "card path-tile");
+        card.append(
+          el("h3", "", task.title),
+          el("p", "", task.note),
+          button(action, () => openPath(task), "", `${action}: ${task.title}`)
+        );
+        grid.append(card);
+      }
+      group.append(grid);
+      page.append(group);
+    }
+    page.append(parentRoadmap());
+  }
+  function parentRoadmap() {
+    const details = el("details", "today-parents path-parent-guide");
+    details.append(el("summary", "", "For parents"));
+    const bullets = el("ul");
+    for (const text of [
+      "Try 5 min of familiar facts, 8 min of measurement or algebra, 12 min with a picture, and 5 min checking an answer. No timer is needed for a new lesson or challenge.",
+      "Grade 2: place value through 1,000, addition and subtraction, equal groups, clocks, rulers, coins, and picture graphs.",
+      "Grade 3: multiplication and division, two-step problems, fractions on a number line, area and perimeter, and elapsed time.",
+      "Grade 4: larger whole numbers, multi-digit multiplication, one-digit divisors and remainders, factors, fractions and decimals, units and angles. Use regular Topics practice for skills beyond these selected lessons, including measurement and coins.",
+      "Give a new problem on another day. Ask what the picture parts count and how the child checked. Note whether that happened independently, after a question, or after a hint.",
+    ])
+      bullets.append(el("li", "", text));
+    details.append(bullets);
+    const standards = el("a", "", "Illinois math standards");
+    standards.href = "https://www.isbe.net/Documents/Math_common_core_standards.pdf";
+    details.append(standards);
+    return details;
+  }
+  function pathDraw(focusId) {
+    savePaths();
+    render();
+    if (!focusId) return;
+    const control = document.getElementById(focusId);
+    (control && !control.disabled ? control : app.querySelector(".today-heading"))?.focus({ preventScroll: true });
+  }
+  function pathValues(task, state) {
+    const values = {};
+    for (const field of task.fields) {
+      const raw = (state.values[field.name] || "").trim();
+      if (!raw && field.optional) continue;
+      if (!/^[0-9]+$/.test(raw) || Number(raw) > field.max) return null;
+      values[field.name] = Number(raw);
+    }
+    return values;
+  }
+  function pathAnswerFields(work, task, state) {
+    const form = el("form", "today-form path-answer-form");
+    form.noValidate = true;
+    for (const field of task.fields) {
+      const label = el("label", "", field.label + (field.optional ? " (optional)" : ""));
+      const input = el("input");
+      Object.assign(input, { type: "text", inputMode: "numeric", maxLength: 8, autocomplete: "off", value: state.values[field.name] || "" });
+      input.addEventListener("input", () => {
+        state.values[field.name] = input.value;
+        savePaths();
+      });
+      label.append(input);
+      form.append(label);
+    }
+    const next = el("button", "primary", "Keep my answer");
+    next.type = "submit";
+    form.append(next);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (!pathValues(task, state)) {
+        pathFeedback = "Enter a whole number in each required box.";
+        pathDraw("path-feedback");
+        return;
+      }
+      pathFeedback = "";
+      state.mode = "review";
+      pathDraw("path-check");
+      app.querySelector(".today-heading")?.scrollIntoView({ block: "start" });
+    });
+    work.append(form);
+  }
+  function pathFeedbackLine(work) {
+    if (!pathFeedback) return;
+    const p = el("p", "today-note", pathFeedback);
+    p.id = "path-feedback";
+    p.tabIndex = -1;
+    p.setAttribute("role", "status");
+    work.append(p);
+  }
+  function pathLesson() {
+    const task = currentPath;
+    const state = pathProgress[task.id];
+    toolbar.replaceChildren(button("Lessons", openLibrary), button("Math Lab", pathReturn, "", "Back to Math Lab"));
+    const page = pathHeader(task.title, task.prompt);
+    const card = el("div", "card today-card");
+    page.append(card);
+    const [picture, work] = lessonPane(card);
+    task.model(picture, state, task);
+    pathFeedbackLine(work);
+    if (state.mode === "done") {
+      work.append(el("p", "today-total", "Here’s why"));
+      task.proof.forEach((point) => work.append(el("p", "today-note", point)));
+      const details = el("details", "today-parents");
+      details.append(el("summary", "", "For parents: How did it go?"));
+      const input = el("select");
+      input.setAttribute("aria-label", "Parent observation");
+      for (const [value, label] of [
+        ["", "Choose an observation"],
+        ["alone", "Explained independently"],
+        ["asked", "Explained after a question"],
+        ["hint", "Explained after a hint"],
+      ]) {
+        const option = el("option", "", label);
+        option.value = value;
+        input.append(option);
+      }
+      input.value = state.observation;
+      input.addEventListener("change", () => {
+        state.observation = input.value;
+        savePaths();
+      });
+      details.append(input);
+      work.append(details);
+      lessonActions(card, "Back to lessons", openLibrary);
+      card.append(
+        button("Try again", () => {
+          pathProgress[task.id] = blankPath();
+          pathFeedback = "";
+          pathDraw();
+          pathFocus();
+        })
+      );
+      return;
+    }
+    if (state.mode === "review") {
+      const list = el("ul", "path-response-review");
+      for (const field of task.fields) {
+        const raw = state.values[field.name];
+        if (raw?.trim()) list.append(el("li", "", `${field.label}: ${raw.trim()}`));
+      }
+      work.append(el("p", "today-total", "Check your own work"));
+      if (list.children.length) work.append(list);
+      work.append(el("p", "today-note", "Read the question again. Use the picture to check each part."));
+      const submit = button(
+        "I checked",
+        () => {
+          const values = pathValues(task, state);
+          pathFeedback = values ? task.check(values, state) : "Go back and enter a whole number in each required box.";
+          if (!pathFeedback) state.mode = "done";
+          pathDraw(pathFeedback ? "path-feedback" : undefined);
+          if (!pathFeedback) pathFocus();
+        },
+        "primary"
+      );
+      submit.id = "path-check";
+      const edit = button("Edit answer", () => {
+        state.mode = "try";
+        pathFeedback = "";
+        pathDraw();
+        pathFocus();
+      });
+      work.append(submit, edit);
+      return;
+    }
+    if (state.hint) {
+      const hints = el("div", "today-hints");
+      hints.setAttribute("aria-live", "polite");
+      task.hints.slice(0, state.hint).forEach((hint, i) => {
+        const p = el("p", "today-note", hint);
+        p.id = `path-hint-${i}`;
+        p.tabIndex = -1;
+        hints.append(p);
+      });
+      picture.append(hints);
+    }
+    if (state.hint < task.hints.length) {
+      const nextHint = button(state.hint ? "Next hint" : "Hint", () => {
+        state.hint++;
+        pathDraw(`path-hint-${state.hint - 1}`);
+      });
+      picture.append(nextHint);
+    }
+    pathAnswerFields(work, task, state);
+  }
+  function pathModelAction(label, id, action, pressed) {
+    const control = button(label, () => {
+      pathFeedback = "";
+      action();
+      pathDraw(id);
+    });
+    control.id = id;
+    if (pressed !== undefined) control.setAttribute("aria-pressed", String(pressed));
+    return control;
+  }
+  function modelNote(parent, sentence) {
+    parent.append(el("p", "today-note", sentence));
+  }
+  function placeChips(parent, counts) {
+    const grid = el("div", "path-places");
+    const names = ["Thousands", "Hundreds", "Tens", "Ones"];
+    counts.forEach((n, i) => {
+      const stack = el("div", `path-place path-place-${i}`);
+      stack.append(el("strong", "", n), el("span", "", names[i]));
+      const pieces = el("div", "path-place-pieces");
+      pieces.setAttribute("aria-hidden", "true");
+      for (const _ of countList(n)) pieces.append(el("i"));
+      stack.append(pieces);
+      grid.append(stack);
+    });
+    parent.append(grid);
+  }
+  function exchangeModel(picture, state) {
+    const small = [
+      [[0, 5, 0, 0], "500 stays 500. Set aside 4 hundreds."],
+      [[0, 4, 10, 0], "Trade 1 hundred for 10 tens. The total is still 500."],
+      [[0, 4, 9, 10], "Trade 1 ten for 10 ones. The total is still 500."],
+      [[0, 4, 9, 7], "Take away 3 ones. 400 + 90 + 7 = 497."],
+    ];
+    const big = [
+      [[1, 0, 2, 3], "Start with 1 thousand, 0 hundreds, 2 tens, and 3 ones."],
+      [[1, 0, 1, 13], "Trade 1 ten for 10 ones. The total is still 1,023."],
+      [[0, 10, 1, 13], "Trade 1 thousand for 10 hundreds. The total is still 1,023."],
+      [[0, 9, 11, 13], "Trade 1 hundred for 10 tens. The total is still 1,023."],
+      [[0, 9, 3, 6], "Take away 8 tens and 7 ones. This leaves 936. Check: 936 + 87 = 1,023."],
+    ];
+    const page = state.move >= 4 ? big : small;
+    const index = state.move < 4 ? state.move : Math.min(4, state.move - 4);
+    const [counts, explanation] = page[index];
+    picture.append(el("p", "today-dimension", page === small ? "500 − 3" : "1,023 − 87"));
+    if (page === small && index > 0) {
+      const flat = el("div", "path-hundred");
+      flat.setAttribute("role", "img");
+      flat.setAttribute("aria-label", index === 3 ? "Hundred board with the last three cells crossed out" : "One hundred in ten rows of ten");
+      for (const i of countList(100))
+        flat.append(el("span", i >= 97 && index === 3 ? "path-crossed" : i >= 90 && index >= 2 ? "today-part-B" : "today-part-A"));
+      picture.append(flat);
+    }
+    placeChips(picture, counts);
+    modelNote(picture, explanation);
+    const row = el("div", "today-picks");
+    if (state.move > 0) row.append(pathModelAction("Previous step", "path-move-back", () => state.move--));
+    if (state.move < 8)
+      row.append(
+        pathModelAction(
+          state.move === 3 ? "Try a bigger trade" : state.move === 2 || state.move === 7 ? "Take away" : "Make the next trade",
+          "path-move-next",
+          () => state.move++
+        )
+      );
+    picture.append(row);
+  }
+  function areaModel(picture, state) {
+    const grid = el("div", "path-area");
+    grid.setAttribute("role", "group");
+    grid.setAttribute("aria-label", "Four pieces of the 13 by 12 rectangle");
+    const parts = [
+      [10, 10],
+      [10, 2],
+      [3, 10],
+      [3, 2],
+    ];
+    parts.forEach(([rows, cols], i) => {
+      const picked = state.picks.includes(i);
+      const label = `${rows} × ${cols}`;
+      const control = pathModelAction(
+        label,
+        `path-area-${i}`,
+        () => {
+          state.picks = picked ? state.picks.filter((n) => n !== i) : [...state.picks, i];
+        },
+        picked
+      );
+      control.classList.add("path-area-piece", `path-area-piece-${i}`);
+      if (state.mode !== "try") control.disabled = true;
+      grid.append(control);
+    });
+    picture.append(grid);
+    modelNote(picture, state.mode === "done" ? "All four parts fit with no gaps or overlaps." : "Each piece gives rows × columns.");
+  }
+  function strip(parent, pieces, filled, caption, width = 100) {
+    const row = el("div", "path-fraction-strip");
+    row.style.setProperty("--segments", pieces);
+    row.style.width = `${width}%`;
+    row.setAttribute("role", "img");
+    row.setAttribute("aria-label", caption);
+    for (const i of countList(pieces)) row.append(el("span", i < filled ? "path-shaded" : ""));
+    parent.append(row, el("p", "path-caption", caption));
+  }
+  function pathDial(value, min, max, label, id, update) {
+    const controls = el("div", "path-dial");
+    controls.setAttribute("role", "group");
+    controls.setAttribute("aria-label", label);
+    const down = pathModelAction("−", `${id}-minus`, () => update(value - 1));
+    const up = pathModelAction("+", `${id}-plus`, () => update(value + 1));
+    down.setAttribute("aria-label", `Fewer: ${label}`);
+    up.setAttribute("aria-label", `More: ${label}`);
+    down.disabled = value <= min;
+    up.disabled = value >= max;
+    controls.append(down, el("strong", "", value), up);
+    return controls;
+  }
+  function fractionModel(picture, state) {
+    if (state.mode === "try") {
+      const controls = el("div", "today-picks");
+      controls.append(
+        pathModelAction("See ½ = 2/4", "path-halves", () => (state.move = 1), state.move === 1),
+        pathModelAction("Shade eighths", "path-eighths", () => (state.move = 0), state.move === 0)
+      );
+      picture.append(controls);
+    }
+    if (state.move === 1 && state.mode === "try") {
+      strip(picture, 2, 1, "1 of 2 equal parts");
+      strip(picture, 4, 2, "2 of 4 equal parts");
+      modelNote(picture, "The wholes are the same length. Both shaded ends line up.");
+      return;
+    }
+    strip(picture, 4, 3, "3 of 4 equal parts");
+    strip(picture, 8, state.count, `${state.count} of 8 equal parts`);
+    if (state.mode === "try") picture.append(pathDial(state.count, 0, 8, "Eighths shaded", "path-shade", (n) => (state.count = n)));
+    if (state.mode !== "done") return;
+    modelNote(picture, "Same fraction, different wholes");
+    strip(picture, 2, 1, "4 cm shaded out of 8 cm", (8 / 12) * 100);
+    strip(picture, 2, 1, "6 cm shaded out of 12 cm");
+  }
+  function packingModel(picture, state) {
+    const done = state.mode === "done";
+    const boxCount = done ? 23 : Math.min(state.move, 3) * 5;
+    const boxes = el("div", "path-packing");
+    boxes.setAttribute("role", "img");
+    boxes.setAttribute(
+      "aria-label",
+      `${boxCount} full boxes with four tiles in each, ${95 - 4 * boxCount} loose tiles${done ? " in one last box" : ""}`
+    );
+    for (const _ of countList(boxCount)) {
+      const box = el("span", "path-pack-box");
+      for (const __ of countList(4)) box.append(el("i"));
+      boxes.append(box);
+    }
+    if (done) {
+      const last = el("span", "path-pack-box path-pack-last");
+      for (const _ of countList(3)) last.append(el("i"));
+      boxes.append(last);
+    }
+    picture.append(el("p", "today-dimension", `${boxCount} full · ${95 - 4 * boxCount} loose tiles`), boxes);
+    if (!done) {
+      const rest = el("div", "path-loose");
+      rest.setAttribute("aria-hidden", "true");
+      for (const _ of countList(95 - 4 * boxCount)) rest.append(el("i"));
+      picture.append(rest);
+      if (state.mode === "try" && state.move < 3) picture.append(pathModelAction("Pack 5 boxes", "path-pack", () => state.move++));
+    }
+  }
+  function measureModel(picture, state) {
+    const showing = state.move === 1 && state.mode === "try";
+    picture.append(el("p", "today-dimension", showing ? "Example: from 3 cm to 11 cm" : "Your line: from 5 cm to 12 cm"));
+    visual({ visual: { kind: "ruler", start: showing ? 3 : 5, end: showing ? 11 : 12, max: 12, unit: "cm" } }, picture);
+    if (showing) modelNote(picture, "8 spaces, each 1 cm long.");
+    if (state.mode === "try")
+      picture.append(pathModelAction(showing ? "See your line" : "See a ruler example", "path-ruler", () => (state.move = showing ? 0 : 1)));
+    const time = el("div", "path-time-line");
+    const labels = state.mode === "done" ? ["3:50", "+10 min", "4:00", "+5 min", "4:05"] : ["3:50", "→", "4:00", "→", "4:05"];
+    for (const label of labels) time.append(el("span", "", label));
+    picture.append(time);
+  }
+  function transferModel(picture, state) {
+    if (state.mode === "done") {
+      picture.append(el("p", "today-dimension", "4 rows of 17"), tileArray(4, 17, 10), el("p", "path-caption", "Each row has 10 + 7."));
+    } else {
+      picture.append(el("p", "today-dimension", "Sketch an idea on paper."));
+    }
+    const groups = el("div", "path-transfer-boxes");
+    groups.setAttribute("role", "img");
+    groups.setAttribute("aria-label", state.mode === "done" ? "Six boxes with 10 plus 4 in each" : "Six empty boxes");
+    for (const _ of countList(6)) groups.append(el("span", "", state.mode === "done" ? "10 + 4" : "?"));
+    picture.append(groups);
+  }
+  function tapeShape(rows) {
+    if (!rows) return el("p", "path-caption", "Choose how many tiles go in a row.");
+    if (12 % rows) return el("p", "today-note", `${rows} in a row leaves ${12 % rows} ${12 % rows === 1 ? "tile" : "tiles"} outside.`);
+    const board = tileArray(12 / rows, rows);
+    board.classList.remove("today-array-grouped");
+    board.classList.add("path-tape-grid");
+    board.style.width = `${rows * 1.1}rem`;
+    return board;
+  }
+  function tapeModel(picture, state) {
+    for (const i of [0, 1]) {
+      const cols = state.tape[i];
+      const area = el("div", "path-tape");
+      const label = `Tiles across, rectangle ${i + 1}`;
+      area.append(el("p", "today-dimension", `Rectangle ${i + 1}`), tapeShape(cols));
+      if (state.mode === "try") area.append(pathDial(cols, 0, 12, label, `path-tape-${i}`, (n) => (state.tape[i] = n)));
+      if (cols && 12 % cols === 0) area.append(el("p", "path-caption", `${12 / cols} rows of ${cols} tiles`));
+      picture.append(area);
+    }
+    if (state.mode === "done") modelNote(picture, "Follow the border to count tape. The tiles measure the inside.");
+  }
+  function tapeCheck({ oneTape, twoTape, least }, state) {
+    const [one, two] = state.tape;
+    if (!one || !two || 12 % one || 12 % two) return "Build two rectangles that each use exactly 12 tiles.";
+    if (pairKey(one, 12 / one) === pairKey(two, 12 / two)) return "A turned rectangle is still the same rectangle. Build a different one.";
+    if (oneTape !== 2 * (one + 12 / one) || twoTape !== 2 * (two + 12 / two)) return "Follow the outside edges of each rectangle to count its tape.";
+    return checkOK(least === undefined || least === 14, "Look for the rectangle with the shortest border.");
+  }
+  function traysModel(picture, state) {
+    const revealed = state.hint || state.mode === "done";
+    const parent = el("div", "path-trays");
+    parent.setAttribute("role", "img");
+    parent.setAttribute(
+      "aria-label",
+      revealed
+        ? "Two red trays with six extra tiles each, and three blue trays of the same base size"
+        : "Two red trays and three blue trays with unknown amounts"
+    );
+    ["R", "R", "B", "B", "B"].forEach((kind) => {
+      const row = el("div", `path-tray path-tray-${kind}`);
+      row.append(el("b", "", kind), el("span", "path-tray-base", state.mode === "done" ? "12" : "?"));
+      if (kind === "R" && revealed) row.append(el("span", "path-tray-extra", "+ 6"));
+      parent.append(row);
+    });
+    picture.append(parent);
+    if (revealed) picture.append(el("p", "path-caption", "The five main pieces match."));
+  }
+  function rawSides(pair) {
+    const values = pair.map((v) => (/^[0-9]+$/.test(v.trim()) ? Number(v) : NaN));
+    return values.every((n) => Number.isInteger(n) && n >= 1 && n <= 51) ? values : null;
+  }
+  function gardenModel(picture, state) {
+    const list = state.candidates;
+    picture.append(el("p", "today-dimension", "52 meters around"));
+    const shapes = el("div", "path-gardens");
+    const outline = (parent, pair) => {
+      const size = rawSides(pair);
+      const shape = el("div", "path-garden-outline", size ? `${size[0]} × ${size[1]} m` : "? × ?");
+      if (size) {
+        const ratio = size[0] / size[1];
+        shape.style.setProperty("--shape-ratio", Math.min(4, Math.max(1 / 4, ratio)));
+      }
+      parent.replaceChildren(shape);
+    };
+    if (!list.length) {
+      const empty = el("div", "path-garden");
+      outline(empty, ["", ""]);
+      shapes.append(empty);
+    }
+    list.forEach((pair, index) => {
+      const card = el("div", "path-garden");
+      const drawn = el("div");
+      outline(drawn, pair);
+      card.append(el("p", "path-caption", `Garden ${index + 1}`), drawn);
+      if (state.mode === "try") {
+        const fields = el("div", "path-garden-fields today-form");
+        pair.forEach((value, i) => {
+          const label = el("label", "", `Side ${i + 1} (m)`);
+          const input = el("input");
+          Object.assign(input, { type: "text", inputMode: "numeric", autocomplete: "off", maxLength: 8, value });
+          input.setAttribute("aria-label", `Garden ${index + 1} side ${i + 1} in meters`);
+          input.addEventListener("input", () => {
+            pair[i] = input.value;
+            outline(drawn, pair);
+            savePaths();
+          });
+          label.append(input);
+          fields.append(label);
+        });
+        const remove = pathModelAction("Remove pair", "path-add-pair", () => list.splice(index, 1));
+        remove.id = `path-remove-pair-${index}`;
+        remove.setAttribute("aria-label", `Remove garden ${index + 1}`);
+        card.append(fields, remove);
+      }
+      shapes.append(card);
+    });
+    picture.append(shapes);
+    if (state.mode === "done") {
+      const table = el("table", "path-candidates");
+      const head = el("thead"),
+        labels = el("tr");
+      for (const label of ["Short (m)", "Long (m)", "Area (m²)"]) labels.append(el("th", "", label));
+      head.append(labels);
+      const body = el("tbody");
+      for (const i of countList(10)) {
+        const short = i + 1,
+          long = 26 - short;
+        const row = el("tr", short * long > 150 ? "path-fits" : "");
+        for (const value of [short, long, short * long]) row.append(el("td", "", value));
+        body.append(row);
+      }
+      table.append(el("caption", "", "Every pair that meets the perimeter and difference rules"), head, body);
+      picture.append(table);
+    }
+    if (state.mode === "try" && list.length < 12) {
+      picture.append(pathModelAction("Add a pair of sides", "path-add-pair", () => list.push(["", ""])));
+    }
+  }
+  function gardenCheck(_, state) {
+    if (!state.candidates.length) return "Add the dimensions for every garden that fits.";
+    const pairs = state.candidates.map(rawSides);
+    if (pairs.some((pair) => !pair)) return "Use positive whole numbers for both sides of each garden.";
+    const keys = pairs.map(([a, b]) => pairKey(a, b));
+    if (new Set(keys).size !== keys.length) return "A turned garden is still the same garden. Remove the duplicate.";
+    if (pairs.some(([a, b]) => 2 * (a + b) !== 52)) return "Check the perimeter. Every garden must be 52 meters around.";
+    if (pairs.some(([a, b]) => a * b <= 150)) return "Check the area. Every garden needs more than 150 square meters.";
+    if (pairs.some(([a, b]) => Math.abs(a - b) < 5)) return "Check the difference between the sides. It must be at least 5 meters.";
+    return checkOK(sameSet(keys, ["9×17", "10×16"]), "You found a garden that fits. Make sure you found every possible pair.");
+  }
   function render() {
     app.replaceChildren();
     if (screen === "home") home();
     else if (screen === "summary") summary();
+    else if (screen === "today") today();
+    else if (screen === "library") pathLibrary();
+    else if (screen === "path") pathLesson();
     else play();
   }
   document.addEventListener("keydown", (event) => {
@@ -969,5 +2196,12 @@
       check();
     }
   });
-  render();
+  document.querySelector(".brand").addEventListener("click", (event) => {
+    if (!["today", "path", "library"].includes(screen) || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    if (screen === "today") closeLesson();
+    else pathReturn();
+  });
+  if (new URLSearchParams(location.search).get("lesson") === "today") openLesson();
+  else render();
 })();
