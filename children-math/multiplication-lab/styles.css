@@ -423,3 +423,383 @@ h1 {
     font-size: 20px;
   }
 }
+
+/* The guided lesson lives beside the original Multiply Lab explorer. */
+.today-mode {
+  --today-paper: #f7f5eb;
+  --today-teal: #d7ebe3;
+  --today-gold: #f8e6ad;
+  --today-outline: #22665f;
+  background: #f1f3ec;
+}
+.today-mode .shell {
+  width: 100%;
+  max-width: 900px;
+  padding-bottom: 2rem;
+}
+.today-intro {
+  margin: 0.75rem 0 1rem;
+}
+.today-intro h1 {
+  font-size: clamp(1.85rem, 5vw, 3rem);
+}
+.today-intro h1:focus {
+  outline: none;
+}
+.today-intro p,
+.today-meaning {
+  margin: 0;
+  font-size: clamp(1rem, 2vw, 1.17rem);
+  line-height: 1.55;
+}
+.today-rail {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.4rem;
+  padding: 0;
+  margin: 0 0 0.75rem;
+  list-style: none;
+}
+.today-rail li {
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #486267;
+  background: #e9eee6;
+  padding: 0.55rem 0.2rem;
+  border: 1px solid transparent;
+  border-radius: 0.55rem;
+}
+.today-rail li[aria-current="step"] {
+  color: #fff;
+  background: #183b3f;
+}
+.today-rail .today-passed {
+  border-color: #8bac9f;
+  background: #e4f0e9;
+  color: #28544a;
+}
+.today-card {
+  background: #fff;
+  border: 1px solid #cddcda;
+  border-radius: 1.25rem;
+  padding: clamp(0.75rem, 3vw, 1.5rem);
+  box-shadow: 0 5px 18px rgba(24, 59, 63, 0.07);
+}
+.today-layout,
+.today-work {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  gap: 0.7rem;
+}
+.today-work {
+  align-content: start;
+}
+.today-picture {
+  min-width: 0;
+  padding: clamp(0.55rem, 2vw, 1rem);
+  border: 1px solid #e4ddc8;
+  border-radius: 0.9rem;
+  background: var(--today-paper);
+}
+.today-model-label {
+  margin: 0 0 0.55rem;
+  font-size: 0.94rem;
+  font-weight: 750;
+}
+.today-split-board,
+.today-cut-labels {
+  display: grid;
+  gap: clamp(0.22rem, 1.45vw, 0.65rem);
+}
+.today-cut-labels {
+  text-align: center;
+  margin-bottom: 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 750;
+}
+.today-part {
+  min-width: 0;
+  padding: clamp(0.12rem, 0.75vw, 0.4rem);
+  border: 2px solid transparent;
+  border-radius: 0.6rem;
+}
+.today-part-A {
+  background: var(--today-teal);
+}
+.today-part-B {
+  background: var(--today-gold);
+}
+.today-part[aria-pressed="true"],
+.today-equation[aria-pressed="true"],
+.today-selectors [aria-pressed="true"] {
+  border-color: var(--today-outline);
+  box-shadow: inset 0 0 0 1px var(--today-outline);
+}
+.today-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--columns), minmax(0, 1fr));
+  gap: clamp(0.11rem, 0.55vw, 0.26rem);
+}
+.today-tile {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  background: #fcfff8;
+  border: 1px solid #5d8077;
+  border-radius: 22%;
+}
+.today-part-B .today-tile {
+  border-color: #806f35;
+  background: #fffdfa;
+}
+.today-equation {
+  border: 2px solid transparent;
+  text-align: left;
+}
+.today-total {
+  margin: 0;
+  font-size: clamp(1.35rem, 4vw, 1.95rem);
+  font-weight: 780;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+.today-controls,
+.today-selectors,
+.today-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+.today-controls,
+.today-nav,
+.today-division,
+.today-card > .today-primary {
+  margin-top: 0.8rem;
+}
+.today-controls button {
+  min-width: 48px;
+  font-size: 1.25rem;
+  padding: 0.28rem 0.55rem;
+}
+.today-controls strong {
+  font-size: 0.9rem;
+}
+.today-selectors button {
+  flex: 1 1 auto;
+  padding-inline: 0.6rem;
+}
+.today-selectors [aria-pressed="true"] {
+  background: #e0eee8;
+}
+.today-nav .today-primary {
+  margin-left: auto;
+}
+.today-primary {
+  min-height: 48px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.62rem 0.95rem;
+  border: 1px solid #245b52;
+  border-radius: 0.75rem;
+  color: #fff;
+  background: #235e54;
+  font-weight: 750;
+  text-decoration: none;
+}
+.today-division {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.8rem;
+  border: 1px solid #cddcda;
+  border-radius: 0.85rem;
+  background: #f0f5ef;
+}
+.today-turn-grid {
+  display: grid;
+  max-width: 150px;
+  margin-inline: auto;
+  gap: 0.16rem;
+}
+.today-turn-grid .today-tile-grid {
+  padding: 0.1rem 0.2rem;
+  border: 1px solid #86a394;
+  background: var(--today-teal);
+  border-radius: 0.26rem;
+}
+.today-model-label + .today-turn-grid .today-tile {
+  aspect-ratio: 1.75;
+}
+.today-blank-model {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.65rem 0;
+  padding: 0.55rem;
+  border: 1px solid #afc2bc;
+  border-radius: 0.65rem;
+  background: #fff;
+}
+.today-blank-model > span {
+  min-height: 1.65rem;
+  color: #496860;
+  padding-left: 0.5rem;
+  border: 1px dashed #85a398;
+  border-radius: 0.3rem;
+}
+.today-blank-bars {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  font-size: 0.8rem;
+}
+.today-blank-bars > span {
+  padding: 0.4rem 0.15rem;
+  text-align: center;
+}
+.today-jumps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  text-align: center;
+}
+.today-jumps > span {
+  border-left: 1px solid var(--today-outline);
+  border-bottom: 2px solid var(--today-outline);
+}
+.today-jumps > span:last-child {
+  border-right: 1px solid var(--today-outline);
+}
+.today-line-marks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+}
+.today-hint,
+.today-result {
+  margin: 0.55rem 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.55rem;
+  color: #244239;
+  background: #e4f0e9;
+  overflow-wrap: anywhere;
+}
+.today-hint-button {
+  margin-top: 0.55rem;
+}
+.today-answer-form {
+  display: grid;
+  gap: 0.4rem;
+}
+.today-answer-form label {
+  font-size: 0.9rem;
+  font-weight: 750;
+}
+.today-answer-form input,
+.today-answer-form select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #9fb4ab;
+  border-radius: 0.55rem;
+  padding: 0.45rem 0.55rem;
+  background: #fff;
+  color: #183b3f;
+  font-size: 1rem;
+}
+.today-answer-form .today-primary,
+.today-answer-form label:not(:first-child) {
+  margin-top: 0.25rem;
+}
+.today-worked {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.55rem;
+}
+.today-worked-row {
+  display: grid;
+  gap: 0.25rem;
+  grid-template-columns: minmax(0, 10fr) minmax(0, 8fr);
+}
+.today-worked-row > span {
+  border-radius: 0.32rem;
+  padding: 0.3rem;
+  text-align: center;
+  font-weight: 750;
+}
+.today-parent {
+  margin-top: 0.85rem;
+}
+.today-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.75rem;
+}
+.today-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: #1c5a51;
+  font-weight: 700;
+}
+@media (min-width: 680px) {
+  .today-layout {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 1.05rem;
+  }
+}
+@media (max-width: 375px) {
+  .today-mode .shell {
+    padding-right: 0.7rem;
+    padding-left: 0.7rem;
+  }
+}
+.today-intro-board {
+  max-width: 450px;
+}
+.today-card > .today-selectors {
+  margin-bottom: 0.7rem;
+}
+.today-scratch {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0.55rem 0 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+.today-scratch legend {
+  margin: 0 0 0.25rem;
+  font-size: 0.9rem;
+  font-weight: 750;
+}
+.today-scratch label:not(:first-child) {
+  margin-top: 0;
+}
+.today-scratch input {
+  display: block;
+  margin-top: 0.22rem;
+}
+.today-split-board {
+  position: relative;
+}
+.today-cut-slider {
+  display: block;
+  width: 100%;
+  margin: 0;
+  accent-color: var(--today-outline);
+}
+.today-sliding-cut {
+  display: none;
+  position: absolute;
+  top: -0.14rem;
+  bottom: -0.14rem;
+  width: 3px;
+  background: var(--today-outline);
+  box-shadow: 0 0 0 2px var(--today-paper);
+  pointer-events: none;
+}
+.today-sliding-cut-visible {
+  display: block;
+}
+.today-cut-slider + .today-controls {
+  margin-top: 0;
+}

@@ -25,7 +25,8 @@ nav_order: 7
 .misc-game-links { display:flex; flex-wrap:wrap; gap:0.6rem; margin-top:auto; }
 .misc-game-links .misc-play { margin-top:0; }
 .misc-play:hover { filter: brightness(1.12); }
-.misc-project--sports { grid-column: 1 / -1; }
+.misc-project--sports, .misc-project--today { grid-column: 1 / -1; }
+.misc-project--today .misc-play { background: #176b66; }
 .misc-project--music { grid-column: 1 / -1; }
 .misc-song-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.6rem; }
 .misc-song-link { display: flex; align-items: center; justify-content: space-between; gap: 0.65rem; min-width: 0; min-height: 48px; border: 1px solid var(--global-divider-color, #dce4e3); border-radius: 10px; padding: 0.65rem 0.85rem; color: var(--global-text-color, #253c43) !important; font-size: 0.9rem; font-weight: 500; line-height: 1.45; text-decoration: none !important; }
@@ -39,6 +40,11 @@ nav_order: 7
 </style>
 
 <section class="misc-portfolio" aria-label="Games, sports, and music">
+  <article class="misc-project misc-project--today">
+    <h2>Today</h2>
+    <p>Split and turn an array. See how multiplication and division fit together.</p>
+    <a id="hayden-today-link" class="misc-play" href="{{ '/children-math/multiplication-lab/' | relative_url }}?lesson=today&amp;start=1">Start lesson</a>
+  </article>
   <article class="misc-project misc-project--sports">
     <div class="misc-category">Sports &middot; Game</div>
     <h2>Basketball Spacing &amp; 5v5</h2>
@@ -86,3 +92,22 @@ nav_order: 7
     </div>
   </article>
 </section>
+
+<script>
+  (() => {
+    const link = document.getElementById("hayden-today-link");
+    function showLessonLink() {
+      let text = "Start lesson";
+      try {
+        const lesson = JSON.parse(localStorage.getItem("haydenMath.today.array.v1") || "null");
+        if (lesson && ["see", "build", "try", "check"].includes(lesson.step)) text = "Continue lesson";
+        if (lesson && lesson.step === "done") text = "Review lesson";
+      } catch (_) {
+        // Start remains available when browser storage is disabled.
+      }
+      link.textContent = text;
+    }
+    window.addEventListener("pageshow", showLessonLink);
+    showLessonLink();
+  })();
+</script>
