@@ -770,6 +770,9 @@
       if (["matching", "choice"].includes(q.response.kind)) {
         if (typeof raw !== "string" || !f.options.includes(raw)) return { valid: false, correct: false };
         parsed[f.key] = raw;
+      } else if (q.response.kind === "decimal") {
+        parsed[f.key] = parseDecimal(raw);
+        if (parsed[f.key] === null || String(raw).trim().length > f.maxDigits) return { valid: false, correct: false };
       } else {
         const text = String(raw ?? "").trim();
         if (!/^\d+$/.test(text) || text.length > (f.maxDigits ?? 3)) return { valid: false, correct: false };
@@ -780,7 +783,11 @@
   }
   function formatAnswer(q, answer = q.answer) {
     return q.response.fields
-      .map((f) => `${q.response.fields.length > 1 ? f.label + ": " : ""}${answer[f.key] ?? "—"}${f.unit ? " " + f.unit : ""}`)
+      .map((f) => {
+        const value = answer[f.key];
+        const display = q.response.kind === "decimal" && typeof value === "number" ? formatDecimal(value) : value;
+        return `${q.response.fields.length > 1 ? f.label + ": " : ""}${display ?? "—"}${f.unit ? " " + f.unit : ""}`;
+      })
       .join(" · ");
   }
   // Four-domain interactive extension. Narrative mechanisms also follow Standard-10
@@ -1081,7 +1088,7 @@
     if (!q || !DOMAINS.includes(q.section)) return verifyLegacy(q);
     if (q.section === "arithmetic") {
       const copy = { ...q, section: "equation" };
-      if (!arithmeticShapes.includes(q.shapeId)) return { ok: false, errors: ["Arithmetic shape not supported"] };
+      if (!SHAPES.includes(q.shapeId)) return { ok: false, errors: ["Arithmetic shape not supported"] };
       return verifyLegacy(copy);
     }
     const errors = [];
@@ -1115,7 +1122,7 @@
     if (!DOMAINS.includes(section)) return generateLegacy(section, options);
     if (section === "arithmetic") {
       const shapeId = options.shapeId ?? pick(arithmeticShapes);
-      if (!arithmeticShapes.includes(shapeId)) throw Error("Invalid arithmetic shape");
+      if (!SHAPES.includes(shapeId)) throw Error("Invalid arithmetic shape");
       const q = generateLegacy("equation", { shapeId, width: options.width });
       q.section = section;
       q.signature = JSON.stringify([section, q.typeId, q.params]);
@@ -1728,6 +1735,519 @@
       return fn();
     } finally {
       rngContext = previous;
+    }
+  }
+  // A Date selects one versioned problem for each lesson, independently of open order.
+  const LESSON_VERSION = "HM6-lessons-v1";
+  const lessonFactories = {
+    exchange() {
+      const hundreds = rand(2, 9);
+      if (rand(0, 2) === 0) return { from: hundreds * 100, take: rand(1, 9) };
+      const ones = rand(0, 8);
+      const from = rand(0, 1) ? hundreds * 100 + ones : rand(1, 4) * 1000 + rand(0, 5) * 10 + ones;
+      const take = rand(6, 9) * 10 + rand(ones + 1, 9) + (from < 1000 ? rand(0, hundreds - 1) * 100 : 0);
+      return { from, take };
+    },
+    area: () => ({ rows: rand(11, 19), cols: rand(11, 19) }),
+    fractions() {
+      const base = pick([2, 3, 4, 5, 6]);
+      return { base, shaded: rand(1, base - 1), factor: rand(2, Math.floor(18 / base)) };
+    },
+    remainder() {
+      const capacity = rand(3, 8);
+      return { full: rand(9, 18), capacity, left: rand(1, capacity - 1) };
+    },
+    measure() {
+      const start = rand(2, 9);
+      return { start, end: start + rand(3, 9), hour: rand(1, 11), before: rand(1, 5) * 5, after: rand(1, 5) * 5 };
+    },
+    transfer: () => ({ rows: rand(3, 8), cols: rand(11, 29), groups: rand(3, 9), each: rand(11, 29) }),
+    tape: () => ({ tiles: pick([12, 16, 18, 20, 24, 28, 30, 32, 36]) }),
+    trays: () => ({ reds: rand(2, 4), blues: rand(2, 4), base: rand(5, 17), extra: rand(3, 9) }),
+    garden() {
+      const half = rand(21, 32),
+        gap = rand(4, 8),
+        maxShort = Math.floor((half - gap) / 2);
+      const edge = maxShort - rand(2, 4);
+      return { half, gap, area: edge * (half - edge) + rand(0, 2) };
+    },
+    decimal(mode = pick(["share", "whole", "measure"])) {
+      if (mode === "measure") {
+        const part = rand(2, 9) * pick([1, 10]);
+        return { mode, total: part * rand(3, 8), part };
+      }
+      if (mode === "whole") {
+        const groups = pick([2, 4, 5]);
+        return { mode, total: 100 * (groups * rand(0, 2) + rand(1, groups - 1)), groups };
+      }
+      const groups = rand(2, 5),
+        unit = pick([1, 10]);
+      const each = 100 * rand(0, 1) + unit * rand(unit === 1 ? 4 : 1, 9);
+      return { mode, total: each * groups, groups };
+    },
+  };
+  function generateLesson(id, { date = null, nonce = null, exclude = [] } = {}) {
+    if (!Object.hasOwn(lessonFactories, id)) throw Error("Unknown lesson");
+    date = normalizeSeed(date);
+    const replay = date || nonce;
+    for (let attempt = 0; attempt < (replay ? 1 : 64); attempt++) {
+      const token = date || nonce || Array.from(root.crypto.getRandomValues(new Uint32Array(2)), (n) => n.toString(36)).join("-");
+      const p = withSeed(`${LESSON_VERSION}|${id}|${date ? "date" : "random"}|${token}`, lessonFactories[id]);
+      const visible = id === "decimal" ? [p.mode === "measure" ? "measure" : "share", p.total, p.part ?? p.groups] : p;
+      const signature = JSON.stringify(visible);
+      if (replay || !exclude.includes(signature)) return { date, nonce: date ? null : token, signature, p };
+    }
+    throw Error("Could not find a new example");
+  }
+  function parseDecimal(text) {
+    const match = /^(\d+)(?:\.(\d{0,2}))?$|^\.(\d{1,2})$/.exec(String(text ?? "").trim());
+    if (!match) return null;
+    const value = Number(match[1] ?? 0) * 100 + Number((match[2] ?? match[3] ?? "").padEnd(2, "0"));
+    return Number.isSafeInteger(value) ? value : null;
+  }
+  function formatDecimal(minor) {
+    const whole = Math.floor(minor / 100),
+      fraction = (minor % 100).toString().padStart(2, "0").replace(/0+$/, "");
+    return fraction ? `${whole}.${fraction}` : String(whole);
+  }
+  function decimalQuotient({ mode, total, part, groups }) {
+    return mode === "measure" ? (total / part) * 100 : total / groups;
+  }
+  function makeDecimalQuestion(p) {
+    const { mode, total, part, groups } = p,
+      quotient = decimalQuotient(p);
+    if (
+      !["share", "whole", "measure"].includes(mode) ||
+      !int(total, 1, 1600) ||
+      !int(quotient, 1, 800) ||
+      (mode === "measure" ? !int(part, 2, 90) || total % part : !int(groups, 2, 5) || total % groups || (mode === "whole" && total % 100))
+    )
+      throw Error("Invalid decimal division");
+    const dividend = formatDecimal(total),
+      divisor = mode === "measure" ? formatDecimal(part) : groups;
+    const check = `${divisor} × ${formatDecimal(quotient)} = ${dividend}`;
+    const prompt =
+      mode === "measure"
+        ? `A ribbon is ${dividend} m long. Each piece is ${divisor} m. How many pieces can you cut?`
+        : `Share ${dividend} liters equally among ${divisor} containers. How many liters go in each?`;
+    return {
+      id: questionId(),
+      section: "decimal",
+      typeId: "decimal_division",
+      shapeId: "decimal_division",
+      params: p,
+      prompt,
+      response: { kind: "decimal", fields: [{ key: "value", label: mode === "measure" ? "Pieces" : "Liters in each", maxDigits: 6 }] },
+      visual: null,
+      answer: { value: quotient },
+      hint:
+        mode === "measure" ? "Count equal lengths of the given size." : "Share the whole units, then trade any leftovers into tenths or hundredths.",
+      explanation: `${dividend} ÷ ${divisor} = ${formatDecimal(quotient)}. Check: ${check}.`,
+      signature: JSON.stringify(["decimal", mode, total, part ?? groups]),
+    };
+  }
+  // Each family has one set of givens, one response contract, and one worked check.
+  const problemTask = (prompt, answer, hint, explanation, response, visual = null) => ({ prompt, answer, hint, explanation, response, visual });
+  const wholeField = (key, label, unit, maxDigits = 3) => ({ key, label, unit, maxDigits });
+  const wholeResponse = (label, unit, maxDigits) => ({ kind: "integer", fields: [wholeField("value", label, unit, maxDigits)] });
+  const decimalResponse = (...fields) => ({ kind: "decimal", fields });
+  const pairResponse = (first, second) => ({ kind: "pair", fields: [first, second] });
+  const choiceResponse = (label, options) => ({ kind: "choice", fields: [{ key: "value", label, options }] });
+  const resultValue = (value) => ({ value });
+  const shownTable = (caption, headers, rows) => ({ kind: "data_table", caption, headers, rows });
+  const expandedFamilies = {
+    compensated_difference: [
+      "arithmetic",
+      () => [rand(80, 850), rand(15, 65), rand(3, 25)],
+      (a, b, shift) =>
+        problemTask(
+          `Fill the box so both differences are equal: ${a} − ${b} = ${a + shift} − □.`,
+          resultValue(b + shift),
+          "If both numbers move up by the same amount, the gap stays the same.",
+          `The first number increased by ${shift}. Increase ${b} by ${shift}, to ${b + shift}. Both differences are ${a - b}.`,
+          wholeResponse("Missing number")
+        ),
+    ],
+    compare_product_groups: [
+      "arithmetic",
+      () => {
+        const a = rand(3, 12),
+          b = rand(4, 15);
+        return rand(0, 3) === 0 ? [a, b, b, a] : [a, b, rand(3, 13), rand(4, 16)];
+      },
+      (a, b, c, d) =>
+        problemTask(
+          `A has ${a} rows of ${b}. B has ${c} rows of ${d}. Which array has more tiles?`,
+          resultValue(a * b === c * d ? "Same number" : a * b > c * d ? "A" : "B"),
+          "Compare the total tiles, or see if one array is a turned copy.",
+          `A: ${a} × ${b} = ${a * b}. B: ${c} × ${d} = ${c * d}.`,
+          choiceResponse("More tiles", ["A", "Same number", "B"])
+        ),
+    ],
+    four_partial_products: [
+      "arithmetic",
+      () => [10 * rand(1, 5) + rand(2, 9), 10 * rand(1, 3) + rand(2, 9)],
+      (a, b) => {
+        const at = a - (a % 10),
+          ao = a - at,
+          bt = b - (b % 10),
+          bo = b - bt;
+        return problemTask(
+          `Find ${a} × ${b}. Split both numbers into tens and ones to fill the whole rectangle.`,
+          resultValue(a * b),
+          "Find the product in each of the four boxes. Then add them.",
+          `${at * bt} + ${at * bo} + ${ao * bt} + ${ao * bo} = ${a * b}. Check: ${a} × ${bt} + ${a} × ${bo} = ${a * bt} + ${a * bo}.`,
+          wholeResponse("Product", undefined, 4),
+          shownTable(
+            "Tens and ones",
+            ["Rows × columns", bt, bo],
+            [
+              [at, "?", "?"],
+              [ao, "?", "?"],
+            ]
+          )
+        );
+      },
+    ],
+    minimum_coin_count: [
+      "measurement",
+      () => [5 * rand(8, 24)],
+      (cents) => {
+        const quarters = Math.floor(cents / 25),
+          rest = cents % 25,
+          dimes = Math.floor(rest / 10),
+          nickels = (rest % 10) / 5;
+        return problemTask(
+          `Use only quarters, dimes and nickels to make ${cents}¢. What is the fewest number of coins?`,
+          resultValue(quarters + dimes + nickels),
+          "Try a quarter, then see what is left. Quarters are 25¢, dimes are 10¢, and nickels are 5¢.",
+          `Use ${quarters} quarters, ${dimes} dimes and ${nickels} nickels. That is ${quarters * 25}¢ + ${dimes * 10}¢ + ${
+            nickels * 5
+          }¢ = ${cents}¢. Using fewer quarters requires more smaller coins.`,
+          wholeResponse("Fewest coins")
+        );
+      },
+    ],
+    mixed_length_difference: [
+      "measurement",
+      () => [rand(2, 7), rand(5, 45), rand(55, 95)],
+      (meters, cm, cut) =>
+        problemTask(
+          `A ribbon is ${meters} m ${cm} cm long. Cut off ${cut} cm. How many centimeters remain?`,
+          resultValue(meters * 100 + cm - cut),
+          "First write the entire length in centimeters. One meter is 100 centimeters.",
+          `${meters} m ${cm} cm = ${meters * 100 + cm} cm. Subtract ${cut} cm to get ${meters * 100 + cm - cut} cm.`,
+          wholeResponse("Remaining", "cm")
+        ),
+    ],
+    latest_schedule_start: [
+      "measurement",
+      () => [rand(9, 11) * 60 + rand(0, 11) * 5, rand(4, 9) * 5, rand(2, 5) * 5, rand(1, 5) * 5],
+      (end, travel, setup, breakTime) => {
+        const start = end - travel - setup - breakTime,
+          result = hourMinute(start);
+        return problemTask(
+          `A school presentation starts at ${timeText(
+            end
+          )}. Before it, Sam needs ${travel} minutes to travel, ${setup} minutes to set up, and a ${breakTime}-minute break. What is the latest time Sam can leave? Enter the hour and minute.`,
+          result,
+          "Add the three durations. Count backward from the presentation time.",
+          `Allow ${travel} + ${setup} + ${breakTime} = ${travel + setup + breakTime} minutes. Leaving at ${timeText(
+            start
+          )} gives exactly that much time.`,
+          pairResponse(wholeField("Hour", "Hour"), wholeField("Minute", "Minute"))
+        );
+      },
+    ],
+    water_cup_capacity: [
+      "measurement",
+      () => [rand(1, 2), rand(1, 9) * 100, pick([150, 200, 250, 300])],
+      (liters, extra, cup) => {
+        const total = 1000 * liters + extra,
+          full = Math.floor(total / cup),
+          left = total % cup;
+        return problemTask(
+          `A jug has ${liters} L plus ${extra} mL of water. A cup holds ${cup} mL. How many cups can you fill completely, and how much water is left?`,
+          { full, left },
+          "Use 1,000 mL for each liter. Then pack the milliliters into full cups.",
+          `Start with ${total} mL. ${full} × ${cup} + ${left} = ${total}. The ${left} mL left is less than one cup.`,
+          pairResponse(wholeField("full", "Full cups"), wholeField("left", "Water left", "mL"))
+        );
+      },
+    ],
+    largest_rectangle_with_border: [
+      "geometry",
+      () => [rand(9, 24)],
+      (half) => {
+        const short = Math.floor(half / 2),
+          long = half - short;
+        return problemTask(
+          `Build a rectangle using exactly ${
+            2 * half
+          } m of fence. Each side is a whole number of meters. What is the greatest possible area? A square is allowed.`,
+          resultValue(short * long),
+          `The two neighboring sides add to ${half}. Try pairs with that sum.`,
+          `Bringing the two sides closer together makes the area larger. The closest pair is ${short} m and ${long} m. ${short} × ${long} = ${
+            short * long
+          } m².`,
+          wholeResponse("Greatest area", "m²")
+        );
+      },
+    ],
+    floor_plan_area: [
+      "geometry",
+      () => {
+        const width = rand(7, 14);
+        return [width, rand(4, 9), rand(3, width - 2), rand(2, 7)];
+      },
+      (a, b, c, d) =>
+        problemTask(
+          "The two rooms share an edge and do not overlap. What is the total floor area?",
+          resultValue(a * b + c * d),
+          "Find each room’s area. Add the two areas.",
+          `Room 1: ${a} × ${b} = ${a * b}. Room 2: ${c} × ${d} = ${c * d}. Together: ${a * b + c * d} m².`,
+          wholeResponse("Floor area", "m²"),
+          {
+            kind: "composite",
+            rectangles: [
+              { x: 0, y: 0, width: a, height: b, widthLabel: `${a} m`, heightLabel: `${b} m` },
+              { x: 0, y: b, width: c, height: d, widthLabel: `${c} m`, heightLabel: `${d} m` },
+            ],
+          }
+        ),
+    ],
+    full_turn_missing_angle: [
+      "geometry",
+      () => [rand(5, 15) * 10, rand(5, 15) * 10],
+      (a, b) =>
+        problemTask(
+          `Three angles fit around a point with no gaps or overlaps. Two measure ${a}° and ${b}°. How many degrees is the third?`,
+          resultValue(360 - a - b),
+          "A full turn around a point is 360 degrees.",
+          `${a} + ${b} = ${a + b}. Take that from 360 to get ${360 - a - b}°. Check that all three add to 360°.`,
+          wholeResponse("Third angle", "°")
+        ),
+    ],
+    single_tile_frame: [
+      "geometry",
+      () => [rand(5, 18), rand(5, 19)],
+      (a, b) =>
+        problemTask(
+          `A ${a} by ${b} tile rectangle has a colored frame just one tile wide. The rest is plain. How many tiles are in the frame?`,
+          resultValue(a * b - (a - 2) * (b - 2)),
+          "Remove one border tile from each end of both dimensions to find the plain rectangle.",
+          `All tiles: ${a} × ${b} = ${a * b}. Inside: ${a - 2} × ${b - 2} = ${(a - 2) * (b - 2)}. Subtract to get ${
+            a * b - (a - 2) * (b - 2)
+          } colored tiles.`,
+          wholeResponse("Colored tiles"),
+          { kind: "tile_frame", rows: b, cols: a }
+        ),
+    ],
+    leftover_inventory_backwards: [
+      "narrative",
+      () => [rand(3, 7), rand(6, 13), rand(5, 28), rand(2, 15)],
+      (tables, each, late, left) =>
+        problemTask(
+          `A school fair brings some prizes. At opening, ${tables} tables get ${each} prizes each. Later, the helpers bring ${late} more. After that, ${
+            left + late
+          } prizes are still in the supply box. How many prizes came to the fair at opening?`,
+          resultValue(tables * each + left),
+          "Work backward. Take away the late delivery, then put back what went to the tables.",
+          `${left + late} − ${late} = ${left} left before the delivery. The tables got ${tables} × ${each} = ${tables * each}. Opening stock: ${
+            tables * each
+          } + ${left} = ${tables * each + left}.`,
+          wholeResponse("Opening prizes")
+        ),
+    ],
+    equal_plan_price: [
+      "narrative",
+      () => [rand(2, 9), rand(2, 8), rand(1, 5)],
+      (perRide, rides, savings) =>
+        problemTask(
+          `Two bike rental plans are available. Plan A has no starting fee and costs $${perRide + savings} per ride. Plan B charges $${
+            savings * rides
+          } to sign up, then $${perRide} per ride. How many rides make the plans cost the same?`,
+          resultValue(rides),
+          "Each Plan B ride saves the same amount. How many of those savings pay the signup fee?",
+          `Plan B saves $${savings} per ride. $${savings * rides} ÷ $${savings} = ${rides} rides. Both plans then cost $${
+            rides * (perRide + savings)
+          }.`,
+          wholeResponse("Rides")
+        ),
+    ],
+    fraction_of_remaining_items: [
+      "narrative",
+      () => [rand(2, 5), rand(2, 5), rand(2, 6)],
+      (first, second, k) => {
+        const total = first * second * k,
+          used = total / first,
+          remaining = total - used;
+        return problemTask(
+          `A library has ${total} craft sheets. It uses 1/${first} of the sheets on Monday, then 1/${second} of what is left on Tuesday. How many sheets are left after Tuesday?`,
+          resultValue(remaining - remaining / second),
+          "Find Monday’s leftover first. Tuesday’s fraction refers to that smaller pile.",
+          `Monday uses ${used}, leaving ${remaining}. Tuesday uses ${remaining} ÷ ${second} = ${remaining / second}. The new leftover is ${
+            remaining - remaining / second
+          }.`,
+          wholeResponse("Sheets left")
+        );
+      },
+    ],
+    scale_recipe_batches: [
+      "narrative",
+      () => [rand(2, 5), rand(2, 5), rand(3, 9), rand(1, 4)],
+      (first, second, batches, extra) =>
+        problemTask(
+          `One trail-mix batch uses ${first} scoops of oats and ${second} scoops of raisins. Nina makes only full batches and uses exactly ${
+            first * batches
+          } scoops of oats. She has ${second * batches + extra} scoops of raisins. How many scoops of raisins are left?`,
+          resultValue(extra),
+          "Count the batches using oats. Use the same number of batches for raisins.",
+          `${first * batches} ÷ ${first} = ${batches} batches. They use ${batches} × ${second} = ${
+            batches * second
+          } scoops of raisins, leaving ${extra}.`,
+          wholeResponse("Raisin scoops left"),
+          shownTable(
+            "Trail mix",
+            ["Ingredient", "1 batch", "All batches"],
+            [
+              ["Oats", first, first * batches],
+              ["Raisins", second, "?"],
+            ]
+          )
+        ),
+    ],
+    consecutive_three_total: [
+      "brain",
+      () => [rand(8, 95)],
+      (mid) =>
+        problemTask(
+          `Three consecutive whole numbers add to ${3 * mid}. What is the smallest number? Consecutive numbers are one apart.`,
+          resultValue(mid - 1),
+          "The smallest is one below the middle, and the largest is one above it.",
+          `Move 1 from the largest to the smallest. All three become equal. ${3 * mid} ÷ 3 = ${mid}, so the smallest is ${mid - 1}.`,
+          wholeResponse("Smallest number")
+        ),
+    ],
+    age_difference_invariant: [
+      "brain",
+      () => {
+        const younger = rand(6, 12);
+        return [younger, rand(1, 6)];
+      },
+      (young, years) =>
+        problemTask(
+          `Ari is ${young} years old. In ${years} years, Bea will be twice as old as Ari. How old is Bea now?`,
+          resultValue(2 * young + years),
+          "Advance both ages by the same number of years. Then move back to today.",
+          `Then Ari is ${young + years}, and Bea is ${2 * (young + years)}. Today Bea is ${2 * (young + years)} − ${years} = ${2 * young + years}.`,
+          wholeResponse("Bea’s age now", "years")
+        ),
+    ],
+    two_balance_weights: [
+      "brain",
+      () => [rand(3, 14), rand(2, 12), rand(2, 4)],
+      (cube, ball, n) =>
+        problemTask(
+          `All cubes have the same weight. All balls have the same weight. Use both scale readings to find one of each.`,
+          { cube, ball },
+          "Take away the weight that appears on both scales. Then use what is left.",
+          `The second scale adds two balls: ${n * cube + 3 * ball} − ${n * cube + ball} = ${
+            2 * ball
+          }. Each ball is ${ball} g. Then the ${n} cubes weigh ${n * cube} g, or ${cube} g each.`,
+          pairResponse(wholeField("cube", "One cube", "g"), wholeField("ball", "One ball", "g")),
+          shownTable(
+            "Scale readings",
+            ["Cubes", "Balls", "Total weight"],
+            [
+              [n, 1, `${n * cube + ball} g`],
+              [n, 3, `${n * cube + 3 * ball} g`],
+            ]
+          )
+        ),
+    ],
+    decimal_compare_shares: [
+      "decimal",
+      () => [rand(12, 89), rand(2, 6), rand(0, 8)],
+      (each, groups, change) => {
+        const other = each + change - 4;
+        return problemTask(
+          `Share A (${formatDecimal(each * groups)} L) and B (${formatDecimal(
+            other * (groups + 1)
+          )} L). A is divided among ${groups} cups. B is divided among ${groups + 1} cups. Which plan gives more per cup?`,
+          resultValue(each === other ? "Same amount" : each > other ? "A" : "B"),
+          "Compare the amount in one cup. The two plans use different numbers of cups.",
+          `A gives ${formatDecimal(each)} L per cup. B gives ${formatDecimal(other)} L per cup. Multiplying by each cup count checks both totals.`,
+          choiceResponse("More per cup", ["A", "Same amount", "B"])
+        );
+      },
+    ],
+    decimal_missing_dividend: [
+      "decimal",
+      () => [rand(15, 120), rand(3, 9)],
+      (each, groups) =>
+        problemTask(
+          `Fill the box: □ ÷ ${groups} = ${formatDecimal(each)}. What is the starting amount?`,
+          resultValue(each * groups),
+          "Put the same amount in every group. Add the groups back together.",
+          `${groups} × ${formatDecimal(each)} = ${formatDecimal(each * groups)}. Dividing back into the same number of groups gives ${formatDecimal(
+            each
+          )} in each.`,
+          decimalResponse(wholeField("value", "Starting amount", undefined, 6))
+        ),
+    ],
+    decimal_missing_divisor: [
+      "decimal",
+      () => [rand(18, 89), rand(2, 7)],
+      (quotient, divisor) =>
+        problemTask(
+          `Fill the box: ${formatDecimal(quotient * divisor)} ÷ □ = ${formatDecimal(quotient)}. How many equal groups were made?`,
+          resultValue(divisor),
+          "Count how many copies of the amount in one group make the starting amount.",
+          `${divisor} × ${formatDecimal(quotient)} = ${formatDecimal(quotient * divisor)}. So divide among ${divisor} equal groups.`,
+          wholeResponse("Number of groups")
+        ),
+    ],
+    decimal_cut_with_remainder: [
+      "decimal",
+      () => {
+        const piece = rand(12, 76);
+        return [piece, rand(2, 9), rand(1, piece - 1)];
+      },
+      (piece, groups, left) => {
+        const total = piece * groups + left;
+        return problemTask(
+          `A ${formatDecimal(total)} m cord is cut into pieces of ${formatDecimal(
+            piece
+          )} m. How many complete pieces can you cut, and how much cord is left?`,
+          { full: groups * 100, left },
+          "Compare the lengths in hundredths of a meter. The leftover must be shorter than one piece.",
+          `${groups} × ${formatDecimal(piece)} = ${formatDecimal(groups * piece)} m. Add ${formatDecimal(left)} m of leftover to get ${formatDecimal(
+            total
+          )} m.`,
+          decimalResponse(wholeField("full", "Complete pieces", undefined, 6), wholeField("left", "Cord left", "m", 6))
+        );
+      },
+    ],
+  };
+  function makeExpandedQuestion(typeId, params = expandedFamilies[typeId][1]()) {
+    const [section, , solve] = expandedFamilies[typeId];
+    if (!Array.isArray(params) || params.length !== solve.length || !params.every((n) => int(n, 0, 3000))) throw Error("Invalid problem values");
+    const view = solve(...params);
+    for (const f of view.response.fields) {
+      const value = view.answer[f.key];
+      const valid = view.response.kind === "choice" ? f.options.includes(value) : int(value, 0, 10 ** f.maxDigits - 1);
+      if (!valid) throw Error("Problem answer outside input range");
+    }
+    return { id: questionId(), section, typeId, shapeId: typeId, params, ...view, signature: JSON.stringify([section, typeId, params]) };
+  }
+  function verifyExpandedQuestion(q) {
+    try {
+      const built = makeExpandedQuestion(q.typeId, q.params);
+      const errors = Object.keys(built).filter((key) => key !== "id" && !same(q[key], built[key]));
+      return { ok: !errors.length, errors };
+    } catch (error) {
+      return { ok: false, errors: [error.message] };
     }
   }
   function rotateSegments(segs, turn) {
@@ -2458,6 +2978,16 @@
     return { ok: !errors.length, errors };
   }
   function verifyQuestion(q) {
+    if (Object.hasOwn(expandedFamilies, q?.typeId)) return verifyExpandedQuestion(q);
+    if (q?.section === "decimal") {
+      try {
+        const expected = makeDecimalQuestion(q.params);
+        const errors = Object.keys(expected).filter((key) => key !== "id" && !same(q[key], expected[key]));
+        return { ok: errors.length === 0, errors };
+      } catch (error) {
+        return { ok: false, errors: [error.message] };
+      }
+    }
     if (PRACTICE_SECTIONS.includes(q?.section)) return verifyPracticeQuestion(q);
     if (q?.typeId === "counting_one_hundred_split") return verifyCountingQuestion(q);
     if (newSection(q?.typeId)) return verifyNew(q);
@@ -2488,6 +3018,12 @@
     return { ok: !errors.length, errors };
   }
   function makeQuestion(section, options = {}) {
+    if (Object.hasOwn(expandedFamilies, options.typeId)) {
+      const q = makeExpandedQuestion(options.typeId);
+      if (q.section !== section) throw Error("Problem section mismatch");
+      return q;
+    }
+    if (section === "decimal") return makeDecimalQuestion(lessonFactories.decimal(options.mode));
     if (PRACTICE_SECTIONS.includes(section)) return generatePracticeQuestion(section, options);
     if (section === "arithmetic" && options.typeId === "counting_one_hundred_split") {
       const m = countingEngine().next([], (length) => rand(0, length - 1));
@@ -2526,6 +3062,7 @@
     return q;
   }
   function schedule(section, practice) {
+    if (section === "decimal") return Array.from({ length: 10 }, () => ["decimal", {}]);
     if (PRACTICE_SECTIONS.includes(section)) return practiceSchedule(section, practice);
     if (section === "mix")
       return shuffle([
@@ -2563,7 +3100,8 @@
       v = q.visual;
     let diagram = null;
     if (v) {
-      if (v.kind === "worked_solution") diagram = { kind: v.kind, lines: v.lines };
+      if (v.kind === "data_table" || v.kind === "tile_frame") diagram = v;
+      else if (v.kind === "worked_solution") diagram = { kind: v.kind, lines: v.lines };
       else if (v.kind === "bar_model") diagram = { kind: v.kind, rows: v.rows, note: v.note };
       else if (v.kind === "symmetry") diagram = { kind: v.kind, shape: v.shape };
       else if (v.kind === "lines") {
@@ -2610,7 +3148,7 @@
     return JSON.stringify([text.replace(/\s+/g, " ").trim(), diagram, q.response.kind, fields]);
   }
   function alternateRequests(section, opt) {
-    if (PRACTICE_SECTIONS.includes(section)) return [opt];
+    if (section === "decimal" || PRACTICE_SECTIONS.includes(section)) return [opt];
     if (section === "arithmetic") {
       const types = opt.width ? [...SHAPES.slice(0, 5)] : arithmeticShapes;
       return shuffle(types.filter((t) => t !== opt.shapeId)).map((shapeId) => ({ ...opt, shapeId }));
@@ -2619,7 +3157,7 @@
       section === "measurement" ? MEASURES : section === "geometry" ? GEOMETRY : section === "narrative" ? NARRATIVES : [...BRAINS, ...EXTRA_BRAINS];
     return shuffle(types.filter((t) => t !== opt.typeId)).map((typeId) => ({ ...opt, typeId }));
   }
-  const SELECTABLE_DOMAINS = Object.freeze([...TOPICS, ...PRACTICE_SECTIONS]);
+  const SELECTABLE_DOMAINS = Object.freeze([...TOPICS, ...PRACTICE_SECTIONS, "decimal"]);
   function normalizeDomains(domains) {
     if (!Array.isArray(domains) || !domains.length || domains.some((s) => !SELECTABLE_DOMAINS.includes(s))) throw Error("Choose at least one topic");
     return SELECTABLE_DOMAINS.filter((s) => domains.includes(s));
@@ -2632,14 +3170,46 @@
       options.maxDigits ?? 4
     );
   }
+  const coreRequests = {
+    arithmetic: [...SHAPES.map((shapeId) => ({ shapeId })), { typeId: "counting_one_hundred_split" }],
+    measurement: MEASURES.map((typeId) => ({ typeId })),
+    geometry: GEOMETRY.map((typeId) => ({ typeId })),
+    narrative: NARRATIVES.map((typeId) => ({ typeId })),
+    brain: [...BRAINS, ...EXTRA_BRAINS].map((typeId) => ({ typeId })),
+    decimal: ["share", "whole", "measure"].map((mode) => ({ mode })),
+  };
+  const newRequests = Object.fromEntries(
+    Object.keys(coreRequests).map((section) => [
+      section,
+      Object.entries(expandedFamilies)
+        .filter(([, profile]) => profile[0] === section)
+        .map(([typeId]) => ({ typeId })),
+    ])
+  );
+  function expandedSchedule(section, practice) {
+    if (practice) return schedule(section, practice);
+    const base = shuffle(coreRequests[section]),
+      newer = shuffle(newRequests[section]);
+    const count = base.length + newer.length,
+      ratio = count / newer.length;
+    let nextNew = 0;
+    return Array.from({ length: count }, (_, i) => {
+      if (newer.length && i >= Math.floor(nextNew * ratio)) {
+        nextNew++;
+        return [section, newer.pop()];
+      }
+      return [section, base.pop()];
+    });
+  }
   function generateSelectedRound(options) {
     const domains = normalizeDomains(options.domains);
-    if (domains.length === 1) {
+    const expanded = options.bank === "expanded";
+    if (domains.length === 1 && (!expanded || PRACTICE_SECTIONS.includes(domains[0]))) {
       const s = domains[0],
         practice = selectedPractice(s, options);
-      return generateRound({ ...options, domains: null, section: s, ops: practice?.ops });
+      return generateRound({ ...options, bank: "original", domains: null, section: s, ops: practice?.ops });
     }
-    if (same(domains, TOPICS)) return generateRound({ ...options, domains: null, section: "mix" });
+    if (!expanded && same(domains, TOPICS)) return generateRound({ ...options, domains: null, section: "mix" });
     const count = options.count ?? 10,
       offset = options.offset ?? 0,
       date = normalizeSeed(options.seed);
@@ -2648,7 +3218,7 @@
     const settings = Object.fromEntries(domains.map((s) => [s, selectedPractice(s, options)]));
     const config = JSON.stringify(domains.map((s) => [s, settings[s]]));
     const randomKey = date ? null : options.roundKey ?? Array.from(root.crypto.getRandomValues(new Uint32Array(2)), (n) => n.toString(36)).join("-");
-    const version = domains.includes("findfix") ? "HM6-selected-v2" : "HM6-selected-v1";
+    const version = expanded ? "HM6-expanded-v1" : domains.includes("findfix") ? "HM6-selected-v2" : "HM6-selected-v1";
     const key = `${version}|${date || randomKey}|${config}`;
     const rolling = date ? [] : [...(options.baselineFingerprints || []), ...(options.recentFingerprints || [])].slice(-20);
     const out = [],
@@ -2663,13 +3233,13 @@
       }
       const s = domainBag[i % domains.length],
         practice = settings[s],
-        size = practice ? 20 : 10,
+        size = practice ? 20 : expanded ? coreRequests[s].length + newRequests[s].length : 10,
         block = Math.floor(cycle / size),
         planKey = `${s}|${block}`;
       if (!plans.has(planKey))
         plans.set(
           planKey,
-          withSeed(`${key}|plan|${planKey}`, () => schedule(s, practice))
+          withSeed(`${key}|plan|${planKey}`, () => (expanded ? expandedSchedule(s, practice) : schedule(s, practice)))
         );
       const [, opt] = plans.get(planKey)[cycle % size],
         excluded = new Set(rolling);
@@ -2686,7 +3256,9 @@
         return false;
       };
       if (!attempt(opt, "primary", 128)) {
-        const alternatives = withSeed(`${key}|alternates|${i}`, () => alternateRequests(s, opt));
+        const alternatives = withSeed(`${key}|alternates|${i}`, () =>
+          expanded && !practice ? shuffle([...coreRequests[s], ...newRequests[s]]) : alternateRequests(s, opt)
+        );
         for (let j = 0; j < alternatives.length && !accepted; j++) attempt(alternatives[j], `alternate-${j}`, 64);
       }
       if (!accepted) throw Error("Fresh visible question capacity exhausted");
@@ -2713,10 +3285,12 @@
     addsubOps = null,
     findfixOps = null,
     roundKey = null,
+    bank = "original",
   } = {}) {
-    if (domains != null)
+    if (domains != null || bank === "expanded")
       return generateSelectedRound({
-        domains,
+        domains: domains ?? (section === "mix" ? TOPICS : [section]),
+        bank,
         count,
         offset,
         seed,
@@ -2729,13 +3303,12 @@
         recentFingerprints,
         recentSignatures,
       });
-    if (section !== "mix" && !TOPICS.includes(section) && !PRACTICE_SECTIONS.includes(section))
-      return generateLegacyRound({ section, count, recentSignatures });
+    if (section !== "mix" && !SELECTABLE_DOMAINS.includes(section)) return generateLegacyRound({ section, count, recentSignatures });
     if (!int(count, 1, 20) || !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(offset + count))
       throw Error("Invalid round count or offset");
     const practice = PRACTICE_SECTIONS.includes(section) ? normalizePractice(section, ops, maxDigits) : null;
     const blockSize = practice ? 20 : 10;
-    const streamVersion = section === "findfix" ? "HM6-findfix-v2" : practice ? VERSION : "HM6-v5";
+    const streamVersion = section === "decimal" ? "HM6-decimal-v1" : section === "findfix" ? "HM6-findfix-v2" : practice ? VERSION : "HM6-v5";
     const configKey = practice ? `|${practice.ops.join("")}|${practice.maxDigits}` : "";
     const date = normalizeSeed(seed),
       out = [],
@@ -2785,7 +3358,8 @@
     return out;
   }
   function generateQuestion(section, options = {}) {
-    if (options.domains != null) return generateSelectedRound({ ...options, section, count: 1, offset: options.index ?? 0 })[0];
+    if (options.domains != null || options.bank === "expanded")
+      return generateRound({ ...options, section, count: 1, offset: options.index ?? 0 })[0];
     if (PRACTICE_SECTIONS.includes(section))
       return generateRound({
         section,
@@ -2813,6 +3387,10 @@
     arithmeticValue,
     practiceLines,
     normalizeSeed,
+    generateLesson,
+    parseDecimal,
+    formatDecimal,
+    decimalQuotient,
     questionFingerprint,
     DOMAINS: TOPICS,
     EXTRA_BRAINS,

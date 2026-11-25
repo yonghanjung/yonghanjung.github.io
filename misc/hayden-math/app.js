@@ -13,7 +13,20 @@
     brain: "Brain Teaser",
     addsub: "Add & Subtract",
     findfix: "Find & Fix",
+    decimal: "Decimal division",
   };
+  const TOPIC_EXAMPLES = {
+    mix: "A little of each topic",
+    arithmetic: "Missing numbers · compare products",
+    measurement: "Clocks · coins · units",
+    geometry: "Area · fences · angles",
+    narrative: "Compare plans · scale recipes",
+    brain: "Patterns · balance puzzles",
+    addsub: "Regroup · subtract across zeros",
+    findfix: "Find the wrong step · fix it",
+    decimal: "Share · compare · find leftovers",
+  };
+  const TODAY_GOAL = "Use the same rows to multiply and divide.";
   const defaults = {
     domains: [...E.DOMAINS],
     section: "mix",
@@ -27,10 +40,12 @@
   const sectionFor = (domains) => (domains.length === 1 ? domains[0] : JSON.stringify(domains) === JSON.stringify(E.DOMAINS) ? "mix" : "selected");
   let prefs = { ...defaults },
     summaries = [],
-    screen = "home",
+    screen = "contents",
+    problemScreen = "home",
     round = null,
     notice = "",
     seedDraft = "",
+    bankDraft = "expanded",
     sessionRecentVisible = [];
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE));
@@ -103,6 +118,7 @@
         addsubOps: round.config.addsubOps,
         findfixOps: round.config.findfixOps,
         roundKey: round.config.roundKey,
+        bank: round.config.bank,
         baselineFingerprints,
         recentFingerprints,
       });
@@ -165,7 +181,12 @@
       const queue = retry || null;
       if (queue && (!Array.isArray(queue) || !queue.length || queue.some((q) => !valid(q)))) throw new Error("Invalid question set");
       round = {
-        config: { ...config, seed, roundKey: seed ? null : Array.from(crypto.getRandomValues(new Uint32Array(2))).join(":") },
+        config: {
+          ...config,
+          seed,
+          bank: seed && config.bank === "original" ? "original" : "expanded",
+          roundKey: seed ? null : Array.from(crypto.getRandomValues(new Uint32Array(2))).join(":"),
+        },
         queue,
         total: queue ? queue.length : count === "unlimited" ? null : count,
         index: 0,
@@ -203,7 +224,6 @@
         })
       );
     const card = el("section", "card setup");
-    card.append(lessonEntry());
     const topicRow = el("div", "setup-row");
     topicRow.append(el("span", "label", "Topics"));
     const topics = el("div", "topic-grid");
@@ -227,7 +247,10 @@
         },
         selected ? "selected" : ""
       );
+      b.replaceChildren(el("span", "topic-name", label), el("small", "topic-example", TOPIC_EXAMPLES[key]));
       b.setAttribute("aria-label", label);
+      b.lastChild.id = "topic-example-" + key;
+      b.setAttribute("aria-describedby", b.lastChild.id);
       if (key === "mix") b.setAttribute("aria-pressed", String(selected));
       else {
         b.setAttribute("role", "checkbox");
@@ -327,6 +350,18 @@
     card.append(countRow);
     const seedRow = el("div", "setup-row");
     seedRow.append(el("label", "label", "Date (optional)"));
+    const bankRow = el("div", "problem-bank");
+    bankRow.hidden = !seedDraft.trim();
+    const bankLabel = el("label", "", "Question bank");
+    bankLabel.htmlFor = "question-bank";
+    const bank = el("select");
+    bank.id = "question-bank";
+    bank.append(new Option("Expanded", "expanded"), new Option("Earlier sets", "original"));
+    bank.value = bankDraft;
+    bank.addEventListener("change", () => {
+      bankDraft = bank.value;
+    });
+    bankRow.append(bankLabel, bank);
     const seedControls = el("div", "seed-controls"),
       seedInput = el("input");
     seedInput.id = "seed-date";
@@ -339,6 +374,8 @@
     seedInput.setAttribute("aria-label", "Date YYYYMMDD");
     seedInput.addEventListener("input", () => {
       seedDraft = seedInput.value;
+      bankRow.hidden = !seedDraft.trim();
+      if (bankRow.hidden) bank.value = bankDraft = "expanded";
       notice = "";
       card.querySelector(".notice")?.remove();
     });
@@ -346,14 +383,15 @@
       seedInput,
       button("Random", () => {
         seedDraft = "";
+        bankDraft = "expanded";
         notice = "";
         render();
       })
     );
-    seedRow.append(seedControls);
+    seedRow.append(seedControls, bankRow);
     card.append(
       seedRow,
-      button("Start", () => start({ ...prefs, seed: seedDraft }), "primary start")
+      button("Start", () => start({ ...prefs, seed: seedDraft, bank: bankDraft }), "primary start")
     );
     if (!E) {
       card.lastChild.disabled = true;
@@ -398,6 +436,37 @@
       const split = el("div", "hundred-split");
       split.append(el("p", "", `${v.base} = ${v.kept} + 100`), el("p", "", `Keep ${v.kept}. Work on 100 − ${v.take}.`));
       parent.append(split);
+      return;
+    }
+    if (v?.kind === "data_table") {
+      const table = el("table", "problem-data");
+      const head = el("thead"),
+        labels = el("tr");
+      for (const label of v.headers) {
+        const th = el("th", "", label);
+        th.scope = "col";
+        labels.append(th);
+      }
+      head.append(labels);
+      const body = el("tbody");
+      for (const values of v.rows) {
+        const row = el("tr");
+        for (const value of values) row.append(el("td", "", value));
+        body.append(row);
+      }
+      table.append(el("caption", "", v.caption), head, body);
+      parent.append(table);
+      return;
+    }
+    if (v?.kind === "tile_frame") {
+      const grid = el("div", "problem-frame");
+      grid.setAttribute("role", "img");
+      grid.setAttribute("aria-label", `${v.rows} rows and ${v.cols} columns with just the outside tiles colored`);
+      grid.style.setProperty("--columns", v.cols);
+      for (let y = 0; y < v.rows; y++) {
+        for (let x = 0; x < v.cols; x++) grid.append(el("i", y === 0 || x === 0 || y === v.rows - 1 || x === v.cols - 1 ? "frame-tile" : ""));
+      }
+      parent.append(grid);
       return;
     }
     if (
@@ -707,6 +776,9 @@
     if (screen !== "play" || round.grade?.correct) return;
     const field = round.current.response.fields[round.activeField],
       current = String(round.response[field.key] ?? "");
+    if (key === ".") {
+      if (round.current.response.kind !== "decimal" || current.includes(".")) return;
+    }
     round.response[field.key] = key === "delete" ? current.slice(0, -1) : current.length < (field.maxDigits ?? 3) ? current + key : current;
     notice = "";
     render();
@@ -723,7 +795,13 @@
         notice = "Complete each answer.";
         return render();
       }
-      if (["matching", "choice"].includes(q.response.kind)) response[f.key] = raw;
+      if (q.response.kind === "decimal") {
+        if (E.parseDecimal(raw) === null) {
+          notice = "Use a number with up to two decimal places.";
+          return render();
+        }
+        response[f.key] = raw;
+      } else if (["matching", "choice"].includes(q.response.kind)) response[f.key] = raw;
       else if (/^\d+$/.test(raw)) response[f.key] = Number(raw);
       else {
         notice = "Enter a whole number.";
@@ -813,7 +891,10 @@
       el("span", "counter", round.index + 1 + " / " + (round.total === null ? "∞" : round.total)),
       el("span", "", TOPICS[round.current.section] || TOPICS[round.config.section])
     );
-    if (round.config.seed) bar.append(el("span", "seed-badge", round.config.seed));
+    if (round.config.seed) {
+      const bankName = round.config.bank === "original" ? " · Earlier sets" : "";
+      bar.append(el("span", "seed-badge", round.config.seed + bankName));
+    }
     box.append(bar);
     prompt(round.current, box);
     renderFields(round.current, box);
@@ -833,18 +914,20 @@
       pad.append(
         button("⌫", () => digit("delete"), "", "Delete"),
         button("0", () => digit("0"), "", "0"),
-        button(
-          "Clear",
-          () => {
-            const f = round.current.response.fields[round.activeField];
-            if (round.grade?.correct) return;
-            round.response[f.key] = "";
-            notice = "";
-            render();
-          },
-          "",
-          "Clear answer"
-        )
+        round.current.response.kind === "decimal"
+          ? button(".", () => digit("."), "", "Decimal point")
+          : button(
+              "Clear",
+              () => {
+                const f = round.current.response.fields[round.activeField];
+                if (round.grade?.correct) return;
+                round.response[f.key] = "";
+                notice = "";
+                render();
+              },
+              "",
+              "Clear answer"
+            )
       );
       const b = button("Check", check, "primary check");
       b.disabled = Boolean(round.grade?.correct);
@@ -1004,13 +1087,10 @@
     const entry = el("section", "today-entry");
     entry.setAttribute("aria-label", "Today’s visual lesson");
     const copy = el("div");
-    copy.append(el("h2", "", "Today"), el("p", "", "Split and turn an array."));
+    copy.append(el("h2", "", "Today: arrays"), el("p", "", TODAY_GOAL));
     const label = lesson.step === "done" ? "Review lesson" : lesson.step ? "Continue lesson" : "Start lesson";
     const actions = el("div", "path-entry-actions");
-    actions.append(
-      button(label, () => openLesson(), "today-entry-action"),
-      button("Explore lessons", openLibrary, "path-entry-action")
-    );
+    actions.append(button(label, openLesson, "today-entry-action"));
     entry.append(copy, actions);
     return entry;
   }
@@ -1021,13 +1101,16 @@
     render();
     lessonHeading();
   }
-  function closeLesson() {
-    screen = "home";
+  function clearTodayUrl() {
     const url = new URL(location.href);
     if (url.searchParams.get("lesson") === "today") {
       url.searchParams.delete("lesson");
       history.replaceState(history.state, "", url);
     }
+  }
+  function closeLesson() {
+    clearTodayUrl();
+    screen = "contents";
     render();
     window.scrollTo(0, 0);
     app.querySelector(".today-entry-action")?.focus({ preventScroll: true });
@@ -1339,7 +1422,7 @@
     }
   }
   function today() {
-    toolbar.replaceChildren(button("Math Lab", closeLesson, "", "Back to Math Lab"));
+    toolbar.replaceChildren(button("Back to contents", closeLesson));
     const title = {
       see: "See the parts",
       build: "Split and turn the array",
@@ -1366,7 +1449,7 @@
       rail.append(item);
     });
     const card = el("div", "card today-card");
-    surface.append(heading, el("p", "today-prompt", prompt), rail, card);
+    surface.append(heading, el("p", "path-goal", TODAY_GOAL), el("p", "today-prompt", prompt), rail, card);
     if (lesson.step === "see") lessonSee(card);
     else if (lesson.step === "build") lessonBuild(card);
     else if (lesson.step === "try") lessonTry(card);
@@ -1390,249 +1473,428 @@
     surface.append(parents);
     app.append(surface);
   }
-  const PATHS_KEY = "haydenMathLab.paths.v1";
+  const PATHS_KEY = "haydenMathLab.paths.v2";
   const numberField = (name, label, max = 9999) => ({ name, label, max });
   const checkOK = (ok, message = "Try the numbers again, then check what they count.") => (ok ? "" : message);
   const countList = (n) => Array.from({ length: n }, (_, i) => i);
   const sameSet = (a, b) => a.length === b.length && b.every((key) => a.includes(key));
   const pairKey = (a, b) => `${Math.min(a, b)}×${Math.max(a, b)}`;
+  const fmt = (n) => n.toLocaleString("en-US");
+  const clockText = (h, m) => `${h}:${String(m).padStart(2, "0")}`;
   const PATHS = [
-    {
-      id: "exchange",
-      title: "Trade a hundred",
-      note: "See what stays the same when you regroup.",
-      prompt: "Watch the trades. Then find 503 − 278.",
-      fields: [numberField("result", "503 − 278")],
-      hints: [
-        "Start with 5 hundreds, no tens, and 3 ones.",
-        "Can you trade one hundred for 10 tens?",
-        "Write 503 as 4 hundreds, 9 tens, and 13 ones.",
-      ],
-      check: ({ result }) => checkOK(result === 225),
-      model: exchangeModel,
-      proof: ["503 = 400 + 90 + 13. Take away 200 + 70 + 8.", "200 + 20 + 5 = 225. Check: 225 + 278 = 503."],
-    },
-    {
-      id: "area",
-      title: "Find the missing pieces",
-      note: "Make four parts of one rectangle.",
-      prompt: "Mia counts only 100 + 6 in this 13 × 12 rectangle. Tap the two pieces she missed. How many tiles are there in all?",
-      fields: [numberField("total", "Tiles altogether", 1560)],
-      hints: [
-        "Each piece has a height and a width.",
-        "Find the piece with 10 rows and 2 columns, and the piece with 3 rows and 10 columns.",
-        "Add the four products: 100, 20, 30, and 6.",
-      ],
-      check: ({ total }, p) =>
-        sameSet(p.picks, [1, 2])
-          ? checkOK(total === 156, "You found both pieces. Add all four tile counts.")
-          : "Choose exactly the two pieces Mia missed.",
-      model: areaModel,
-      proof: ["The missing pieces are 10 × 2 = 20 and 3 × 10 = 30.", "100 + 20 + 30 + 6 = 156. Check by columns: 13 × 10 + 13 × 2 = 130 + 26 = 156."],
-    },
-    {
-      id: "fractions",
-      title: "Match the fractions",
-      note: "Line up two strips of the same length.",
-      prompt: "Compare halves and quarters, then shade enough eighths to reach 3/4 on the strips.",
-      fields: [],
-      hints: [
-        "Both strips represent the same whole.",
-        "One quarter covers the same length as two eighths.",
-        "Match three quarters, using two eighths for each quarter.",
-      ],
-      check: (_, p) => checkOK(p.count === 6, "Line up the shaded ends. Does the bottom strip stop at the same place?"),
-      model: fractionModel,
-      proof: [
-        "The same-length strips end at the same place when 3 quarters and 6 eighths are shaded.",
-        "With different-sized wholes, half can be a different length. Half of 8 cm is 4 cm. Half of 12 cm is 6 cm.",
-      ],
-    },
-    {
-      id: "remainder",
-      title: "Pack the leftovers",
-      note: "See what a remainder tells you.",
-      prompt:
-        "Pack 95 tiles. Each box can hold up to 4 tiles. How many boxes can you fill completely? How many tiles are left? How many boxes do you need for all the tiles?",
-      fields: [numberField("full", "Full boxes", 95), numberField("left", "Leftover tiles", 95), numberField("all", "Boxes for all the tiles", 95)],
-      hints: [
-        "Use as many full boxes as you can first.",
-        "20 boxes use 80 tiles. How many complete boxes can you make with the rest?",
-        "23 boxes use 92 tiles. Any tiles left need a box of their own.",
-      ],
-      check: ({ full, left, all }) =>
-        full !== 23 || left !== 3
-          ? "Each full box holds 4. Check that 4 times your full boxes plus your leftover tiles equals 95, and that fewer than 4 are left."
-          : checkOK(all === 24, "Where will the 3 leftover tiles go?"),
-      model: packingModel,
-      proof: [
-        "23 full boxes hold 92 tiles. Three tiles remain, so 4 × 23 + 3 = 95.",
-        "To pack all 95 tiles, use 24 boxes. The last box holds the 3 leftovers.",
-      ],
-    },
-    {
-      id: "measure",
-      title: "Count the spaces",
-      note: "Find lengths and elapsed time.",
-      prompt: "A line starts at 5 cm and ends at 12 cm. How long is it? How much time passes from 3:50 to 4:05?",
-      fields: [numberField("length", "Length in cm", 99), numberField("time", "Elapsed minutes", 99)],
-      hints: [
-        "Count the spaces between marks on the ruler.",
-        "For time, first move to 4:00, then move past it.",
-        "Ten minutes to 4:00 and five more minutes reach 4:05.",
-      ],
-      check: ({ length, time }) =>
-        length !== 7
-          ? "Read from the starting mark to the ending mark."
-          : checkOK(time === 15, "Join the time before 4:00 with the time after 4:00."),
-      model: measureModel,
-      proof: [
-        "The line covers 12 − 5 = 7 cm. Count the 7 spaces from 5 to 12.",
-        "3:50 → 4:00 is 10 minutes. 4:00 → 4:05 is 5 more. 10 + 5 = 15 minutes.",
-      ],
-    },
-    {
-      id: "transfer",
-      title: "Try a new array",
-      note: "Use an idea on fresh numbers.",
-      prompt: "How many tiles fill 4 rows of 17? Then share 84 tiles equally among 6 boxes. How many go in each box?",
-      fields: [numberField("total", "Tiles in the 4 rows", 999), numberField("each", "Tiles in each box", 84)],
-      hints: [
-        "For the array, try a cut in the same place on every row.",
-        "For sharing, choose two parts of 84 that can both be shared among 6 boxes.",
-        "Try 17 = 10 + 7 and 84 = 60 + 24.",
-      ],
-      check: ({ total, each }) =>
-        total !== 68 ? "Check both parts of each of the four rows." : checkOK(each === 14, "Check your tiles per box by multiplying by 6."),
-      model: transferModel,
-      proof: ["4 × 17 = 4 × 10 + 4 × 7 = 40 + 28 = 68.", "84 = 60 + 24. Each box gets 10 + 4 = 14 tiles. Check: 6 × 14 = 84."],
-    },
-    {
-      id: "tape",
-      title: "Tiles and tape",
-      note: "Build a counterexample.",
-      challenge: true,
-      prompt:
-        "Use exactly 12 one-inch square tiles to build a rectangle with no gaps or overlaps. Mia says every rectangle needs the same length of tape around the outside. Build two different rectangles to check. How many inches of tape does each rectangle need?",
-      fields: [
-        numberField("oneTape", "Tape for rectangle 1 (in)", 99),
-        numberField("twoTape", "Tape for rectangle 2 (in)", 99),
-        { ...numberField("least", "Least tape for any rectangle (in)", 99), optional: true },
-      ],
-      hints: [
-        "Tiles fill the inside. Tape goes around the outside.",
-        "Turning the same rectangle does not make a new one.",
-        "Try row sizes that divide 12. Count the outside edges of each rectangle.",
-      ],
-      check: tapeCheck,
-      model: tapeModel,
-      proof: [
-        "The rectangles are 1 × 12, 2 × 6, and 3 × 4. They use 26, 16, and 14 inches of tape.",
-        "For example, 3 × 4 and 2 × 6 both use 12 tiles, but 14 ≠ 16. The least tape is 14 inches.",
-      ],
-    },
-    {
-      id: "trays",
-      title: "Red and blue trays",
-      note: "Use the same-size parts.",
-      challenge: true,
-      prompt:
-        "Hayden puts all 72 tiles on two red trays and three blue trays. Trays of the same color hold equal amounts. Each red tray holds six more tiles than each blue tray. How many tiles are on one tray of each color?",
-      fields: [numberField("red", "Tiles on one red tray", 72), numberField("blue", "Tiles on one blue tray", 72)],
-      hints: [
-        "Red has a blue-sized part plus 6 more.",
-        "There are two red trays, so set aside 6 + 6 tiles.",
-        "Share the remaining 60 tiles among the five equal parts.",
-      ],
-      check: ({ red, blue }) =>
-        red - blue !== 6
-          ? "Each red tray needs 6 more tiles than a blue tray."
-          : checkOK(red > 0 && blue > 0 && 2 * red + 3 * blue === 72, "Count both red trays and all three blue trays. Do they use all 72 tiles?"),
-      model: traysModel,
-      proof: [
-        "Set aside 6 tiles on each red tray: 72 − 12 = 60. The five matching parts have 60 ÷ 5 = 12 tiles each.",
-        "Blue gets 12, and red gets 12 + 6 = 18. Check: 2 × 18 + 3 × 12 = 72.",
-      ],
-    },
-    {
-      id: "garden",
-      title: "Design a garden",
-      note: "Find every rectangle that fits.",
-      challenge: true,
-      prompt:
-        "A rectangular garden has a perimeter of 52 meters. Its sides are whole numbers of meters. Its area is more than 150 square meters. The longer side is at least 5 meters longer than the shorter side. Find every possible pair of side lengths.",
+    ["exchange", "Subtract across zeros", "Trade tens, hundreds, or thousands to subtract.", exchangeModel],
+    ["area", "Multiply two-digit numbers", "Split both numbers into tens and ones.", areaModel],
+    ["fractions", "Equivalent fractions", "Show why 1/2 and 2/4 cover the same amount.", fractionModel],
+    ["remainder", "Divide with leftovers", "Decide if the leftovers need another box.", packingModel],
+    ["measure", "Measure length and time", "Count ruler spaces and minutes across an hour.", measureModel],
+    ["transfer", "Multiply and divide by splitting", "Split big numbers into easier pieces.", transferModel],
+    ["decimal", "Divide decimals", "Share tenths and hundredths, or count equal lengths.", decimalModel],
+    ["tape", "Area and perimeter", "Build shapes with the same area and compare their borders.", tapeModel, true],
+    ["trays", "Find two unknown amounts", "Use the total and the extra tiles to find both amounts.", traysModel, true],
+    ["garden", "Find every rectangle", "Use the fence, area, and side length rules.", gardenModel, true],
+  ].map(([id, title, note, model, challenge = false]) => ({ id, title, note, model, challenge }));
+
+  const OLD_PATHS = {
+    exchange: { from: 503, take: 278 },
+    area: { rows: 13, cols: 12 },
+    fractions: { base: 4, shaded: 3, factor: 2 },
+    remainder: { full: 23, capacity: 4, left: 3 },
+    measure: { start: 5, end: 12, hour: 3, before: 10, after: 5 },
+    transfer: { rows: 4, cols: 17, groups: 6, each: 14 },
+    tape: { tiles: 12 },
+    trays: { reds: 2, blues: 3, base: 12, extra: 6 },
+    garden: { half: 26, gap: 5, area: 150 },
+  };
+
+  const areaParts = ({ rows, cols }) => [
+    [10, 10],
+    [10, cols - 10],
+    [rows - 10, 10],
+    [rows - 10, cols - 10],
+  ];
+  const factors = (n) =>
+    countList(Math.floor(Math.sqrt(n)))
+      .map((i) => i + 1)
+      .filter((a) => n % a === 0)
+      .map((a) => [a, n / a]);
+  const gardenPairs = ({ half, gap }) => countList(Math.floor((half - gap) / 2)).map((i) => [i + 1, half - i - 1]);
+  const gardenFits = (p) => gardenPairs(p).filter(([a, b]) => a * b > p.area);
+  const placeDigits = (n) => [1000, 100, 10, 1].map((unit) => Math.floor(n / unit) % 10);
+  const placeNames = ["thousands", "hundreds", "tens", "ones"];
+  const placeWeights = [1000, 100, 10, 1];
+  const piecesOf = (counts) =>
+    counts
+      .map((digit, i) => digit * placeWeights[i])
+      .filter(Boolean)
+      .join(" + ") || "0";
+  const digitsText = (counts) => counts.map((digit, i) => `${digit} ${placeNames[i]}`).join(", ");
+  function subtractionTrades({ from, take }) {
+    const counts = placeDigits(from),
+      need = placeDigits(take);
+    const steps = [{ counts: [...counts], say: `Start with ${digitsText(counts)}.` }];
+    for (let target = 3; target > 0; target--) {
+      if (counts[target] >= need[target]) continue;
+      let donor = target - 1;
+      while (!counts[donor]) donor--;
+      while (donor < target) {
+        counts[donor]--;
+        counts[donor + 1] += 10;
+        steps.push({
+          counts: [...counts],
+          say: `Trade one from ${placeNames[donor]} for 10 in ${placeNames[donor + 1]}. The total is still ${fmt(from)}.`,
+        });
+        donor++;
+      }
+    }
+    return steps;
+  }
+  function pathExercise(id, p) {
+    if (id === "exchange") {
+      const { from, take } = p,
+        result = from - take,
+        steps = subtractionTrades(p);
+      const last = steps.at(-1).counts;
+      return {
+        prompt: `Trade place-value pieces to solve ${fmt(from)} − ${fmt(take)}.`,
+        fields: [numberField("result", "Difference")],
+        hints: [
+          `Start with ${digitsText(steps[0].counts)}.`,
+          "If a place has too few pieces, trade from the place to its left.",
+          `After trading, ${fmt(from)} = ${piecesOf(last)}.`,
+        ],
+        check: ({ result: n }) => checkOK(n === result),
+        proof: [
+          `${fmt(from)} = ${piecesOf(last)}. Take away ${piecesOf(placeDigits(take))}.`,
+          `${piecesOf(placeDigits(result))} = ${fmt(result)}. Check: ${fmt(result)} + ${fmt(take)} = ${fmt(from)}.`,
+        ],
+      };
+    }
+    if (id === "area") {
+      const { rows, cols } = p,
+        parts = areaParts(p),
+        products = parts.map(([a, b]) => a * b),
+        total = rows * cols;
+      return {
+        prompt: `Mia counts only ${products[0]} + ${products[3]} in this ${rows} × ${cols} rectangle. Tap the two pieces she missed. How many tiles are there in all?`,
+        fields: [numberField("total", "Tiles altogether")],
+        hints: ["Each piece has a height and a width.", `Find ${parts[1].join(" × ")} and ${parts[2].join(" × ")}.`, `Add ${products.join(" + ")}.`],
+        check: ({ total: n }, s) =>
+          sameSet(s.picks, [1, 2])
+            ? checkOK(n === total, "You found both pieces. Add all four tile counts.")
+            : "Choose exactly the two pieces Mia missed.",
+        proof: [
+          `The missing pieces have ${products[1]} and ${products[2]} tiles. ${products.join(" + ")} = ${total}.`,
+          `Check by columns: ${rows} × 10 + ${rows} × ${cols - 10} = ${rows * 10} + ${rows * (cols - 10)} = ${total}.`,
+        ],
+      };
+    }
+    if (id === "fractions") {
+      const { base, shaded, factor } = p,
+        pieces = base * factor,
+        answer = shaded * factor;
+      return {
+        prompt: `Shade the bottom strip to match ${shaded}/${base} on the top strip. The bottom strip has ${pieces} equal parts.`,
+        fields: [],
+        hints: [
+          "Both strips represent the same whole.",
+          `One part of the top strip covers ${factor} bottom parts.`,
+          `Count ${factor} bottom parts for each of the ${shaded} shaded top parts.`,
+        ],
+        check: (_, s) => checkOK(s.count === answer, "Do the two shaded ends line up?"),
+        proof: [
+          `${shaded}/${base} and ${answer}/${pieces} are the same fraction. Each top part covers ${factor} bottom parts.`,
+          "Check both shaded ends. They line up because the strips show the same whole.",
+        ],
+      };
+    }
+    if (id === "remainder") {
+      const { capacity, full, left } = p,
+        total = capacity * full + left;
+      return {
+        prompt: `Pack ${total} tiles. Each box can hold ${capacity}. How many full boxes, how many leftover tiles, and how many boxes for all the tiles?`,
+        fields: [numberField("full", "Full boxes"), numberField("left", "Leftover tiles"), numberField("all", "Boxes for all the tiles")],
+        hints: [
+          "Use as many full boxes as you can first.",
+          `Five boxes use ${5 * capacity} tiles. Keep packing in groups of ${capacity}.`,
+          `${full} full boxes use ${full * capacity} tiles. The leftovers need a box.`,
+        ],
+        check: ({ full: n, left: r, all }) =>
+          n !== full || r !== left
+            ? `Check that ${capacity} times your full boxes plus your leftovers equals ${total}, and that fewer than ${capacity} are left.`
+            : checkOK(all === full + 1, `Where will the ${left} leftover tiles go?`),
+        proof: [
+          `${capacity} × ${full} + ${left} = ${total}. The leftover is less than ${capacity}.`,
+          `Use ${full + 1} boxes for all the tiles. The last box holds ${left}.`,
+        ],
+      };
+    }
+    if (id === "measure") {
+      const { start, end, hour, before, after } = p,
+        from = clockText(hour, 60 - before),
+        mid = clockText(hour + 1, 0),
+        to = clockText(hour + 1, after);
+      return {
+        prompt: `A line starts at ${start} cm and ends at ${end} cm. How long is it? How much time passes from ${from} to ${to}?`,
+        fields: [numberField("length", "Length in cm"), numberField("time", "Elapsed minutes")],
+        hints: [
+          "Count spaces between the ruler marks.",
+          `Move to ${mid} first, then past it.`,
+          `It takes ${before} minutes to reach ${mid}, then ${after} more.`,
+        ],
+        check: ({ length, time }) =>
+          length !== end - start
+            ? "Read from the starting mark to the ending mark."
+            : checkOK(time === before + after, "Add the time on both sides of the hour."),
+        proof: [
+          `${end} − ${start} = ${end - start} cm. The line covers ${end - start} spaces.`,
+          `${from} → ${mid} is ${before} minutes. ${mid} → ${to} is ${after} more. Check: ${before} + ${after} = ${before + after} minutes.`,
+        ],
+      };
+    }
+    if (id === "transfer") {
+      const { rows, cols, groups, each } = p,
+        tens = 10 * Math.floor(cols / 10),
+        groupTens = 10 * Math.floor(each / 10),
+        share = groups * each;
+      return {
+        prompt: `How many tiles fill ${rows} rows of ${cols}? Then share ${share} tiles equally among ${groups} boxes. How many go in each?`,
+        fields: [numberField("total", "Tiles in the rows"), numberField("each", "Tiles in each box")],
+        hints: [
+          "Cut each row into tens and ones.",
+          `Split ${share} into two parts that can each be shared among ${groups} boxes.`,
+          `Try ${cols} = ${tens} + ${cols - tens} and ${share} = ${groups * groupTens} + ${groups * (each - groupTens)}.`,
+        ],
+        check: ({ total, each: n }) =>
+          total !== rows * cols ? "Check both parts of each row." : checkOK(n === each, `Multiply your amount in one box by ${groups}.`),
+        proof: [
+          `${rows} × ${cols} = ${rows * tens} + ${rows * (cols - tens)} = ${rows * cols}.`,
+          `Each box gets ${groupTens} + ${each - groupTens} = ${each}. Check: ${groups} × ${each} = ${share}.`,
+        ],
+      };
+    }
+    if (id === "decimal") {
+      const { mode, total, part, groups } = p,
+        target = E.decimalQuotient(p),
+        display = E.formatDecimal;
+      const dividend = display(total),
+        divisor = mode === "measure" ? display(part) : groups;
+      return {
+        prompt:
+          mode === "measure"
+            ? `A ribbon is ${dividend} m long. How many pieces of ${divisor} m fit?`
+            : `Share ${dividend} liters equally among ${groups} cups. How many liters go into each cup?`,
+        fields: [{ ...numberField("result", mode === "measure" ? "Number of pieces" : "Liters in each cup", 800), decimal: true }],
+        hints:
+          mode === "measure"
+            ? [
+                "Every piece has the same length.",
+                `Count how many ${divisor} m pieces make ${dividend} m.`,
+                "Multiply the length of one piece by the number of pieces.",
+              ]
+            : [
+                "Share the whole units first.",
+                "Trade 1 whole for 10 tenths if needed. Trade 1 tenth for 10 hundredths if needed.",
+                "How many whole units, tenths, and hundredths go in a single cup?",
+              ],
+        check: ({ result }) => checkOK(result === target, "Multiply your answer by the divisor. Do you get the starting amount?"),
+        proof: [`${dividend} ÷ ${divisor} = ${display(target)}.`, `Check: ${divisor} × ${display(target)} = ${dividend}.`],
+      };
+    }
+    if (id === "tape") {
+      const { tiles } = p,
+        pairs = factors(tiles),
+        perimeters = pairs.map(([a, b]) => 2 * (a + b)),
+        least = Math.min(...perimeters);
+      return {
+        prompt: `Build two different rectangles with exactly ${tiles} one-inch square tiles each. Mia says their outside borders use the same amount of tape. Find the tape needed for each.`,
+        fields: [
+          numberField("oneTape", "Tape for rectangle 1 (in)"),
+          numberField("twoTape", "Tape for rectangle 2 (in)"),
+          { ...numberField("least", "Least tape for any rectangle (in)"), optional: true },
+        ],
+        hints: [
+          "Tiles fill the inside. Tape goes around the outside.",
+          "Turning a rectangle does not make a different rectangle.",
+          `Try row sizes that divide ${tiles}. Count the edges around each result.`,
+        ],
+        check: (answers, state) => tapeCheck(answers, state, tiles, least),
+        proof: [
+          `${pairs.map(([a, b], i) => `${a} × ${b} uses ${perimeters[i]} in`).join("; ")}.`,
+          `The tape amounts differ even though each rectangle uses ${tiles} tiles. The shortest border is ${least} in.`,
+        ],
+      };
+    }
+    if (id === "trays") {
+      const { reds, blues, base, extra } = p,
+        all = reds + blues,
+        excess = reds * extra,
+        total = all * base + excess;
+      return {
+        prompt: `Hayden puts all ${total} tiles on ${reds} red trays and ${blues} blue trays. Trays of the same color hold equal amounts. A red tray holds ${extra} more tiles than a blue tray. How many are on one tray of each color?`,
+        fields: [numberField("red", "Tiles on one red tray"), numberField("blue", "Tiles on one blue tray")],
+        hints: [
+          "Match one part of each red tray to one blue tray.",
+          `Set aside ${extra} tiles from each of the ${reds} red trays.`,
+          `Share the remaining ${total - excess} tiles among ${all} equal parts.`,
+        ],
+        check: ({ red, blue }) =>
+          red - blue !== extra
+            ? `Each red tray has ${extra} more.`
+            : checkOK(red === base + extra && blue === base, `Do all the trays add up to ${total}?`),
+        proof: [
+          `${total} − ${excess} = ${total - excess}. The ${all} matching parts each have ${base} tiles.`,
+          `Blue gets ${base}. Red gets ${base + extra}. Check: ${reds} × ${base + extra} + ${blues} × ${base} = ${total}.`,
+        ],
+      };
+    }
+    const pairs = gardenFits(p);
+    return {
+      prompt: `A rectangular garden is ${2 * p.half} m around. Both side lengths are whole meters. The area is more than ${
+        p.area
+      } m². The longer side is at least ${p.gap} m longer than the shorter side. Find every pair.`,
       fields: [],
       hints: [
         "The two neighboring sides add to half the perimeter.",
-        "The shorter side can be 1 to 10 meters if the sides differ by at least 5 meters.",
-        "List the short sides. Use 26 minus each short side to find its partner. Check the areas.",
+        `The shorter side can run from 1 to ${gardenPairs(p).length} m.`,
+        `Subtract each possible shorter side from ${p.half}, then check its area.`,
       ],
-      check: gardenCheck,
-      model: gardenModel,
+      check: (values, state) => gardenCheck(values, state, p),
       proof: [
-        "Short side + long side = 26 m. The difference rule makes 1–10 m the only short sides to test.",
-        "9 × 17 = 153 m² and 10 × 16 = 160 m². Both have a 52 m perimeter; the side differences are 8 m and 6 m.",
-        "At 8 × 18 the area is 144 m², and all smaller short sides give even less. 11 × 15 fails the difference rule.",
+        `Short side + long side = ${p.half} m. The difference rule gives ${gardenPairs(p).length} shorter sides to test.`,
+        `${pairs.map(([a, b]) => `${a} × ${b} = ${a * b} m²`).join("; ")}. Check the perimeter and difference of each pair.`,
+        "The table shows every pair that meets the perimeter and difference rules. Only the highlighted rows meet the area rule.",
       ],
-    },
-  ];
+    };
+  }
+  function pathInstance(id, date = null, nonce = null, exclude = []) {
+    if (!date && nonce === "legacy") {
+      const p = OLD_PATHS[id];
+      if (!p) throw Error("Unknown old lesson");
+      return { date: null, nonce, signature: JSON.stringify(p), p };
+    }
+    return E.generateLesson(id, { date, nonce, exclude });
+  }
+  function boundPath(task, instance) {
+    return { ...task, ...pathExercise(task.id, instance.p), p: instance.p };
+  }
 
-  function blankPath() {
-    return { mode: "try", hint: 0, move: 0, count: 0, tape: [0, 0], picks: [], candidates: [], values: {}, observation: "" };
+  function pathSlot(id, date) {
+    return `${id}:${date || "random"}`;
+  }
+  function blankPath(instance, recent = []) {
+    return { ...instance, recent, mode: "try", hint: 0, move: 0, count: 0, tape: [0, 0], picks: [], candidates: [], values: {}, observation: "" };
   }
   function readPaths() {
-    let raw;
+    const initial = { date: null, progress: {} };
     try {
-      raw = JSON.parse(localStorage.getItem(PATHS_KEY));
-    } catch {
-      return {};
-    }
-    const saved = {};
-    for (const task of PATHS) {
-      const v = raw?.[task.id];
-      if (!v || typeof v !== "object") continue;
-      const state = blankPath();
-      for (const [key, limit] of [
-        ["hint", task.hints.length],
-        ["move", 12],
-        ["count", 8],
-      ]) {
-        if (Number.isInteger(v[key]) && v[key] >= 0 && v[key] <= limit) state[key] = v[key];
+      const current = JSON.parse(localStorage.getItem(PATHS_KEY));
+      const old = current ? null : JSON.parse(localStorage.getItem("haydenMathLab.paths.v1"));
+      try {
+        initial.date = E.normalizeSeed(current?.date);
+      } catch {}
+      const entries =
+        current?.progress && typeof current.progress === "object"
+          ? Object.entries(current.progress).slice(-72)
+          : PATHS.filter((task) => old?.[task.id]).map((task) => [pathSlot(task.id, null), { ...old[task.id], nonce: "legacy" }]);
+      for (const [slot, v] of entries) {
+        const id = slot.split(":")[0],
+          task = PATHS.find((entry) => entry.id === id);
+        if (!task || !v || typeof v !== "object") continue;
+        let instance;
+        try {
+          const date = E.normalizeSeed(v.date);
+          if (slot !== pathSlot(id, date) || (!date && !/^(?:legacy|[a-z0-9]+-[a-z0-9]+)$/.test(v.nonce))) continue;
+          instance = pathInstance(id, date, v.nonce);
+        } catch {
+          continue;
+        }
+        const exercise = boundPath(task, instance),
+          p = instance.p;
+        const recent = Array.isArray(v.recent) ? v.recent.filter((sig) => typeof sig === "string" && sig.length < 200).slice(-5) : [];
+        const state = blankPath(instance, recent);
+        const moveMax = id === "exchange" ? subtractionTrades(p).length - 1 : 12;
+        for (const [key, limit] of [
+          ["hint", exercise.hints.length],
+          ["move", moveMax],
+          ["count", id === "fractions" ? p.base * p.factor : 0],
+        ]) {
+          if (Number.isInteger(v[key]) && v[key] >= 0 && v[key] <= limit) state[key] = key === "move" && !current && id === "exchange" ? 0 : v[key];
+        }
+        if (["try", "review", "done"].includes(v.mode)) state.mode = v.mode;
+        const tapeMax = id === "tape" ? Math.min(12, p.tiles) : 0;
+        if (Array.isArray(v.tape) && v.tape.length === 2 && v.tape.every((n) => Number.isInteger(n) && n >= 0 && n <= tapeMax)) state.tape = v.tape;
+        if (Array.isArray(v.picks)) state.picks = [...new Set(v.picks.filter((n) => Number.isInteger(n) && n >= 0 && n < 4))];
+        if (Array.isArray(v.candidates))
+          state.candidates = v.candidates
+            .slice(0, 16)
+            .filter((pair) => Array.isArray(pair) && pair.length === 2 && pair.every((side) => typeof side === "string" && side.length <= 8));
+        if (["alone", "asked", "hint"].includes(v.observation)) state.observation = v.observation;
+        for (const f of exercise.fields)
+          if (typeof v.values?.[f.name] === "string" && v.values[f.name].length <= 8) state.values[f.name] = v.values[f.name];
+        if (state.mode === "done") {
+          const result = pathValues(exercise, state);
+          if (!result || exercise.check(result, state)) state.mode = "try";
+        }
+        initial.progress[slot] = state;
       }
-      if (["try", "review", "done"].includes(v.mode)) state.mode = v.mode;
-      if (Array.isArray(v.tape) && v.tape.length === 2 && v.tape.every((n) => Number.isInteger(n) && n >= 0 && n <= 12)) state.tape = v.tape;
-      if (Array.isArray(v.picks)) state.picks = [...new Set(v.picks.filter((n) => Number.isInteger(n) && n >= 0 && n < 4))];
-      if (Array.isArray(v.candidates))
-        state.candidates = v.candidates
-          .slice(0, 12)
-          .filter((pair) => Array.isArray(pair) && pair.length === 2 && pair.every((side) => typeof side === "string" && side.length <= 8));
-      if (["alone", "asked", "hint"].includes(v.observation)) state.observation = v.observation;
-      for (const f of task.fields)
-        if (typeof v.values?.[f.name] === "string" && v.values[f.name].length <= 8) state.values[f.name] = v.values[f.name];
-      if (state.mode === "done") {
-        const result = pathValues(task, state);
-        if (!result || task.check(result, state)) state.mode = "try";
-      }
-      saved[task.id] = state;
-    }
-    return saved;
+    } catch {}
+    return initial;
   }
-  let pathProgress = readPaths(),
-    currentPath = null,
+  const savedPaths = readPaths(),
+    pathProgress = savedPaths.progress;
+  let pathDate = savedPaths.date,
+    pathDateDraft = pathDate || "",
+    dateError = "";
+  let currentPath = null,
+    currentPathSlot = null,
     pathFeedback = "";
   function savePaths() {
     try {
-      localStorage.setItem(PATHS_KEY, JSON.stringify(pathProgress));
+      const entries = Object.entries(pathProgress);
+      const stored = entries.filter(([, v]) => !v.date).concat(entries.filter(([, v]) => v.date).slice(-60));
+      const progress = Object.fromEntries(stored.map(([slot, { p, signature, ...state }]) => [slot, state]));
+      localStorage.setItem(PATHS_KEY, JSON.stringify({ date: pathDate, progress }));
     } catch {}
   }
   function openLibrary() {
-    screen = "library";
+    screen = "contents";
     render();
     pathFocus();
   }
-  function openPath(task) {
-    currentPath = task;
-    pathProgress[task.id] ??= blankPath();
+  function applyPathDate() {
+    try {
+      pathDate = E.normalizeSeed(pathDateDraft);
+      pathDateDraft = pathDate || "";
+      dateError = "";
+      savePaths();
+      return true;
+    } catch {
+      dateError = "Enter a valid date as YYYYMMDD.";
+      render();
+      document.getElementById("lesson-date")?.focus();
+      return false;
+    }
+  }
+  function openPath(task, restart = false) {
+    if (screen === "contents" && !applyPathDate()) return;
+    const date = screen === "path" ? pathProgress[currentPathSlot].date : pathDate;
+    const slot = pathSlot(task.id, date),
+      prior = pathProgress[slot];
+    if (restart || !prior) {
+      const recent = prior && !date ? [...prior.recent, prior.signature].slice(-5) : [];
+      try {
+        const state = blankPath(pathInstance(task.id, date, null, recent), recent);
+        delete pathProgress[slot];
+        pathProgress[slot] = state;
+      } catch {
+        if (screen === "path") pathFeedback = "Could not load another example. Try again.";
+        else dateError = "Could not start this lesson. Try again.";
+        render();
+        return;
+      }
+    }
+    currentPathSlot = slot;
+    currentPath = boundPath(task, pathProgress[slot]);
     pathFeedback = "";
     screen = "path";
     savePaths();
@@ -1643,23 +1905,76 @@
     window.scrollTo(0, 0);
     app.querySelector(".today-heading")?.focus({ preventScroll: true });
   }
-  function pathReturn() {
-    screen = "home";
-    render();
-    window.scrollTo(0, 0);
-    app.querySelector(".path-entry-action")?.focus({ preventScroll: true });
+  function pathDateControls() {
+    const form = el("form", "lesson-date");
+    const label = el("label", "label", "Lesson date");
+    label.htmlFor = "lesson-date";
+    const controls = el("div", "seed-controls");
+    const input = el("input");
+    Object.assign(input, {
+      id: "lesson-date",
+      type: "text",
+      inputMode: "numeric",
+      maxLength: 8,
+      placeholder: "YYYYMMDD",
+      value: pathDateDraft,
+      autocomplete: "off",
+    });
+    input.setAttribute("aria-describedby", "lesson-date-hint");
+    if (dateError) input.setAttribute("aria-invalid", "true");
+    input.addEventListener("input", () => {
+      pathDateDraft = input.value;
+      dateError = "";
+      form.querySelector("[role=alert]")?.remove();
+      input.removeAttribute("aria-invalid");
+    });
+    const submit = el("button", "", "Use date");
+    submit.type = "submit";
+    controls.append(
+      input,
+      submit,
+      button("Random", () => {
+        pathDateDraft = "";
+        if (applyPathDate()) render();
+        document.getElementById("lesson-date")?.focus();
+      })
+    );
+    const note = el(
+      "p",
+      "path-caption",
+      pathDate ? `Using ${pathDate}. Tap Random for new numbers.` : "Blank for new numbers. Use YYYYMMDD to replay."
+    );
+    note.id = "lesson-date-hint";
+    form.append(label, controls, note);
+    if (dateError) {
+      const error = el("p", "notice", dateError);
+      error.setAttribute("role", "alert");
+      form.append(error);
+    }
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (applyPathDate()) {
+        render();
+        document.getElementById("lesson-date")?.focus();
+      }
+    });
+    return form;
   }
-  function pathHeader(title, intro) {
+
+  function pathHeader(title, intro, goal) {
     const section = el("section", "today-surface");
     const h = el("h1", "today-heading", title);
     h.tabIndex = -1;
-    section.append(h, el("p", "today-prompt", intro));
+    section.append(h);
+    if (goal) section.append(el("p", "path-goal", goal));
+    if (intro) section.append(el("p", "today-prompt", intro));
     app.append(section);
     return section;
   }
   function pathLibrary() {
-    toolbar.replaceChildren(button("Math Lab", pathReturn, "", "Back to Math Lab"));
-    const page = pathHeader("Explore lessons", "Choose a picture lesson or a thinking challenge.");
+    toolbar.replaceChildren();
+    const page = pathHeader("Contents");
+    page.append(lessonEntry(), el("h2", "path-explore-heading", "Explore lessons"), pathDateControls());
     for (const [challenge, label] of [
       [false, "Picture lessons"],
       [true, "Hwangso challenges"],
@@ -1669,14 +1984,14 @@
       group.append(el("h2", "", label));
       const grid = el("div", "path-library-grid");
       for (const task of PATHS.filter((t) => Boolean(t.challenge) === challenge)) {
-        const status = pathProgress[task.id]?.mode;
+        const status = pathProgress[pathSlot(task.id, pathDate)]?.mode;
         const action = status === "done" ? "Review" : status ? "Continue" : "Start";
         const card = el("div", "card path-tile");
-        card.append(
-          el("h3", "", task.title),
-          el("p", "", task.note),
-          button(action, () => openPath(task), "", `${action}: ${task.title}`)
-        );
+        const actions = el("div", "path-tile-actions");
+        if (status === "done" && !pathDate)
+          actions.append(button("New problem", () => openPath(task, true), "primary", "New problem: " + task.title));
+        actions.append(button(action, () => openPath(task), "", `${action}: ${task.title}`));
+        card.append(el("h3", "", task.title), el("p", "", task.note), actions);
         grid.append(card);
       }
       group.append(grid);
@@ -1714,8 +2029,9 @@
     for (const field of task.fields) {
       const raw = (state.values[field.name] || "").trim();
       if (!raw && field.optional) continue;
-      if (!/^[0-9]+$/.test(raw) || Number(raw) > field.max) return null;
-      values[field.name] = Number(raw);
+      const value = field.decimal ? E.parseDecimal(raw) : /^[0-9]+$/.test(raw) ? Number(raw) : null;
+      if (value === null || value > field.max) return null;
+      values[field.name] = value;
     }
     return values;
   }
@@ -1725,7 +2041,13 @@
     for (const field of task.fields) {
       const label = el("label", "", field.label + (field.optional ? " (optional)" : ""));
       const input = el("input");
-      Object.assign(input, { type: "text", inputMode: "numeric", maxLength: 8, autocomplete: "off", value: state.values[field.name] || "" });
+      Object.assign(input, {
+        type: "text",
+        inputMode: field.decimal ? "decimal" : "numeric",
+        maxLength: 8,
+        autocomplete: "off",
+        value: state.values[field.name] || "",
+      });
       input.addEventListener("input", () => {
         state.values[field.name] = input.value;
         savePaths();
@@ -1739,7 +2061,7 @@
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       if (!pathValues(task, state)) {
-        pathFeedback = "Enter a whole number in each required box.";
+        pathFeedback = task.id === "decimal" ? "Enter your answer, using up to two decimal places." : "Enter a whole number in each required box.";
         pathDraw("path-feedback");
         return;
       }
@@ -1760,9 +2082,10 @@
   }
   function pathLesson() {
     const task = currentPath;
-    const state = pathProgress[task.id];
-    toolbar.replaceChildren(button("Lessons", openLibrary), button("Math Lab", pathReturn, "", "Back to Math Lab"));
-    const page = pathHeader(task.title, task.prompt);
+    const state = pathProgress[currentPathSlot];
+    toolbar.replaceChildren(button("Back to contents", openLibrary));
+    const page = pathHeader(task.title, task.prompt, task.note);
+    if (state.date) page.append(el("p", "path-date-badge", "Date " + state.date));
     const card = el("div", "card today-card");
     page.append(card);
     const [picture, work] = lessonPane(card);
@@ -1793,14 +2116,7 @@
       details.append(input);
       work.append(details);
       lessonActions(card, "Back to lessons", openLibrary);
-      card.append(
-        button("Try again", () => {
-          pathProgress[task.id] = blankPath();
-          pathFeedback = "";
-          pathDraw();
-          pathFocus();
-        })
-      );
+      card.append(button(state.date ? "Restart this problem" : "New problem", () => openPath(task, true)));
       return;
     }
     if (state.mode === "review") {
@@ -1852,6 +2168,7 @@
       picture.append(nextHint);
     }
     pathAnswerFields(work, task, state);
+    work.append(button(state.date ? "Restart this problem" : "New problem", () => openPath(task, true), "path-restart"));
   }
   function pathModelAction(label, id, action, pressed) {
     const control = button(label, () => {
@@ -1880,61 +2197,40 @@
     });
     parent.append(grid);
   }
-  function exchangeModel(picture, state) {
-    const small = [
-      [[0, 5, 0, 0], "500 stays 500. Set aside 4 hundreds."],
-      [[0, 4, 10, 0], "Trade 1 hundred for 10 tens. The total is still 500."],
-      [[0, 4, 9, 10], "Trade 1 ten for 10 ones. The total is still 500."],
-      [[0, 4, 9, 7], "Take away 3 ones. 400 + 90 + 7 = 497."],
-    ];
-    const big = [
-      [[1, 0, 2, 3], "Start with 1 thousand, 0 hundreds, 2 tens, and 3 ones."],
-      [[1, 0, 1, 13], "Trade 1 ten for 10 ones. The total is still 1,023."],
-      [[0, 10, 1, 13], "Trade 1 thousand for 10 hundreds. The total is still 1,023."],
-      [[0, 9, 11, 13], "Trade 1 hundred for 10 tens. The total is still 1,023."],
-      [[0, 9, 3, 6], "Take away 8 tens and 7 ones. This leaves 936. Check: 936 + 87 = 1,023."],
-    ];
-    const page = state.move >= 4 ? big : small;
-    const index = state.move < 4 ? state.move : Math.min(4, state.move - 4);
-    const [counts, explanation] = page[index];
-    picture.append(el("p", "today-dimension", page === small ? "500 − 3" : "1,023 − 87"));
-    if (page === small && index > 0) {
+  function exchangeModel(picture, state, { p }) {
+    const { from, take } = p,
+      steps = subtractionTrades(p),
+      last = steps.length - 1,
+      done = state.mode === "done";
+    const { counts, say } = steps[Math.min(state.move, last)];
+    picture.append(el("p", "today-dimension", `${fmt(from)} − ${fmt(take)}`));
+    if (from % 100 === 0 && take < 10 && (state.move > 0 || done)) {
       const flat = el("div", "path-hundred");
       flat.setAttribute("role", "img");
-      flat.setAttribute("aria-label", index === 3 ? "Hundred board with the last three cells crossed out" : "One hundred in ten rows of ten");
-      for (const i of countList(100))
-        flat.append(el("span", i >= 97 && index === 3 ? "path-crossed" : i >= 90 && index >= 2 ? "today-part-B" : "today-part-A"));
+      flat.setAttribute("aria-label", done ? `One hundred board with ${take} cells crossed out` : "One hundred in ten rows of ten");
+      for (const i of countList(100)) flat.append(el("span", done && i >= 100 - take ? "path-crossed" : i >= 90 ? "today-part-B" : "today-part-A"));
       picture.append(flat);
     }
-    placeChips(picture, counts);
-    modelNote(picture, explanation);
+    placeChips(picture, done ? placeDigits(from - take) : counts);
+    modelNote(picture, done ? `After taking away ${fmt(take)}, ${fmt(from - take)} remains.` : say);
+    if (state.mode !== "try") return;
     const row = el("div", "today-picks");
     if (state.move > 0) row.append(pathModelAction("Previous step", "path-move-back", () => state.move--));
-    if (state.move < 8)
-      row.append(
-        pathModelAction(
-          state.move === 3 ? "Try a bigger trade" : state.move === 2 || state.move === 7 ? "Take away" : "Make the next trade",
-          "path-move-next",
-          () => state.move++
-        )
-      );
+    if (state.move < last) row.append(pathModelAction("Make the next trade", "path-move-next", () => state.move++));
+    else if (!done) modelNote(picture, `Now take away ${piecesOf(placeDigits(take))}.`);
     picture.append(row);
   }
-  function areaModel(picture, state) {
-    const grid = el("div", "path-area");
+  function areaModel(picture, state, { p }) {
+    const { rows, cols } = p,
+      grid = el("div", "path-area");
     grid.setAttribute("role", "group");
-    grid.setAttribute("aria-label", "Four pieces of the 13 by 12 rectangle");
-    const parts = [
-      [10, 10],
-      [10, 2],
-      [3, 10],
-      [3, 2],
-    ];
-    parts.forEach(([rows, cols], i) => {
+    grid.setAttribute("aria-label", `Four pieces of the ${rows} by ${cols} rectangle`);
+    grid.style.setProperty("--part-width", `${cols - 10}fr`);
+    grid.style.setProperty("--part-height", `${rows - 10}fr`);
+    areaParts(p).forEach(([a, b], i) => {
       const picked = state.picks.includes(i);
-      const label = `${rows} × ${cols}`;
       const control = pathModelAction(
-        label,
+        `${a} × ${b}`,
         `path-area-${i}`,
         () => {
           state.picks = picked ? state.picks.filter((n) => n !== i) : [...state.picks, i];
@@ -1970,135 +2266,208 @@
     controls.append(down, el("strong", "", value), up);
     return controls;
   }
-  function fractionModel(picture, state) {
+  function fractionModel(picture, state, { p }) {
+    const { base, shaded, factor } = p,
+      pieces = base * factor;
     if (state.mode === "try") {
       const controls = el("div", "today-picks");
       controls.append(
-        pathModelAction("See ½ = 2/4", "path-halves", () => (state.move = 1), state.move === 1),
-        pathModelAction("Shade eighths", "path-eighths", () => (state.move = 0), state.move === 0)
+        pathModelAction("See an example", "path-halves", () => (state.move = 1), state.move === 1),
+        pathModelAction("Shade the bottom strip", "path-eighths", () => (state.move = 0), state.move === 0)
       );
       picture.append(controls);
     }
     if (state.move === 1 && state.mode === "try") {
       strip(picture, 2, 1, "1 of 2 equal parts");
       strip(picture, 4, 2, "2 of 4 equal parts");
-      modelNote(picture, "The wholes are the same length. Both shaded ends line up.");
+      modelNote(picture, "Both shaded ends line up.");
       return;
     }
-    strip(picture, 4, 3, "3 of 4 equal parts");
-    strip(picture, 8, state.count, `${state.count} of 8 equal parts`);
-    if (state.mode === "try") picture.append(pathDial(state.count, 0, 8, "Eighths shaded", "path-shade", (n) => (state.count = n)));
-    if (state.mode !== "done") return;
-    modelNote(picture, "Same fraction, different wholes");
-    strip(picture, 2, 1, "4 cm shaded out of 8 cm", (8 / 12) * 100);
-    strip(picture, 2, 1, "6 cm shaded out of 12 cm");
+    strip(picture, base, shaded, `${shaded} of ${base} equal parts`);
+    strip(picture, pieces, state.count, `${state.count} of ${pieces} equal parts`);
+    if (state.mode === "try") picture.append(pathDial(state.count, 0, pieces, "Bottom parts shaded", "path-shade", (n) => (state.count = n)));
+    if (state.mode === "done") {
+      modelNote(picture, "Same fraction, different wholes");
+      strip(picture, 2, 1, "4 cm shaded out of 8 cm", (100 * 8) / 12);
+      strip(picture, 2, 1, "6 cm shaded out of 12 cm");
+    }
   }
-  function packingModel(picture, state) {
-    const done = state.mode === "done";
-    const boxCount = done ? 23 : Math.min(state.move, 3) * 5;
+  function packingModel(picture, state, { p }) {
+    const { full, capacity, left } = p,
+      total = full * capacity + left,
+      done = state.mode === "done";
+    const boxCount = done ? full : Math.min(5 * state.move, full);
+    const remaining = total - boxCount * capacity;
     const boxes = el("div", "path-packing");
     boxes.setAttribute("role", "img");
     boxes.setAttribute(
       "aria-label",
-      `${boxCount} full boxes with four tiles in each, ${95 - 4 * boxCount} loose tiles${done ? " in one last box" : ""}`
+      `${boxCount} full boxes with ${capacity} tiles in each, ${remaining} loose tiles${done ? " in one last box" : ""}`
     );
-    for (const _ of countList(boxCount)) {
-      const box = el("span", "path-pack-box");
-      for (const __ of countList(4)) box.append(el("i"));
+    const makeBox = (n, extra = "") => {
+      const box = el("span", "path-pack-box" + extra);
+      for (const _ of countList(n)) box.append(el("i"));
       boxes.append(box);
-    }
-    if (done) {
-      const last = el("span", "path-pack-box path-pack-last");
-      for (const _ of countList(3)) last.append(el("i"));
-      boxes.append(last);
-    }
-    picture.append(el("p", "today-dimension", `${boxCount} full · ${95 - 4 * boxCount} loose tiles`), boxes);
+    };
+    for (const _ of countList(boxCount)) makeBox(capacity);
+    if (done) makeBox(left, " path-pack-last");
+    picture.append(el("p", "today-dimension", `${boxCount} full · ${remaining} loose tiles`), boxes);
     if (!done) {
       const rest = el("div", "path-loose");
       rest.setAttribute("aria-hidden", "true");
-      for (const _ of countList(95 - 4 * boxCount)) rest.append(el("i"));
+      for (const _ of countList(remaining)) rest.append(el("i"));
       picture.append(rest);
-      if (state.mode === "try" && state.move < 3) picture.append(pathModelAction("Pack 5 boxes", "path-pack", () => state.move++));
+      if (state.mode === "try" && full - boxCount > 5) picture.append(pathModelAction("Pack 5 boxes", "path-pack", () => state.move++));
     }
   }
-  function measureModel(picture, state) {
-    const showing = state.move === 1 && state.mode === "try";
-    picture.append(el("p", "today-dimension", showing ? "Example: from 3 cm to 11 cm" : "Your line: from 5 cm to 12 cm"));
-    visual({ visual: { kind: "ruler", start: showing ? 3 : 5, end: showing ? 11 : 12, max: 12, unit: "cm" } }, picture);
-    if (showing) modelNote(picture, "8 spaces, each 1 cm long.");
+  function measureModel(picture, state, { p }) {
+    const { start, end, hour, before, after } = p,
+      showing = state.move === 1 && state.mode === "try";
+    const a = showing ? 1 : start,
+      b = showing ? 8 : end;
+    picture.append(el("p", "today-dimension", `${showing ? "Example" : "Your line"}: from ${a} cm to ${b} cm`));
+    visual({ visual: { kind: "ruler", start: a, end: b, max: Math.max(12, b), unit: "cm" } }, picture);
+    if (showing) modelNote(picture, "7 spaces, each 1 cm long.");
     if (state.mode === "try")
       picture.append(pathModelAction(showing ? "See your line" : "See a ruler example", "path-ruler", () => (state.move = showing ? 0 : 1)));
     const time = el("div", "path-time-line");
-    const labels = state.mode === "done" ? ["3:50", "+10 min", "4:00", "+5 min", "4:05"] : ["3:50", "→", "4:00", "→", "4:05"];
-    for (const label of labels) time.append(el("span", "", label));
+    const done = state.mode === "done";
+    for (const label of [
+      clockText(hour, 60 - before),
+      done ? `+${before} min` : "→",
+      clockText(hour + 1, 0),
+      done ? `+${after} min` : "→",
+      clockText(hour + 1, after),
+    ])
+      time.append(el("span", "", label));
     picture.append(time);
   }
-  function transferModel(picture, state) {
-    if (state.mode === "done") {
-      picture.append(el("p", "today-dimension", "4 rows of 17"), tileArray(4, 17, 10), el("p", "path-caption", "Each row has 10 + 7."));
-    } else {
-      picture.append(el("p", "today-dimension", "Sketch an idea on paper."));
-    }
-    const groups = el("div", "path-transfer-boxes");
-    groups.setAttribute("role", "img");
-    groups.setAttribute("aria-label", state.mode === "done" ? "Six boxes with 10 plus 4 in each" : "Six empty boxes");
-    for (const _ of countList(6)) groups.append(el("span", "", state.mode === "done" ? "10 + 4" : "?"));
-    picture.append(groups);
+  function transferModel(picture, state, { p }) {
+    const { rows, cols, groups, each } = p,
+      tens = 10 * Math.floor(cols / 10),
+      eachTens = 10 * Math.floor(each / 10),
+      done = state.mode === "done";
+    picture.append(el("p", "today-dimension", `${rows} rows of ${cols}`));
+    if (done || state.move === 1) picture.append(tileArray(rows, cols, tens), el("p", "path-caption", `Each row has ${tens} + ${cols - tens}.`));
+    else if (state.mode === "try") picture.append(pathModelAction("Draw the array", "path-show-array", () => (state.move = 1)));
+    const boxes = el("div", "path-transfer-boxes");
+    boxes.setAttribute("role", "img");
+    boxes.setAttribute("aria-label", done ? `${groups} boxes with ${eachTens} plus ${each - eachTens} in each` : `${groups} empty boxes`);
+    for (const _ of countList(groups)) boxes.append(el("span", "", done ? `${eachTens} + ${each - eachTens}` : "?"));
+    picture.append(boxes);
   }
-  function tapeShape(rows) {
-    if (!rows) return el("p", "path-caption", "Choose how many tiles go in a row.");
-    if (12 % rows) return el("p", "today-note", `${rows} in a row leaves ${12 % rows} ${12 % rows === 1 ? "tile" : "tiles"} outside.`);
-    const board = tileArray(12 / rows, rows);
+  function decimalModel(picture, state, { p }) {
+    const { mode, total, part, groups } = p,
+      display = E.formatDecimal,
+      done = state.mode === "done";
+    picture.append(el("p", "today-dimension", `${display(total)} ÷ ${mode === "measure" ? display(part) : groups}`));
+    if (mode === "measure") {
+      const visible = state.move || done,
+        pieces = total / part;
+      const row = el("div", "path-decimal-bar");
+      row.style.setProperty("--pieces", visible ? pieces : 1);
+      row.setAttribute("role", "img");
+      row.setAttribute("aria-label", visible ? `${pieces} parts of ${display(part)} meters each` : `${display(total)} meters of ribbon`);
+      for (const _ of countList(visible ? pieces : 1)) row.append(el("span", "", visible ? display(part) : display(total) + " m"));
+      picture.append(row);
+      if (state.mode === "try" && !visible) picture.append(pathModelAction("Draw equal pieces", "path-decimal-pieces", () => (state.move = 1)));
+      return;
+    }
+    const digits = [Math.floor(total / 100), Math.floor(total / 10) % 10, total % 10];
+    const names = ["Whole units", "Tenths", "Hundredths"],
+      labels = ["1", "0.1", "0.01"];
+    const makePieces = (counts, caption) => {
+      const board = el("div", "path-decimal-board");
+      board.setAttribute("role", "group");
+      board.setAttribute("aria-label", caption);
+      for (const [i, n] of counts.entries()) {
+        const group = el("div", `path-decimal-place path-decimal-place-${i}`);
+        group.append(el("b", "", names[i]), el("span", "", n));
+        const pieces = el("div", "path-decimal-pieces");
+        pieces.setAttribute("aria-hidden", "true");
+        for (const _ of countList(n)) pieces.append(el("i", "", labels[i]));
+        group.append(pieces);
+        board.append(group);
+      }
+      picture.append(el("p", "path-caption", caption), board);
+    };
+    makePieces(digits, "Starting amount");
+    const show = done ? 3 : state.move;
+    const units = ["whole unit", "tenth", "hundredth"];
+    const amount = (n, i) => `${n} ${units[i]}${n === 1 ? "" : "s"}`;
+    let carry = 0;
+    const perCup = digits.map((n, i) => {
+      const available = carry * 10 + n,
+        each = Math.floor(available / groups);
+      carry = available % groups;
+      if (i < show)
+        modelNote(
+          picture,
+          `${amount(available, i)} shared across ${groups} cups: ${each} per cup.${
+            carry && i < 2 ? ` Trade ${amount(carry, i)} for ${amount(carry * 10, i + 1)}.` : ""
+          }`
+        );
+      return i < show ? each : 0;
+    });
+    if (show) makePieces(perCup, "Shared so far, per cup");
+    if (state.mode === "try" && show < 3)
+      picture.append(pathModelAction(`Share ${names[show].toLowerCase()}`, "path-decimal-share", () => state.move++));
+  }
+  function tapeShape(cols, tiles) {
+    if (!cols) return el("p", "path-caption", "Choose how many tiles go in a row.");
+    if (tiles % cols) return el("p", "today-note", `${cols} in a row leaves ${tiles % cols} ${tiles % cols === 1 ? "tile" : "tiles"} outside.`);
+    const board = tileArray(tiles / cols, cols);
     board.classList.remove("today-array-grouped");
     board.classList.add("path-tape-grid");
-    board.style.width = `${rows * 1.1}rem`;
+    board.style.width = `min(100%,${cols * 1.1}rem)`;
     return board;
   }
-  function tapeModel(picture, state) {
+  function tapeModel(picture, state, { p: { tiles } }) {
     for (const i of [0, 1]) {
-      const cols = state.tape[i];
-      const area = el("div", "path-tape");
+      const cols = state.tape[i],
+        area = el("div", "path-tape");
       const label = `Tiles across, rectangle ${i + 1}`;
-      area.append(el("p", "today-dimension", `Rectangle ${i + 1}`), tapeShape(cols));
-      if (state.mode === "try") area.append(pathDial(cols, 0, 12, label, `path-tape-${i}`, (n) => (state.tape[i] = n)));
-      if (cols && 12 % cols === 0) area.append(el("p", "path-caption", `${12 / cols} rows of ${cols} tiles`));
+      area.append(el("p", "today-dimension", `Rectangle ${i + 1}`), tapeShape(cols, tiles));
+      if (state.mode === "try") area.append(pathDial(cols, 0, Math.min(12, tiles), label, `path-tape-${i}`, (n) => (state.tape[i] = n)));
+      if (cols && tiles % cols === 0) area.append(el("p", "path-caption", `${tiles / cols} rows of ${cols} tiles`));
       picture.append(area);
     }
     if (state.mode === "done") modelNote(picture, "Follow the border to count tape. The tiles measure the inside.");
   }
-  function tapeCheck({ oneTape, twoTape, least }, state) {
+  function tapeCheck({ oneTape, twoTape, least }, state, tiles, minimum) {
     const [one, two] = state.tape;
-    if (!one || !two || 12 % one || 12 % two) return "Build two rectangles that each use exactly 12 tiles.";
-    if (pairKey(one, 12 / one) === pairKey(two, 12 / two)) return "A turned rectangle is still the same rectangle. Build a different one.";
-    if (oneTape !== 2 * (one + 12 / one) || twoTape !== 2 * (two + 12 / two)) return "Follow the outside edges of each rectangle to count its tape.";
-    return checkOK(least === undefined || least === 14, "Look for the rectangle with the shortest border.");
+    if (!one || !two || tiles % one || tiles % two) return `Build two rectangles that each use exactly ${tiles} tiles.`;
+    if (pairKey(one, tiles / one) === pairKey(two, tiles / two)) return "A turned rectangle is still the same rectangle. Build a different one.";
+    if (oneTape !== 2 * (one + tiles / one) || twoTape !== 2 * (two + tiles / two))
+      return "Follow the outside edges of each rectangle to count its tape.";
+    return checkOK(least === undefined || least === minimum, "Look for the rectangle with the shortest border.");
   }
-  function traysModel(picture, state) {
-    const revealed = state.hint || state.mode === "done";
-    const parent = el("div", "path-trays");
+  function traysModel(picture, state, { p: { reds, blues, base, extra } }) {
+    const revealed = state.hint || state.mode === "done",
+      parent = el("div", "path-trays");
     parent.setAttribute("role", "img");
     parent.setAttribute(
       "aria-label",
       revealed
-        ? "Two red trays with six extra tiles each, and three blue trays of the same base size"
-        : "Two red trays and three blue trays with unknown amounts"
+        ? `${reds} red trays with ${extra} extra tiles each and ${blues} matching blue trays`
+        : `${reds} red trays and ${blues} blue trays with unknown amounts`
     );
-    ["R", "R", "B", "B", "B"].forEach((kind) => {
+    for (const kind of [...countList(reds).map(() => "R"), ...countList(blues).map(() => "B")]) {
       const row = el("div", `path-tray path-tray-${kind}`);
-      row.append(el("b", "", kind), el("span", "path-tray-base", state.mode === "done" ? "12" : "?"));
-      if (kind === "R" && revealed) row.append(el("span", "path-tray-extra", "+ 6"));
+      row.append(el("b", "", kind), el("span", "path-tray-base", state.mode === "done" ? base : "?"));
+      if (kind === "R" && revealed) row.append(el("span", "path-tray-extra", `+ ${extra}`));
       parent.append(row);
-    });
+    }
     picture.append(parent);
-    if (revealed) picture.append(el("p", "path-caption", "The five main pieces match."));
+    if (revealed) picture.append(el("p", "path-caption", `The ${reds + blues} main pieces match.`));
   }
   function rawSides(pair) {
     const values = pair.map((v) => (/^[0-9]+$/.test(v.trim()) ? Number(v) : NaN));
     return values.every((n) => Number.isInteger(n) && n >= 1 && n <= 51) ? values : null;
   }
-  function gardenModel(picture, state) {
+  function gardenModel(picture, state, { p }) {
     const list = state.candidates;
-    picture.append(el("p", "today-dimension", "52 meters around"));
+    picture.append(el("p", "today-dimension", 2 * p.half + " meters around"));
     const shapes = el("div", "path-gardens");
     const outline = (parent, pair) => {
       const size = rawSides(pair);
@@ -2149,58 +2518,83 @@
       for (const label of ["Short (m)", "Long (m)", "Area (m²)"]) labels.append(el("th", "", label));
       head.append(labels);
       const body = el("tbody");
-      for (const i of countList(10)) {
-        const short = i + 1,
-          long = 26 - short;
-        const row = el("tr", short * long > 150 ? "path-fits" : "");
+      for (const [short, long] of gardenPairs(p)) {
+        const row = el("tr", short * long > p.area ? "path-fits" : "");
         for (const value of [short, long, short * long]) row.append(el("td", "", value));
         body.append(row);
       }
       table.append(el("caption", "", "Every pair that meets the perimeter and difference rules"), head, body);
       picture.append(table);
     }
-    if (state.mode === "try" && list.length < 12) {
+    if (state.mode === "try" && list.length < 16) {
       picture.append(pathModelAction("Add a pair of sides", "path-add-pair", () => list.push(["", ""])));
     }
   }
-  function gardenCheck(_, state) {
+  function gardenCheck(_, state, p) {
     if (!state.candidates.length) return "Add the dimensions for every garden that fits.";
     const pairs = state.candidates.map(rawSides);
     if (pairs.some((pair) => !pair)) return "Use positive whole numbers for both sides of each garden.";
     const keys = pairs.map(([a, b]) => pairKey(a, b));
     if (new Set(keys).size !== keys.length) return "A turned garden is still the same garden. Remove the duplicate.";
-    if (pairs.some(([a, b]) => 2 * (a + b) !== 52)) return "Check the perimeter. Every garden must be 52 meters around.";
-    if (pairs.some(([a, b]) => a * b <= 150)) return "Check the area. Every garden needs more than 150 square meters.";
-    if (pairs.some(([a, b]) => Math.abs(a - b) < 5)) return "Check the difference between the sides. It must be at least 5 meters.";
-    return checkOK(sameSet(keys, ["9×17", "10×16"]), "You found a garden that fits. Make sure you found every possible pair.");
+    if (pairs.some(([a, b]) => a + b !== p.half)) return `Check the perimeter. Every garden must be ${2 * p.half} meters around.`;
+    if (pairs.some(([a, b]) => a * b <= p.area)) return `Every garden needs more than ${p.area} square meters.`;
+    if (pairs.some(([a, b]) => Math.abs(a - b) < p.gap)) return `The side lengths must differ by at least ${p.gap} meters.`;
+    return checkOK(
+      sameSet(
+        keys,
+        gardenFits(p).map(([a, b]) => pairKey(a, b))
+      ),
+      "You found a garden that fits. Make sure you found every possible pair."
+    );
   }
+  const contentsTab = document.getElementById("contents-tab"),
+    problemsTab = document.getElementById("problems-tab");
+  function inContents() {
+    return ["contents", "today", "path"].includes(screen);
+  }
+  function showSection(contents) {
+    if (screen === "today") clearTodayUrl();
+    if (!inContents()) problemScreen = screen;
+    screen = contents ? "contents" : problemScreen;
+    notice = "";
+    render();
+    window.scrollTo(0, 0);
+  }
+  contentsTab.addEventListener("click", () => showSection(true));
+  problemsTab.addEventListener("click", () => showSection(false));
   function render() {
+    if (inContents()) {
+      contentsTab.setAttribute("aria-current", "page");
+      problemsTab.removeAttribute("aria-current");
+    } else {
+      contentsTab.removeAttribute("aria-current");
+      problemsTab.setAttribute("aria-current", "page");
+    }
     app.replaceChildren();
     if (screen === "home") home();
     else if (screen === "summary") summary();
     else if (screen === "today") today();
-    else if (screen === "library") pathLibrary();
+    else if (screen === "contents") pathLibrary();
     else if (screen === "path") pathLesson();
     else play();
   }
   document.addEventListener("keydown", (event) => {
     if (screen !== "play" || ["matching", "choice"].includes(round.current.response.kind) || event.target.closest("select,input")) return;
-    if (/^\d$/.test(event.key)) {
+    if (/^\d$/.test(event.key) || (event.key === "." && round.current.response.kind === "decimal")) {
       event.preventDefault();
       digit(event.key);
     } else if (event.key === "Backspace") {
       event.preventDefault();
       digit("delete");
-    } else if (event.key === "Enter") {
+    } else if (event.key === "Enter" && !event.target.closest("button,a")) {
       event.preventDefault();
       check();
     }
   });
   document.querySelector(".brand").addEventListener("click", (event) => {
-    if (!["today", "path", "library"].includes(screen) || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
-    if (screen === "today") closeLesson();
-    else pathReturn();
+    showSection(true);
   });
   if (new URLSearchParams(location.search).get("lesson") === "today") openLesson();
   else render();
